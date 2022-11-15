@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import pathlib
 
@@ -20,6 +21,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.collection = collection
+        self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
     def initial(context: codemod.CodemodContext) -> TypeCollectorVistor:
@@ -28,6 +30,11 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
     def transform_module_impl(self, tree: cst.Module) -> cst.Module:
         assert self.context.filename is not None
         assert self.context.metadata_manager is not None
+
+        file = pathlib.Path(self.context.filename).relative_to(
+            self.context.metadata_manager.root_path
+        )
+        self.logger.info(f"Collecting from {file}")
 
         from libcst.codemod.visitors._apply_type_annotations import (
             TypeCollector as LibCSTTypeCollector,
@@ -48,11 +55,8 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
             create_class_attributes=True,
             handle_function_bodies=True,
         )
-        metadataed.visit(type_collector)
 
-        file = pathlib.Path(self.context.filename).relative_to(
-            self.context.metadata_manager.root_path
-        )
+        metadataed.visit(type_collector)
         update = TypeCollection.from_annotations(
             file=file, annotations=type_collector.annotations
         )
