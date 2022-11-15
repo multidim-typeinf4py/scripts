@@ -9,7 +9,10 @@ import libcst.codemod as codemod
 from .collector import TypeCollectorVistor
 
 
-@click.command(name="diff", short_help="test based unified diff of the provided files")
+@click.command(
+    name="symbols",
+    short_help="Traverse the given repository and collect annotated tokens",
+)
 @click.option(
     "-i",
     "--input",
@@ -32,7 +35,10 @@ def entrypoint(root: pathlib.Path) -> None:
         f"Finished codemodding {result.successes + result.skips + result.failures} files!",
         file=sys.stderr,
     )
-    print(f" - Collected symbol from {result.successes} files successfully.", file=sys.stderr)
+    print(
+        f" - Collected symbol from {result.successes} files successfully.",
+        file=sys.stderr,
+    )
     print(f" - Skipped {result.skips} files.", file=sys.stderr)
     print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
     print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
