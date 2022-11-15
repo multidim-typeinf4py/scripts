@@ -1,4 +1,3 @@
-import difflib
 import pathlib
 
 import click
@@ -15,17 +14,18 @@ from libcst.codemod import _cli as cstcli
         exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path
     ),
     required=True,
-    help="Files to diff"
+    help="Files to diff",
 )
-def cli(inputs: tuple[pathlib.Path, pathlib.Path]) -> None:
+def entrypoint(inputs: tuple[pathlib.Path, pathlib.Path]) -> None:
     former, latter = inputs
     former_module, latter_module = (
         cst.parse_module(former.open().read()),
         cst.parse_module(latter.open().read()),
     )
 
-    diff = cstcli.diff_code(former_module.code, latter_module.code)
+    diff = cstcli.diff_code(former_module.code, latter_module.code, context=1)
     print(diff)
 
+
 if __name__ == "__main__":
-    cli()
+    entrypoint()
