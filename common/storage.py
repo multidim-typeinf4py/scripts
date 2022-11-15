@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import enum
+import functools
 import pathlib
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations
 import libcst as cst
-import libcst.codemod as codemod
 
 import pandas as pd
 
@@ -25,17 +25,23 @@ class Category(enum.Enum):
 
 class Schema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
-    category: pt.Series[pa.Category] = pa.Field(
-        isin={category.value for category in Category}
-    )
+    category: pt.Series[str] = pa.Field(isin=Category)
     qname: pt.Series[str] = pa.Field()
     anno: pt.Series[str] = pa.Field(nullable=True)
+
+
+SchemaColumns = list(Schema.to_schema().columns.keys())
 
 
 def _stringify(node: cst.CSTNode | None) -> str | None:
     if node is None:
         return None
-    return cst.Module([]).code_for_node(node)
+
+    match node:
+        case cst.Annotation(cst.Name(name)):
+            return name
+        case _:
+            raise AssertionError(f"Unhandled node: {node}")
 
 
 class TypeCollection:
@@ -45,7 +51,9 @@ class TypeCollection:
 
     @staticmethod
     def empty() -> TypeCollection:
-        return TypeCollection(df=pd.DataFrame().pipe(pt.DataFrame[Schema]))
+        return TypeCollection(
+            df=pd.DataFrame(columns=SchemaColumns).pipe(pt.DataFrame[Schema])
+        )
 
     @staticmethod
     def from_annotations(
@@ -77,7 +85,7 @@ class TypeCollection:
         for qname, anno in annotations.attributes.items():
             contents.append((filename, Category.ATTRIBUTE, qname, _stringify(anno)))
 
-        df = pd.DataFrame(contents, columns=list(Schema.__fields__.keys()))
+        df = pd.DataFrame(contents, columns=SchemaColumns)
         return TypeCollection(df.pipe(pt.DataFrame[Schema]))
 
     @pa.check_types
