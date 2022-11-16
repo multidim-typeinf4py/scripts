@@ -48,8 +48,12 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
         imports_visitor = GatherImportsVisitor(context=self.context)
         metadataed.visit(imports_visitor)
 
+        existing_imports = set(
+            item.module for item in imports_visitor.symbol_mapping.values()
+        )
+
         type_collector = LibCSTTypeCollector(
-            existing_imports=imports_visitor.module_imports,
+            existing_imports=existing_imports,
             module_imports=imports_visitor.symbol_mapping,
             context=self.context,
             create_class_attributes=True,
@@ -60,6 +64,6 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
         update = TypeCollection.from_annotations(
             file=file, annotations=type_collector.annotations
         )
-        self.collection.merge(update)
 
+        self.collection.merge(update)
         return tree
