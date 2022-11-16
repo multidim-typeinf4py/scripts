@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import enum
-import functools
 import pathlib
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations
@@ -40,6 +39,8 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
     match node:
         case cst.Annotation(cst.Name(name)):
             return name
+        case cst.Annotation(cst.Module()):
+            return node.annotation.code
         case _:
             raise AssertionError(f"Unhandled node: {node}")
 
