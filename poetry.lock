@@ -79,7 +79,7 @@ python-versions = "*"
 
 [[package]]
 name = "libcst"
-version = "0.1.dev935+g6349f56"
+version = "0.1.dev936+g9bbc744"
 description = "A concrete syntax tree with AST-like properties for Python 3.5, 3.6, 3.7, 3.8, 3.9, and 3.10 programs."
 category = "main"
 optional = false
@@ -97,8 +97,8 @@ dev = ["Sphinx (>=5.1.1)", "black (==22.10.0)", "coverage (>=4.5.4)", "fixit (==
 [package.source]
 type = "git"
 url = "git@github.com:multidim-typeinf4py/LibCST.git"
-reference = "feature/type-collector"
-resolved_reference = "9bbc74472f7a0fdc3e0893f945aae5cf73d51d9b"
+reference = "main"
+resolved_reference = "c50af9f7649cc68729c5384c92759785e3de85ef"
 
 [[package]]
 name = "mccabe"
@@ -372,7 +372,7 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "5a559d447d916cd8de96f615e008540b8aa27f5136a3b52d874b10bef03c5a54"
+content-hash = "589aed87b6c83f869d4425726067d2e2d1eede1c42417bc703ca45e99d852bd2"
 
 [metadata.files]
 attrs = [
