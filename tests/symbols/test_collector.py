@@ -36,7 +36,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("function", "int"),
                 ("function_with_multiline_parameters", "int"),
                 ("Clazz.__init__", "None"),
-                ("Clazz.method", "None"),
+                ("Clazz.method", missing.NA),
                 ("Clazz.multiline_method", "tuple"),
                 ("Clazz.function", "int"),
                 ("outer", "int"),

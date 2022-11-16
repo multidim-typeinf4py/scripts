@@ -30,7 +30,7 @@ def entrypoint(root: pathlib.Path) -> None:
 def _impl(root: pathlib.Path) -> tuple[cstcli.ParallelTransformResult, TypeCollection]:
     repo_root = str(root.parent if root.is_file() else root)
 
-    visitor = TypeCollectorVistor.initial(context=codemod.CodemodContext())
+    visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
     result = codemod.parallel_exec_transform_with_prettyprint(
         transform=visitor,
         files=cstcli.gather_files([str(root)]),

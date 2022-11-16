@@ -60,7 +60,7 @@ class TypeCollection:
 
     @staticmethod
     def from_annotations(
-        file: pathlib.Path, annotations: Annotations
+        file: pathlib.Path, annotations: Annotations, strict: bool
     ) -> TypeCollection:
 
         from pandas._libs import missing
@@ -69,14 +69,15 @@ class TypeCollection:
 
         contents = list()
         for fkey, fanno in annotations.functions.items():
-            # NOTE: if fanno.returns is None, this is accurate!, as:
-            # NOTE: Functions without a return type are assumed to return None
+            # NOTE: if fanno.returns is None, this is ACCURATE (for Python itself)!,
+            # NOTE: However, in strict mode, we take this to be INACCURATE, as our primary objective
+            # NOTE: is to denote missing coverage
             contents.append(
                 (
                     filename,
                     Category.CALLABLE_RETURN,
                     fkey.name,
-                    _stringify(fanno.returns) or "None",
+                    _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
             )
 

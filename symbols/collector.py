@@ -17,15 +17,20 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
     collection: TypeCollection
 
     def __init__(
-        self, context: codemod.CodemodContext, collection: TypeCollection
+        self, context: codemod.CodemodContext, collection: TypeCollection, strict: bool
     ) -> None:
         super().__init__(context)
         self.collection = collection
+        self.strict = strict
         self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
-    def initial(context: codemod.CodemodContext) -> TypeCollectorVistor:
-        return TypeCollectorVistor(context=context, collection=TypeCollection.empty())
+    def strict(context: codemod.CodemodContext) -> TypeCollectorVistor:
+        return TypeCollectorVistor(context=context, collection=TypeCollection.empty(), strict=True)
+
+    @staticmethod
+    def lax(context: codemod.CodemodContext) -> TypeCollectorVistor:
+        return TypeCollectorVistor(context=context, collection=TypeCollection.empty(), strict=False)
 
     def transform_module_impl(self, tree: cst.Module) -> cst.Module:
         assert self.context.filename is not None
@@ -63,7 +68,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
 
         metadataed.visit(type_collector)
         update = TypeCollection.from_annotations(
-            file=file, annotations=type_collector.annotations
+            file=file, annotations=type_collector.annotations, strict=self.strict
         )
 
         self.collection.merge(update)
