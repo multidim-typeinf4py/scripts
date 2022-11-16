@@ -14,30 +14,34 @@ def function_with_multiline_parameters(
     v: str = f'{a}{b}{c}'
     return int(v)
 
-class Clazz:
+class Clazz(dict):
+    a: int
     def __init__(self, a: int) -> None:
         self.a: int = a
 
-    def method(self, a: int, b: str, c: int) -> tuple:
+    # NOTE: Check that "None" is inferred
+    # NOTE: "None" != None
+    def method(self, a: int, b: str, c: int):
         return a, b, c
 
     def multiline_method(
         self, 
         a: str, 
         b: int, 
-        c: str
+        c # NOTE: Check that this parameter does not receive a type!
     ) -> tuple:
         return a, b, c
 
+    # NOTE: Check that the parameter's hints symbols are fully qualified!
     def function(self, a: A, b: B, c: C) -> int:
-        v: str = f'{a}{b}{c}'
+        v = f'{a}{b}{c}' # NOTE: Not typed on purpose!
         return int(v)
 
 a: int = 5
 
 def outer() -> int:
     def nested(a: int) -> str:
-        result = str(a)
+        result: str = str(a)
         return result
 
     return int(nested(10))

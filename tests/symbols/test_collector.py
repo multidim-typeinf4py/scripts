@@ -4,6 +4,8 @@ import typing
 from common.storage import Schema, SchemaColumns, Category
 from symbols import cli
 
+from pandas._libs import missing
+
 import pandas as pd
 import pandera as pa
 import pandera.typing as pt
@@ -34,7 +36,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("function", "int"),
                 ("function_with_multiline_parameters", "int"),
                 ("Clazz.__init__", "None"),
-                ("Clazz.method", "tuple"),
+                ("Clazz.method", "None"),
                 ("Clazz.multiline_method", "tuple"),
                 ("Clazz.function", "int"),
                 ("outer", "int"),
@@ -53,16 +55,20 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("function_with_multiline_parameters.b", "int"),
                 ("function_with_multiline_parameters.c", "str"),
                 # Clazz.__init__
+                ("Clazz.__init__.self", missing.NA),
                 ("Clazz.__init__.a", "int"),
                 # Clazz.method
+                ("Clazz.method.self", missing.NA),
                 ("Clazz.method.a", "int"),
                 ("Clazz.method.b", "str"),
                 ("Clazz.method.c", "int"),
                 # Clazz.multiline_method
+                ("Clazz.multiline_method.self", missing.NA),
                 ("Clazz.multiline_method.a", "str"),
                 ("Clazz.multiline_method.b", "int"),
-                ("Clazz.multiline_method.c", "str"),
+                ("Clazz.multiline_method.c", missing.NA),
                 # Clazz.function
+                ("Clazz.function.self", missing.NA),
                 ("Clazz.function.a", "a.A"),
                 ("Clazz.function.b", "b.B"),
                 ("Clazz.function.c", "c.C"),
@@ -70,11 +76,30 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("outer.nested.a", "int"),
             ],
         ),
+        (
+            Category.VARIABLE,
+            [
+                ("function.v", "str"),
+                ("function_with_multiline_parameters.v", "str"),
+                ("Clazz.__init__.self.a", "int"),
+                ("Clazz.function.v", missing.NA),
+                ("a", "int"),
+                ("outer.nested.result", "str"),
+            ],
+        ),
+        (
+            Category.CLASS_ATTR,
+            [
+                ("Clazz.a", "int")
+            ],
+        ),
     ],
-    ids=[str(Category.CALLABLE_RETURN), str(Category.CALLABLE_PARAMETER)],
+    ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "CLASS_ATTR"],
 )
 def test_returns(
-    code_path: pathlib.Path, category: Category, hinted_symbols: list[tuple[str, str]]
+    code_path: pathlib.Path,
+    category: Category,
+    hinted_symbols: list[tuple[str, str | missing.NAType]],
 ) -> None:
     codemod_res, collection = cli._impl(code_path)
     assert codemod_res.failures == 0
@@ -86,10 +111,11 @@ def test_returns(
         pt.DataFrame[Schema]
     )
 
-    # print("Expected: ", returns_df, sep="\n")
-    # print("Actual: ", df, sep="\n")
+    print("Expected: ", hints_df, sep="\n")
+    print("Actual: ", collection._df[collection._df["category"] == category], sep="\n")
 
-    joined = pd.merge(collection._df, hints_df, on=SchemaColumns)
-    assert len(joined) == len(
-        hints_df
-    ), f"Missing:\n{pd.concat([hints_df, joined]).drop_duplicates(keep=False)}"
+    common = pd.merge(collection._df, hints_df, on=SchemaColumns)
+    diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
+    print("Diff:", diff, sep="\n")
+
+    assert diff.empty
