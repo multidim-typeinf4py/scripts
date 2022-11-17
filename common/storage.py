@@ -1,62 +1,37 @@
 from __future__ import annotations
 
-import enum
+import functools
 import pathlib
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations
 import libcst as cst
 
 import pandas as pd
-from pandas._libs import missing
-
 import pandera as pa
 import pandera.typing as pt
 
 
-class Category(enum.Enum):
-    VARIABLE = ("variable",)
-    CALLABLE_RETURN = ("function",)
-    CALLABLE_PARAMETER = ("parameter",)
-    CLASS_ATTR = ("classdef",)
+from ._helper import _stringify
+from .schemas import (
+    TypeCollectionCategory,
+    TypeCollectionSchema,
+    TypeCollectionSchemaColumns,
+)
 
-    def __str__(self) -> str:
-        return self.name
-
-
-class Schema(pa.SchemaModel):
-    file: pt.Series[str] = pa.Field()
-    category: pt.Series[str] = pa.Field(isin=Category)
-    qname: pt.Series[str] = pa.Field()
-    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
-
-
-SchemaColumns = list(Schema.to_schema().columns.keys())
-
-
-def _stringify(node: cst.CSTNode | None) -> str | None:
-    match node:
-        case cst.Annotation(cst.Name(name)):
-            return name
-        case cst.Annotation(cst.Module()):
-            m: cst.Module = node.annotation
-            return m.code
-        case cst.Name(name):
-            return name
-        case None:
-            return None
-        case _:
-            raise AssertionError(f"Unhandled node: {node}")
+from .schemas import MergedAnnotationSchema, MergedAnnotationSchemaColumns
 
 
 class TypeCollection:
     @pa.check_types
-    def __init__(self, df: pt.DataFrame[Schema]) -> None:
+    def __init__(self, df: pt.DataFrame[TypeCollectionSchema]) -> None:
         self.df = df
 
     @staticmethod
     def empty() -> TypeCollection:
         return TypeCollection(
-            df=pd.DataFrame(columns=SchemaColumns).pipe(pt.DataFrame[Schema])
+            df=pd.DataFrame(columns=TypeCollectionSchemaColumns).pipe(
+                pt.DataFrame[TypeCollectionSchema]
+            )
         )
 
     @staticmethod
@@ -76,7 +51,7 @@ class TypeCollection:
             contents.append(
                 (
                     filename,
-                    Category.CALLABLE_RETURN,
+                    TypeCollectionCategory.CALLABLE_RETURN,
                     fkey.name,
                     _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
@@ -90,7 +65,7 @@ class TypeCollection:
                 contents.append(
                     (
                         filename,
-                        Category.CALLABLE_PARAMETER,
+                        TypeCollectionCategory.CALLABLE_PARAMETER,
                         f"{fkey.name}.{param.name.value}",
                         _stringify(param.annotation) or missing.NA,
                     )
@@ -99,7 +74,12 @@ class TypeCollection:
         for qname, anno in annotations.attributes.items():
             # NOTE: assignments to variables without an annotation are deemed INVALID
             contents.append(
-                (filename, Category.VARIABLE, qname, _stringify(anno) or missing.NA)
+                (
+                    filename,
+                    TypeCollectionCategory.VARIABLE,
+                    qname,
+                    _stringify(anno) or missing.NA,
+                )
             )
 
         for cqname, cdef in annotations.class_definitions.items():
@@ -110,14 +90,14 @@ class TypeCollection:
                 contents.append(
                     (
                         filename,
-                        Category.CLASS_ATTR,
+                        TypeCollectionCategory.CLASS_ATTR,
                         f"{cqname}.{_stringify(annassign.target)}",
                         _stringify(annassign.annotation),
                     )
                 )
 
-        df = pd.DataFrame(contents, columns=SchemaColumns)
-        return TypeCollection(df.pipe(pt.DataFrame[Schema]))
+        df = pd.DataFrame(contents, columns=TypeCollectionSchemaColumns)
+        return TypeCollection(df.pipe(pt.DataFrame[TypeCollectionSchema]))
 
     @staticmethod
     def load(path: str | pathlib.Path) -> TypeCollection:
@@ -125,22 +105,66 @@ class TypeCollection:
             df=pd.read_csv(
                 path,
                 sep="\t",
-                converters={"category": lambda c: Category[c]},
-            ).pipe(pt.DataFrame[Schema])
+                converters={"category": lambda c: TypeCollectionCategory[c]},
+            ).pipe(pt.DataFrame[TypeCollectionSchema])
         )
 
     def write(self, path: str | pathlib.Path) -> None:
         self.df.to_csv(
-            path, sep="\t", index=False, header=SchemaColumns, na_rep=missing.NA
+            path,
+            sep="\t",
+            index=False,
+            header=TypeCollectionSchemaColumns,
         )
 
     @pa.check_types
-    def update(self, other: pt.DataFrame[Schema]) -> None:
+    def update(self, other: pt.DataFrame[TypeCollectionSchema]) -> None:
         self.df = (
             pd.concat([self.df, other], ignore_index=True)
             .drop_duplicates(keep="last")
-            .pipe(pt.DataFrame[Schema])
+            .pipe(pt.DataFrame[TypeCollectionSchema])
         )
 
-    def merge(self, other: TypeCollection) -> None:
+    def merge_into(self, other: TypeCollection) -> None:
         self.update(other.df)
+
+
+# Currently schema-less as merging results into unpredictable column naming
+class MergedAnnotations:
+    @pa.check_types
+    def __init__(self, df: pt.DataFrame[MergedAnnotationSchema]) -> None:
+        self.df = df
+
+    @staticmethod
+    def from_collections(
+        collections: list[tuple[pathlib.Path, TypeCollection]]
+    ) -> MergedAnnotations:
+        renamed_dfs = map(
+            lambda pathdf: pathdf[1].df.rename({"anno": f"{pathdf[0].name}_anno"}),
+            collections,
+        )
+        df: pt.DataFrame[MergedAnnotationSchema] = functools.reduce(
+            lambda acc, curr: pd.merge(
+                left=acc, right=curr, how="outer", on=MergedAnnotationSchemaColumns
+            ),
+            renamed_dfs,
+        ).pipe(pt.DataFrame[MergedAnnotationSchema])
+
+        return MergedAnnotations(df=df)
+
+    @staticmethod
+    def load(path: str | pathlib.Path) -> MergedAnnotations:
+        return MergedAnnotations(
+            df=pd.read_csv(
+                path,
+                sep="\t",
+                converters={"category": lambda c: TypeCollectionCategory[c]},
+            ).pipe(pt.DataFrame[MergedAnnotationSchema])
+        )
+
+    def write(self, path: str | pathlib.Path) -> None:
+        self.df.to_csv(
+            path,
+            sep="\t",
+            index=False,
+        )

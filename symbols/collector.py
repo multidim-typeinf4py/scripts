@@ -71,5 +71,5 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
             file=file, annotations=type_collector.annotations, strict=self._strict
         )
 
-        self.collection.merge(update)
+        self.collection.merge_into(update)
         return tree

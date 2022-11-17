@@ -30,15 +30,20 @@ from .collector import TypeCollectorVistor
         exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
     ),
     required=True,
-    help="Output path for .csv"
+    help="Output path for .csv",
 )
 def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
     result, collection = _collect(root)
     if result.failures or result.warnings:
-        print("WARNING: Failures and / or warnings occurred, the symbol collection may be incomplete!")
+        print(
+            "WARNING: Failures and / or warnings occurred, the symbol collection may be incomplete!"
+        )
+    _store(collection, output)
 
 
-def _collect(root: pathlib.Path) -> tuple[cstcli.ParallelTransformResult, TypeCollection]:
+def _collect(
+    root: pathlib.Path,
+) -> tuple[cstcli.ParallelTransformResult, TypeCollection]:
     repo_root = str(root.parent if root.is_file() else root)
 
     visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
@@ -63,6 +68,11 @@ def _collect(root: pathlib.Path) -> tuple[cstcli.ParallelTransformResult, TypeCo
     print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
 
     return result, visitor.collection
+
+
+def _store(collection: TypeCollection, output: pathlib.Path) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    collection.write(output)
 
 
 if __name__ == "__main__":
