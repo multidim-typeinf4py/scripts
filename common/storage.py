@@ -7,16 +7,17 @@ from libcst.codemod.visitors._apply_type_annotations import Annotations
 import libcst as cst
 
 import pandas as pd
+from pandas._libs import missing
 
 import pandera as pa
 import pandera.typing as pt
 
 
 class Category(enum.Enum):
-    VARIABLE = "variable"
-    CALLABLE_RETURN = "function"
-    CALLABLE_PARAMETER = "parameter"
-    CLASS_ATTR = "classdef"
+    VARIABLE = ("variable",)
+    CALLABLE_RETURN = ("function",)
+    CALLABLE_PARAMETER = ("parameter",)
+    CLASS_ATTR = ("classdef",)
 
     def __str__(self) -> str:
         return self.name
@@ -50,7 +51,7 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
 class TypeCollection:
     @pa.check_types
     def __init__(self, df: pt.DataFrame[Schema]) -> None:
-        self._df = df
+        self.df = df
 
     @staticmethod
     def empty() -> TypeCollection:
@@ -118,13 +119,28 @@ class TypeCollection:
         df = pd.DataFrame(contents, columns=SchemaColumns)
         return TypeCollection(df.pipe(pt.DataFrame[Schema]))
 
+    @staticmethod
+    def load(path: str | pathlib.Path) -> TypeCollection:
+        return TypeCollection(
+            df=pd.read_csv(
+                path,
+                sep="\t",
+                converters={"category": lambda c: Category[c]},
+            ).pipe(pt.DataFrame[Schema])
+        )
+
+    def write(self, path: str | pathlib.Path) -> None:
+        self.df.to_csv(
+            path, sep="\t", index=False, header=SchemaColumns, na_rep=missing.NA
+        )
+
     @pa.check_types
     def update(self, other: pt.DataFrame[Schema]) -> None:
-        self._df = (
-            pd.concat([self._df, other], ignore_index=True)
+        self.df = (
+            pd.concat([self.df, other], ignore_index=True)
             .drop_duplicates(keep="last")
             .pipe(pt.DataFrame[Schema])
         )
 
     def merge(self, other: TypeCollection) -> None:
-        self.update(other._df)
+        self.update(other.df)

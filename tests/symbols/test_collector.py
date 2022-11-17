@@ -1,7 +1,7 @@
 import pathlib
 import typing
 
-from common.storage import Schema, SchemaColumns, Category
+from common.storage import Schema, SchemaColumns, Category, TypeCollection
 from symbols import cli
 
 from pandas._libs import missing
@@ -89,19 +89,17 @@ def code_path() -> typing.Iterator[pathlib.Path]:
         ),
         (
             Category.CLASS_ATTR,
-            [
-                ("Clazz.a", "int")
-            ],
+            [("Clazz.a", "int")],
         ),
     ],
     ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "CLASS_ATTR"],
 )
-def test_returns(
+def test_hints_found(
     code_path: pathlib.Path,
     category: Category,
     hinted_symbols: list[tuple[str, str | missing.NAType]],
 ) -> None:
-    codemod_res, collection = cli._impl(code_path)
+    codemod_res, collection = cli._collect(code_path)
     assert codemod_res.failures == 0
 
     hints = [
@@ -112,10 +110,25 @@ def test_returns(
     )
 
     print("Expected: ", hints_df, sep="\n")
-    print("Actual: ", collection._df[collection._df["category"] == category], sep="\n")
+    print("Actual: ", collection.df[collection.df["category"] == category], sep="\n")
 
-    common = pd.merge(collection._df, hints_df, on=SchemaColumns)
+    common = pd.merge(collection.df, hints_df, on=SchemaColumns)
     diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
     print("Diff:", diff, sep="\n")
 
     assert diff.empty
+
+
+def test_loadable(code_path: pathlib.Path) -> None:
+    import tempfile
+
+    codemod_res, collection = cli._collect(code_path)
+    assert codemod_res.failures == 0
+
+    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
+        collection.write(tmpfile.name)
+        reloaded = TypeCollection.load(tmpfile.name)
+
+        diff = pd.concat([collection.df, reloaded.df]).drop_duplicates(keep=False)
+        print("Diff between in-memory and serde'd", diff, sep="\n")
+        assert diff.empty

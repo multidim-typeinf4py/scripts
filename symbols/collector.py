@@ -21,7 +21,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.collection = collection
-        self.strict = strict
+        self._strict = strict
         self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
@@ -68,7 +68,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
 
         metadataed.visit(type_collector)
         update = TypeCollection.from_annotations(
-            file=file, annotations=type_collector.annotations, strict=self.strict
+            file=file, annotations=type_collector.annotations, strict=self._strict
         )
 
         self.collection.merge(update)
