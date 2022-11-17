@@ -22,7 +22,7 @@ pandas-stubs = "<=1.4.3"
 
 [tool.mypy]
 plugins = ["pandera.mypy"]
-exclude = ["x.py"]
+exclude = ["tests/resources/"]
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
