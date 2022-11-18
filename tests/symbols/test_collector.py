@@ -1,13 +1,19 @@
 import pathlib
 import typing
 
-from common.storage import Schema, SchemaColumns, Category, TypeCollection
+from common.schemas import (
+    TypeCollectionSchema,
+    TypeCollectionSchemaColumns,
+    TypeCollectionCategory,
+)
+from common.storage import TypeCollection
+
+
 from symbols import cli
 
 from pandas._libs import missing
 
 import pandas as pd
-import pandera as pa
 import pandera.typing as pt
 
 import pytest
@@ -15,7 +21,7 @@ import pytest
 
 @pytest.fixture
 def code_path() -> typing.Iterator[pathlib.Path]:
-    path = pathlib.Path("tests", "symbols", "x.py")
+    path = pathlib.Path("tests", "resources", "proj1", "x.py")
     content = path.open().read()
 
     yield path
@@ -31,7 +37,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
     ],
     argvalues=[
         (
-            Category.CALLABLE_RETURN,
+            TypeCollectionCategory.CALLABLE_RETURN,
             [
                 ("function", "int"),
                 ("function_with_multiline_parameters", "int"),
@@ -44,7 +50,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
             ],
         ),
         (
-            Category.CALLABLE_PARAMETER,
+            TypeCollectionCategory.CALLABLE_PARAMETER,
             [
                 # function
                 ("function.a", "int"),
@@ -77,7 +83,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
             ],
         ),
         (
-            Category.VARIABLE,
+            TypeCollectionCategory.VARIABLE,
             [
                 ("function.v", "str"),
                 ("function_with_multiline_parameters.v", "str"),
@@ -88,7 +94,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
             ],
         ),
         (
-            Category.CLASS_ATTR,
+            TypeCollectionCategory.CLASS_ATTR,
             [("Clazz.a", "int")],
         ),
     ],
@@ -96,7 +102,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
 )
 def test_hints_found(
     code_path: pathlib.Path,
-    category: Category,
+    category: TypeCollectionCategory,
     hinted_symbols: list[tuple[str, str | missing.NAType]],
 ) -> None:
     codemod_res, collection = cli._collect(code_path)
@@ -105,14 +111,14 @@ def test_hints_found(
     hints = [
         (str(code_path.name), category, qname, anno) for qname, anno in hinted_symbols
     ]
-    hints_df: pt.DataFrame[Schema] = pd.DataFrame(hints, columns=SchemaColumns).pipe(
-        pt.DataFrame[Schema]
-    )
+    hints_df: pt.DataFrame[TypeCollectionSchema] = pd.DataFrame(
+        hints, columns=TypeCollectionSchemaColumns
+    ).pipe(pt.DataFrame[TypeCollectionSchema])
 
     print("Expected: ", hints_df, sep="\n")
     print("Actual: ", collection.df[collection.df["category"] == category], sep="\n")
 
-    common = pd.merge(collection.df, hints_df, on=SchemaColumns)
+    common = pd.merge(collection.df, hints_df, on=TypeCollectionSchemaColumns)
     diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
     print("Diff:", diff, sep="\n")
 

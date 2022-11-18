@@ -1,4 +1,4 @@
-# Based on x.py, minus Clazz.function and a
+# Based on proj1/x.py, minus type hints for Clazz.function and a
 
 from a import A
 from b import B
@@ -34,6 +34,12 @@ class Clazz(dict):
     ) -> tuple:
         return a, b, c
 
+    # NOTE: Not typed on purpose!
+    def function(self, a, b, c):
+        v = f"{a}{b}{c}"  
+        return int(v)
+
+a = 5
 
 def outer() -> int:
     def nested(a: int) -> str:
