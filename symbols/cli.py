@@ -30,7 +30,7 @@ from .collector import TypeCollectorVistor
         exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
     ),
     required=True,
-    help="Output path for .csv",
+    help="Output path for .tsv",
 )
 def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
     result, collection = _collect(root)

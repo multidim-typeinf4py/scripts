@@ -37,7 +37,7 @@ from symbols.collector import TypeCollectorVistor
         exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
     ),
     required=True,
-    help="Output path for .csv",
+    help="Output path for .tsv",
 )
 def entrypoint(repo: list[pathlib.Path], output: pathlib.Path) -> None:
     merged_annotations = _collect(roots=repo)
