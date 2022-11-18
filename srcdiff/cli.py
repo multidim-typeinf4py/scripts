@@ -5,7 +5,7 @@ import libcst as cst
 from libcst.codemod import _cli as cstcli
 
 
-@click.command(name="diff", short_help="test based unified diff of the provided files")
+@click.command(name="srcdiff", short_help="source based unified diff of the provided files")
 @click.option(
     "-i",
     "--inputs",

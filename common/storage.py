@@ -1,61 +1,39 @@
 from __future__ import annotations
 
-import enum
+import functools
 import pathlib
+import typing
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations
 import libcst as cst
 
+from pandas._libs import missing
 import pandas as pd
-
 import pandera as pa
 import pandera.typing as pt
 
 
-class Category(enum.Enum):
-    VARIABLE = "variable"
-    CALLABLE_RETURN = "function"
-    CALLABLE_PARAMETER = "parameter"
-    CLASS_ATTR = "classdef"
+from ._helper import _stringify
+from .schemas import (
+    TypeCollectionCategory,
+    TypeCollectionSchema,
+    TypeCollectionSchemaColumns,
+)
 
-    def __str__(self) -> str:
-        return self.name
-
-
-class Schema(pa.SchemaModel):
-    file: pt.Series[str] = pa.Field()
-    category: pt.Series[str] = pa.Field(isin=Category)
-    qname: pt.Series[str] = pa.Field()
-    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
-
-
-SchemaColumns = list(Schema.to_schema().columns.keys())
-
-
-def _stringify(node: cst.CSTNode | None) -> str | None:
-    match node:
-        case cst.Annotation(cst.Name(name)):
-            return name
-        case cst.Annotation(cst.Module()):
-            m: cst.Module = node.annotation
-            return m.code
-        case cst.Name(name):
-            return name
-        case None:
-            return None
-        case _:
-            raise AssertionError(f"Unhandled node: {node}")
+from .schemas import MergedAnnotationSchema, MergedAnnotationSchemaColumns
 
 
 class TypeCollection:
     @pa.check_types
-    def __init__(self, df: pt.DataFrame[Schema]) -> None:
-        self._df = df
+    def __init__(self, df: pt.DataFrame[TypeCollectionSchema]) -> None:
+        self.df = df
 
     @staticmethod
     def empty() -> TypeCollection:
         return TypeCollection(
-            df=pd.DataFrame(columns=SchemaColumns).pipe(pt.DataFrame[Schema])
+            df=pd.DataFrame(columns=TypeCollectionSchemaColumns).pipe(
+                pt.DataFrame[TypeCollectionSchema]
+            )
         )
 
     @staticmethod
@@ -75,7 +53,7 @@ class TypeCollection:
             contents.append(
                 (
                     filename,
-                    Category.CALLABLE_RETURN,
+                    TypeCollectionCategory.CALLABLE_RETURN,
                     fkey.name,
                     _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
@@ -89,7 +67,7 @@ class TypeCollection:
                 contents.append(
                     (
                         filename,
-                        Category.CALLABLE_PARAMETER,
+                        TypeCollectionCategory.CALLABLE_PARAMETER,
                         f"{fkey.name}.{param.name.value}",
                         _stringify(param.annotation) or missing.NA,
                     )
@@ -98,7 +76,12 @@ class TypeCollection:
         for qname, anno in annotations.attributes.items():
             # NOTE: assignments to variables without an annotation are deemed INVALID
             contents.append(
-                (filename, Category.VARIABLE, qname, _stringify(anno) or missing.NA)
+                (
+                    filename,
+                    TypeCollectionCategory.VARIABLE,
+                    qname,
+                    _stringify(anno) or missing.NA,
+                )
             )
 
         for cqname, cdef in annotations.class_definitions.items():
@@ -109,22 +92,136 @@ class TypeCollection:
                 contents.append(
                     (
                         filename,
-                        Category.CLASS_ATTR,
+                        TypeCollectionCategory.CLASS_ATTR,
                         f"{cqname}.{_stringify(annassign.target)}",
                         _stringify(annassign.annotation),
                     )
                 )
 
-        df = pd.DataFrame(contents, columns=SchemaColumns)
-        return TypeCollection(df.pipe(pt.DataFrame[Schema]))
+        df = pd.DataFrame(contents, columns=TypeCollectionSchemaColumns)
+        return TypeCollection(df.pipe(pt.DataFrame[TypeCollectionSchema]))
 
-    @pa.check_types
-    def update(self, other: pt.DataFrame[Schema]) -> None:
-        self._df = (
-            pd.concat([self._df, other], ignore_index=True)
-            .drop_duplicates(keep="last")
-            .pipe(pt.DataFrame[Schema])
+    @staticmethod
+    def load(path: str | pathlib.Path) -> TypeCollection:
+        return TypeCollection(
+            df=pd.read_csv(
+                path,
+                sep="\t",
+                converters={"category": lambda c: TypeCollectionCategory[c]},
+            ).pipe(pt.DataFrame[TypeCollectionSchema])
         )
 
-    def merge(self, other: TypeCollection) -> None:
-        self.update(other._df)
+    def write(self, path: str | pathlib.Path) -> None:
+        self.df.to_csv(
+            path,
+            sep="\t",
+            index=False,
+            header=TypeCollectionSchemaColumns,
+        )
+
+    @pa.check_types
+    def update(self, other: pt.DataFrame[TypeCollectionSchema]) -> None:
+        self.df = (
+            pd.concat([self.df, other], ignore_index=True)
+            .drop_duplicates(keep="last")
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+    def merge_into(self, other: TypeCollection) -> None:
+        self.update(other.df)
+
+
+# Currently schema-less as merging results into unpredictable column naming
+class MergedAnnotations:
+    """
+    Maintain DataFrames used for tracking symbols across multiple files,
+    and allow for querying of symbols in a manner that makes comparing occurrences of
+    a singular symbol across the "same" file in different places simple
+    """
+
+    @pa.check_types
+    def __init__(self, df: pt.DataFrame[MergedAnnotationSchema]) -> None:
+        self.df = df
+
+    @staticmethod
+    def from_collections(
+        collections: typing.Sequence[tuple[pathlib.Path, TypeCollection]],
+    ) -> MergedAnnotations:
+        dfs = map(
+            lambda pdf: pdf[1].df.rename(columns={"anno": f"{pdf[0].name}_anno"}),
+            collections,
+        )
+
+        df: pd.DataFrame = functools.reduce(
+            lambda acc, curr: pd.merge(
+                left=acc, right=curr, how="outer", on=["file", "category", "qname"]
+            ),
+            dfs,
+        ).fillna(missing.NA)
+
+        return MergedAnnotations(df=df.pipe(pt.DataFrame[MergedAnnotationSchema]))
+
+    @staticmethod
+    def load(path: str | pathlib.Path) -> MergedAnnotations:
+        return MergedAnnotations(
+            df=pd.read_csv(
+                path,
+                sep="\t",
+                converters={"category": lambda c: TypeCollectionCategory[c]},
+            ).pipe(pt.DataFrame[MergedAnnotationSchema])
+        )
+
+    def write(self, path: str | pathlib.Path) -> None:
+        self.df.to_csv(
+            path,
+            sep="\t",
+            index=False,
+        )
+
+    def differing(
+        self,
+        *,
+        roots: list[pathlib.Path] | None = None,
+        files: list[pathlib.Path] | None = None,
+    ) -> pt.DataFrame[MergedAnnotationSchema]:
+
+        # Query relevant files
+        match files:
+            case [pathlib.Path(), *_]:
+                sfiles = list(map(str, files))
+                relevant_file_df = self.df[self.df["file"].isin(sfiles)]
+            case None:
+                relevant_file_df = self.df
+            case _:
+                raise AssertionError(
+                    f"Unhandled case for `files`: {list(map(type, files))}"
+                )
+
+        # Query relevant projects
+        match roots:
+            case [pathlib.Path(), *_]:
+                relevant_root_df = relevant_file_df.filter(
+                    items=[f"{root.name}_anno" for root in roots]
+                )
+            case None:
+                relevant_root_df = relevant_file_df.filter(regex=r"_anno$")
+            case _:
+                raise AssertionError(
+                    f"Unhandled case for `roots`: {list(map(type, roots))}"
+                )
+
+        # Compute differences between projects
+        relevant_anno_df = relevant_root_df[
+            relevant_root_df.apply(
+                lambda row: pd.Series.nunique(row, dropna=False), axis=1
+            )
+            != 1
+        ]
+
+        anno_diff = pd.merge(
+            left=self.df[MergedAnnotationSchemaColumns],
+            right=relevant_anno_df,
+            left_index=True,
+            right_index=True,
+        )
+        return anno_diff.pipe(pt.DataFrame[MergedAnnotationSchema])
