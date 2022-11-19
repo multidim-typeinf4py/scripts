@@ -225,3 +225,15 @@ class MergedAnnotations:
             right_index=True,
         )
         return anno_diff.pipe(pt.DataFrame[MergedAnnotationSchema])
+
+    def hints_for_repo(
+        self, *, repo: pathlib.Path, files: list[pathlib.Path] | None = None
+    ) -> pt.DataFrame[TypeCollectionSchema]:
+        df = self.df[MergedAnnotationSchemaColumns + [f"{repo.name}_anno"]].rename(
+            columns={f"{repo.name}_anno": "anno"}
+        )
+
+        sfiles = list(map(str, files))
+        file_df = df[df["file"].isin(sfiles)]
+
+        return file_df.pipe(pt.DataFrame[TypeCollectionSchema])

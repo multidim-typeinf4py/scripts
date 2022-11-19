@@ -1,4 +1,3 @@
-import itertools
 import os
 import pathlib
 import sys
@@ -9,12 +8,10 @@ from libcst.codemod import _cli as cstcli
 import libcst.codemod as codemod
 import pandas as pd
 
-import functools
-import operator
 
-from common.storage import MergedAnnotations, TypeCollection
+from common.storage import MergedAnnotations
 from symbols.collector import TypeCollectorVistor
-
+from . import hintstat
 
 @click.command(
     name="hintdiff",
@@ -23,10 +20,10 @@ from symbols.collector import TypeCollectorVistor
 @click.option(
     "-r",
     "--repo",
-    multiple=True,
     type=click.Path(
         exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
     ),
+    multiple=True,
     required=True,
     help="Repositories to collect from",
 )
@@ -37,11 +34,26 @@ from symbols.collector import TypeCollectorVistor
         exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
     ),
     required=True,
-    help="Output path for .tsv",
+    help="Output path for .tsv and derived statistics",
 )
-def entrypoint(repo: list[pathlib.Path], output: pathlib.Path) -> None:
+@click.option(
+    "-s",
+    "--statistic",
+    type=click.Choice(choices=list(hintstat.Statistic.__members__.keys()), case_sensitive=False),
+    callback=lambda ctx, _, val: {
+        hintstat.Statistic.COVERAGE: hintstat.Coverage,
+    }[val],
+    multiple=True,
+    required=False,
+    help="Compute relevant statistics and store alongside .tsv"
+)
+def entrypoint(repo: list[pathlib.Path], output: pathlib.Path, statistic: list[hintstat.StatisticImpl] | None) -> None:
     merged_annotations = _collect(roots=repo)
-    _store(merged_annotations, output)
+
+    merged_annotations.write(output)
+
+    for stat in statistic or []:
+        statout = stat.forward(merged_annotations)
 
 
 def _collect(
@@ -102,7 +114,7 @@ def _collect(
 
 
 def _store(annotation: MergedAnnotations, output: pathlib.Path) -> None:
-    annotation.write(output)
+    
 
 
 if __name__ == "__main__":
