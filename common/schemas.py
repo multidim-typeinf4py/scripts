@@ -24,13 +24,6 @@ class TypeCollectionSchema(pa.SchemaModel):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
-class TypeCollectionRow(typing.NamedTuple):
-    file: str
-    category: TypeCollectionCategory
-    qname: str
-    anno: str
-
-
 TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
 
 

@@ -11,7 +11,8 @@ import pandas as pd
 
 from common.storage import MergedAnnotations
 from symbols.collector import TypeCollectorVistor
-from . import hintstat
+
+from . import coverage, hintstat
 
 
 @click.command(
@@ -37,9 +38,7 @@ from . import hintstat
     "-s",
     "--statistic",
     type=click.Choice(choices=list(hintstat.Statistic.__members__.keys()), case_sensitive=False),
-    callback=lambda ctx, _, val: {
-        hintstat.Statistic.COVERAGE: hintstat.Coverage,
-    }[val],
+    callback=lambda ctx, _, val: {hintstat.Statistic.COVERAGE: coverage.Coverage()}[val],
     multiple=True,
     required=False,
     help="Compute relevant statistics and store alongside .tsv",

@@ -4,7 +4,7 @@ import pandera.typing as pt
 from pandas._libs import missing
 import pandas as pd
 
-from hintdiff import hintstat
+import hintdiff
 from common.storage import MergedAnnotations
 from common.schemas import MergedAnnotationSchema, TypeCollectionCategory
 
@@ -39,13 +39,12 @@ def annotations() -> MergedAnnotations:
     ],
     ids=["proj1", "proj2", "both"],
 )
-# @pytest.mark.parametrize(argnames=["output"], argvalues=[,)])
 def test_coverage(
     annotations: MergedAnnotations, projects: list[str], coverages: list[float]
 ) -> None:
-    statistic = hintstat.Coverage()
+    statistic = hintdiff.Coverage()
 
-    expected = pt.DataFrame[hintstat.CoverageSchema](
+    expected = pt.DataFrame[hintdiff.CoverageSchema](
         {"repository": projects, "coverage": coverages}
     )
 

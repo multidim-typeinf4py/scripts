@@ -1,3 +1,5 @@
 from .cli import entrypoint
 
-__all__ = ["entrypoint"]
+from .coverage import Coverage, CoverageSchema
+
+__all__ = ["entrypoint", "Coverage", "CoverageSchema"]
