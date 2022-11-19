@@ -193,9 +193,7 @@ class MergedAnnotations:
             case None:
                 relevant_file_df = self.df
             case _:
-                raise AssertionError(
-                    f"Unhandled case for `files`: {list(map(type, files))}"
-                )
+                raise AssertionError(f"Unhandled case for `files`: {list(map(type, files))}")
 
         # Query relevant projects
         match roots:
@@ -206,16 +204,11 @@ class MergedAnnotations:
             case None:
                 relevant_root_df = relevant_file_df.filter(regex=r"_anno$")
             case _:
-                raise AssertionError(
-                    f"Unhandled case for `roots`: {list(map(type, roots))}"
-                )
+                raise AssertionError(f"Unhandled case for `roots`: {list(map(type, roots))}")
 
         # Compute differences between projects
         relevant_anno_df = relevant_root_df[
-            relevant_root_df.apply(
-                lambda row: pd.Series.nunique(row, dropna=False), axis=1
-            )
-            != 1
+            relevant_root_df.apply(lambda row: pd.Series.nunique(row, dropna=False), axis=1) != 1
         ]
 
         anno_diff = pd.merge(
@@ -233,7 +226,7 @@ class MergedAnnotations:
             columns={f"{repo.name}_anno": "anno"}
         )
 
-        sfiles = list(map(str, files))
+        sfiles = list(map(str, files or []))
         file_df = df[df["file"].isin(sfiles)]
 
         return file_df.pipe(pt.DataFrame[TypeCollectionSchema])

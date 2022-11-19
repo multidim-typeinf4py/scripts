@@ -36,10 +36,12 @@ class Clazz(dict):
 
     # NOTE: Not typed on purpose!
     def function(self, a, b, c):
-        v = f"{a}{b}{c}"  
+        v = f"{a}{b}{c}"
         return int(v)
 
+
 a = 5
+
 
 def outer() -> int:
     def nested(a: int) -> str:

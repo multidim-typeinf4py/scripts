@@ -65,21 +65,15 @@ def test_missing_symbols_exist(
 
     # Query entire accumulated dataset
     merge_diff = merged.differing()
-    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(
-        keep=False
-    )
+    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(keep=False)
     assert diff.empty
 
     # Query specific files
     merge_diff = merged.differing(files=[pathlib.Path("x.py")])
-    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(
-        keep=False
-    )
+    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(keep=False)
     assert diff.empty
 
     # Query specific projects
     merge_diff = merged.differing(roots=list(paths))
-    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(
-        keep=False
-    )
+    diff = pd.concat([merge_diff[symbol_diff.columns], symbol_diff]).drop_duplicates(keep=False)
     assert diff.empty

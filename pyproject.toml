@@ -24,6 +24,12 @@ pandas-stubs = "<=1.4.3"
 plugins = ["pandera.mypy"]
 exclude = ["tests/resources/"]
 
+[tool.black]
+line-length = 100
+
+[tool.flake8]
+max-line-length = 100
+
 [build-system]
 build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]

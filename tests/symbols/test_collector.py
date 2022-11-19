@@ -108,9 +108,7 @@ def test_hints_found(
     codemod_res, collection = cli._collect(code_path)
     assert codemod_res.failures == 0
 
-    hints = [
-        (str(code_path.name), category, qname, anno) for qname, anno in hinted_symbols
-    ]
+    hints = [(str(code_path.name), category, qname, anno) for qname, anno in hinted_symbols]
     hints_df: pt.DataFrame[TypeCollectionSchema] = pd.DataFrame(
         hints, columns=TypeCollectionSchemaColumns
     ).pipe(pt.DataFrame[TypeCollectionSchema])

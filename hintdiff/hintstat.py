@@ -6,6 +6,7 @@ from common.schemas import MergedAnnotationSchemaColumns, TypeCollectionSchema
 from common.storage import MergedAnnotations
 
 import pandas as pd
+from pandas._libs import missing
 import pandera.typing as pt
 
 
@@ -21,16 +22,15 @@ class StatisticOutput(dict[pathlib.Path, pd.DataFrame]):
 
 
 class StatisticImpl:
-    def __init__(self, projects: list[pathlib.Path]) -> None:
-        self._projects = projects
-
     @property
     @abc.abstractmethod
     def ident(self) -> Statistic:
         ...
 
     @abc.abstractmethod
-    def forward(self, annotations: MergedAnnotations) -> StatisticOutput:
+    def forward(
+        self, *, repos: list[pathlib.Path], annotations: MergedAnnotations
+    ) -> StatisticOutput:
         ...
 
 
@@ -42,9 +42,7 @@ class Coverage(StatisticImpl):
     ) -> StatisticOutput:
         return StatisticOutput(
             {
-                repo: annotations.df[f"{repo.name}_anno"]
-                .notna()
-                .value_counts(normalize=True)[True]
+                repo: annotations.df[f"{repo.name}_anno"].value_counts(normalize=True)[missing.NA]
                 for repo in repos
             }
         )

@@ -7,10 +7,10 @@ import pandera.typing as pt
 
 
 class TypeCollectionCategory(enum.Enum):
-    VARIABLE = "variable",
-    CALLABLE_RETURN = "function",
-    CALLABLE_PARAMETER = "parameter",
-    CLASS_ATTR = "classdef",
+    VARIABLE = ("variable",)
+    CALLABLE_RETURN = ("function",)
+    CALLABLE_PARAMETER = ("parameter",)
+    CLASS_ATTR = ("classdef",)
 
     def __str__(self) -> str:
         return self.name

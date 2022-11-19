@@ -2,6 +2,7 @@ import libcst as cst
 
 import typing
 
+
 @typing.no_type_check
 def _stringify(node: cst.CSTNode | None) -> str | None:
     match node:

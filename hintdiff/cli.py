@@ -13,6 +13,7 @@ from common.storage import MergedAnnotations
 from symbols.collector import TypeCollectorVistor
 from . import hintstat
 
+
 @click.command(
     name="hintdiff",
     short_help="Compare symbols and their annotations across provided repositories",
@@ -20,9 +21,7 @@ from . import hintstat
 @click.option(
     "-r",
     "--repo",
-    type=click.Path(
-        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     multiple=True,
     required=True,
     help="Repositories to collect from",
@@ -30,9 +29,7 @@ from . import hintstat
 @click.option(
     "-o",
     "--output",
-    type=click.Path(
-        exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path),
     required=True,
     help="Output path for .tsv and derived statistics",
 )
@@ -45,15 +42,19 @@ from . import hintstat
     }[val],
     multiple=True,
     required=False,
-    help="Compute relevant statistics and store alongside .tsv"
+    help="Compute relevant statistics and store alongside .tsv",
 )
-def entrypoint(repo: list[pathlib.Path], output: pathlib.Path, statistic: list[hintstat.StatisticImpl] | None) -> None:
+def entrypoint(
+    repo: list[pathlib.Path],
+    output: pathlib.Path,
+    statistic: list[hintstat.StatisticImpl] | None,
+) -> None:
     merged_annotations = _collect(roots=repo)
 
     merged_annotations.write(output)
 
     for stat in statistic or []:
-        statout = stat.forward(merged_annotations)
+        statout = stat.forward(repos=repo, annotations=merged_annotations)
 
 
 def _collect(
@@ -72,8 +73,7 @@ def _collect(
     for root in roots:
         sroot = str(root)
         files_per_root[str(root)] = [
-            os.path.relpath(subfile, sroot)
-            for subfile in cstcli.gather_files([str(root)])
+            os.path.relpath(subfile, sroot) for subfile in cstcli.gather_files([str(root)])
         ]
 
     roots_df = pd.concat(
@@ -111,10 +111,6 @@ def _collect(
     merged_annotations = MergedAnnotations.from_collections(paths_with_collections)
 
     return merged_annotations
-
-
-def _store(annotation: MergedAnnotations, output: pathlib.Path) -> None:
-    
 
 
 if __name__ == "__main__":
