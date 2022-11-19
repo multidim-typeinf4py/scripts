@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import enum
+import typing
 
 import pandera as pa
 import pandera.typing as pt
 
 
 class TypeCollectionCategory(enum.Enum):
-    VARIABLE = "variable",
-    CALLABLE_RETURN = "function",
-    CALLABLE_PARAMETER = "parameter",
-    CLASS_ATTR = "classdef",
+    VARIABLE = "variable"
+    CALLABLE_RETURN = "function"
+    CALLABLE_PARAMETER = "parameter"
+    CLASS_ATTR = "classdef"
 
     def __str__(self) -> str:
         return self.name
@@ -21,6 +22,13 @@ class TypeCollectionSchema(pa.SchemaModel):
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
     qname: pt.Series[str] = pa.Field()
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+
+
+class TypeCollectionRow(typing.NamedTuple):
+    file: str
+    category: TypeCollectionCategory
+    qname: str
+    anno: str
 
 
 TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())

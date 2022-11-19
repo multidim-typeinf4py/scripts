@@ -10,9 +10,7 @@ from libcst.codemod import _cli as cstcli
     "-i",
     "--inputs",
     nargs=2,
-    type=click.Path(
-        exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path),
     required=True,
     help="Files to diff",
 )

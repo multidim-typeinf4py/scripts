@@ -17,18 +17,14 @@ from .collector import TypeCollectorVistor
 @click.option(
     "-r",
     "--root",
-    type=click.Path(
-        exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path),
     required=True,
     help="Root of Repository to gather annotations from",
 )
 @click.option(
     "-o",
     "--output",
-    type=click.Path(
-        exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=False, file_okay=True, dir_okay=False, path_type=pathlib.Path),
     required=True,
     help="Output path for .tsv",
 )
