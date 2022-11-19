@@ -16,6 +16,9 @@ class Statistic(enum.Enum):
 
 
 class StatisticImpl:
+    def _read_anno_for_repo(self, repo: pathlib.Path, annotations: MergedAnnotations) -> pd.Series:
+        return annotations.df[f"{repo.name}_anno"]
+
     @property
     @abc.abstractmethod
     def ident(self) -> Statistic:
