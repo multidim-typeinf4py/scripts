@@ -23,7 +23,7 @@ def annotations() -> MergedAnnotations:
                 (xpy, TypeCollectionCategory.CALLABLE_RETURN, "f", "int", missing.NA),
                 (xpy, TypeCollectionCategory.VARIABLE, "a", "int", "str"),
                 (xpy, TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", "bytes", missing.NA),
-                (xpy, TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", "bytestring", missing.NA),
+                (xpy, TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", "bytestring", "bytestring"),
             ],
             columns=["file", "category", "qname", "proj1_anno", "proj2_anno"],
         )
@@ -34,8 +34,8 @@ def annotations() -> MergedAnnotations:
     argnames=["projects", "coverages"],
     argvalues=[
         (["proj1"], [1.0]),
-        (["proj2"], [0.25]),
-        (["proj1", "proj2"], [1.0, 0.25]),
+        (["proj2"], [0.5]),
+        (["proj1", "proj2"], [1.0, 0.5]),
     ],
     ids=["proj1", "proj2", "both"],
 )
@@ -46,6 +46,32 @@ def test_coverage(
 
     expected = pt.DataFrame[hintdiff.CoverageSchema](
         {"repository": projects, "coverage": coverages}
+    )
+
+    repos = list(map(pathlib.Path, projects))
+    actual = statistic.forward(repos=repos, annotations=annotations)
+
+    diff = pd.concat([actual, expected], ignore_index=True).drop_duplicates(keep=False)
+    print(diff)
+    assert diff.empty
+
+
+@pytest.mark.parametrize(
+    argnames=["projects", "accuracys"],
+    argvalues=[
+        (["proj1"], [1.0]),
+        (["proj2"], [1.0]),
+        (["proj1", "proj2"], [1.0, 0.25]),
+    ],
+    ids=["proj1", "proj2", "both"],
+)
+def test_accuracy(
+    annotations: MergedAnnotations, projects: list[str], accuracys: list[float]
+) -> None:
+    statistic = hintdiff.Accuracy(reference=pathlib.Path(projects[0]))
+
+    expected = pt.DataFrame[hintdiff.AccuracySchema](
+        {"repository": projects, "accuracy": accuracys}
     )
 
     repos = list(map(pathlib.Path, projects))
