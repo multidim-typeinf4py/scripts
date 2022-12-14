@@ -11,10 +11,14 @@ from common.schemas import TypeCollectionSchema
 class Pyre(ProjectWideInference):
     method = "pyre"
 
+    _OUTPUT_DIR = ".pyre-stubs"
+
     def _infer_project(self) -> pt.DataFrame[TypeCollectionSchema]:
         with scratchpad(self.project) as sp:
             config = configuration.create_configuration(
-                arguments=command_arguments.CommandArguments(),
+                arguments=command_arguments.CommandArguments(
+                    dot_pyre_directory=sp / Pyre._OUTPUT_DIR
+                ),
                 base_directory=sp,
             )
             infargs = command_arguments.InferArguments(
@@ -22,7 +26,7 @@ class Pyre(ProjectWideInference):
                 annotate_attributes=True,
                 annotate_from_existing_stubs=True,
                 debug_infer=False,
-                quote_annotations=True,
+                quote_annotations=False,
                 dequalify=False,
                 in_place=True,
                 print_only=False,
@@ -34,4 +38,4 @@ class Pyre(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            return _adaptors.hints2df(sp)
+            return _adaptors.hints2df(sp / Pyre._OUTPUT_DIR)

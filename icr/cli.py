@@ -58,7 +58,7 @@ def entrypoint(
     for inference in itertools.chain(statics):
         inference.infer()
 
-    inferences = { inference.method: inference.inferred for inference in itertools.chain(statics) }
+    inferences = {inference.method: inference.inferred for inference in itertools.chain(statics)}
 
 
 if __name__ == "__main__":

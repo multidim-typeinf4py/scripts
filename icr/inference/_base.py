@@ -22,12 +22,14 @@ def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path]:
 
 
 class Inference(abc.ABC):
+
+    project: pathlib.Path
+    inferred: pt.DataFrame[InferredSchema]
+
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__()
         self.project = project
-        self.inferred: pt.DataFrame[InferredSchema] = pt.DataFrame[InferredSchema](
-            columns=InferredSchemaColumns
-        )
+        self.inferred = pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
 
     @abc.abstractmethod
     def infer(self) -> None:
@@ -58,6 +60,7 @@ class PerFileInference(Inference):
         super().__init__(project)
 
     def infer(self) -> None:
+        updates = list()
         for subfile in self.project.rglob("*.py"):
             relative = subfile.relative_to(self.project)
             if str(relative) not in self.inferred["file"]:
@@ -66,11 +69,13 @@ class PerFileInference(Inference):
                     .assign(method=self.method)
                     .pipe(pt.DataFrame[InferredSchema])
                 )
-                self.inferred = (
-                    pd.concat([self.inferred, reldf], ignore_index=True)
-                    .drop_duplicates(keep="first", ignore_index=True)
-                    .pipe(pt.DataFrame[InferredSchema])
-                )
+                updates.append(reldf)
+        if updates:
+            self.inferred = (
+                pd.concat([self.inferred, *updates])
+                .drop_duplicates(keep="first", ignore_index=True)
+                .pipe(pt.DataFrame[InferredSchema])
+            )
 
     @abc.abstractmethod
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
