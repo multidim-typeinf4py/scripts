@@ -1,10 +1,24 @@
 import abc
+from contextlib import contextmanager
 import pathlib
+import tempfile
+import typing
+import shutil
 
 from common.schemas import InferredSchema, InferredSchemaColumns, TypeCollectionSchema
 
 import pandera.typing as pt
 import pandas as pd
+
+
+@contextmanager
+def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path]:
+    with tempfile.TemporaryDirectory() as td:
+        shutil.copytree(src=str(untouched), dst=td, dirs_exist_ok=True)
+        try:
+            yield pathlib.Path(td)
+        finally:
+            pass
 
 
 class Inference(abc.ABC):
