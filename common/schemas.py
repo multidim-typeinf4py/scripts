@@ -37,3 +37,13 @@ class MergedAnnotationSchema(pa.SchemaModel):
 
 
 MergedAnnotationSchemaColumns = list(MergedAnnotationSchema.to_schema().columns.keys())
+
+
+class InferredSchema(pa.SchemaModel):
+    method: pt.Series[str] = pa.Field()
+    file: pt.Series[str] = pa.Field()
+    category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
+    qname: pt.Series[str] = pa.Field()
+    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+
+InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
