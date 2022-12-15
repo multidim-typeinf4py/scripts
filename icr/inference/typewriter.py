@@ -16,7 +16,7 @@ import pandera.typing as pt
 
 from typewriter.dltpy.preprocessing.pipeline import extractor, read_file, preprocessor
 from typewriter.dltpy.input_preparation.generate_df import format_df
-from typewriter.dltpy.preprocessing.extractor import Function
+from typewriter.dltpy.preprocessing.extractor import Function, ParseError
 from typewriter.extraction import (
     process_datapoints_TW,
     IdentifierSequence,
