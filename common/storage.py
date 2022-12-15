@@ -186,25 +186,24 @@ class MergedAnnotations:
     ) -> pt.DataFrame[MergedAnnotationSchema]:
 
         # Query relevant files
-        match files:
-            case [pathlib.Path(), *_]:
-                sfiles = list(map(str, files))
-                relevant_file_df = self.df[self.df["file"].isin(sfiles)]
-            case None:
-                relevant_file_df = self.df
-            case _:
-                raise AssertionError(f"Unhandled case for `files`: {list(map(type, files))}")
+        if isinstance(files, list):
+            sfiles = list(map(str, files))
+            relevant_file_df = self.df[self.df["file"].isin(sfiles)]
+        elif files is None:
+            relevant_file_df = self.df
+        else:
+            raise AssertionError(f"Unhandled case for `files`: {list(map(type, files))}")
 
         # Query relevant projects
-        match roots:
-            case [pathlib.Path(), *_]:
-                relevant_root_df = relevant_file_df.filter(
-                    items=[f"{root.name}_anno" for root in roots]
-                )
-            case None:
-                relevant_root_df = relevant_file_df.filter(regex=r"_anno$")
-            case _:
-                raise AssertionError(f"Unhandled case for `roots`: {list(map(type, roots))}")
+        if isinstance(roots, list):
+            relevant_root_df = relevant_file_df.filter(
+                items=[f"{root.name}_anno" for root in roots]
+            )
+        elif roots is None:
+            relevant_root_df = relevant_file_df.filter(regex=r"_anno$")
+
+        else:
+            raise AssertionError(f"Unhandled case for `roots`: {list(map(type, roots))}")
 
         # Compute differences between projects
         relevant_anno_df = relevant_root_df[
