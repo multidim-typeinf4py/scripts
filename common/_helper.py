@@ -5,15 +5,16 @@ import typing
 
 @typing.no_type_check
 def _stringify(node: cst.CSTNode | None) -> str | None:
-    match node:
-        case cst.Annotation(cst.Name(name)):
-            return name
-        case cst.Annotation(cst.Module()):
-            m: cst.Module = node.annotation
-            return m.code
-        case cst.Name(name):
-            return name
-        case None:
-            return None
-        case _:
-            raise AssertionError(f"Unhandled node: {node}")
+    if isinstance(node, cst.Annotation):
+        if isinstance(node.annotation, cst.Name):
+            return node.annotation.value
+        elif isinstance(node.annotation, cst.Module):
+            return node.annotation.code
+
+    elif isinstance(node, cst.Name):
+        return node.value
+
+    elif node is None:
+        return None
+
+    raise AssertionError(f"Unhandled node: {node}")
