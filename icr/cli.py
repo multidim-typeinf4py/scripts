@@ -53,7 +53,7 @@ def entrypoint(
     engine_t: type[ConflictResolution],
     input: pathlib.Path,
     output: pathlib.Path | None,
-):
+) -> None:
     statics = list(map(lambda ctor: ctor(input), static_ts))
     for inference in itertools.chain(statics):
         inference.infer()

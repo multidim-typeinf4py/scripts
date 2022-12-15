@@ -27,6 +27,13 @@ class MyPy(ProjectWideInference):
                     pyversion=sys.version_info[:2],
                     output_dir=MyPy._OUTPUT_DIR,
                     files=cstcli.gather_files([str(sp)], include_stubs=False),
+                    doc_dir="",
+                    search_path=[],
+                    interpreter=sys.executable,
+                    modules=[],
+                    packages=[],
+                    verbose=False,
+                    quiet=True,
                 )
             )
 
