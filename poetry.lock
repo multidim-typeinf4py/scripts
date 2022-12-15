@@ -1313,7 +1313,7 @@ tqdm = "^4.64.1"
 type = "git"
 url = "https://github.com/multidim-typeinf4py/typewriter.git"
 reference = "feature/dltinproj"
-resolved_reference = "4b567515f50ba0f9c1dcd9a2bbba8da97ec77424"
+resolved_reference = "37e86a70be4bc231ac61cd25802ac752a0d33e4d"
 
 [[package]]
 name = "typing-extensions"

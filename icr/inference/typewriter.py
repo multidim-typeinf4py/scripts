@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import pandera.typing as pt
 
+from typewriter.dltpy.preprocessing.pipeline import extractor, read_file, preprocessor
 from typewriter.dltpy.input_preparation.generate_df import format_df
 from typewriter.dltpy.preprocessing.extractor import Function
 from typewriter.extraction import (
@@ -26,6 +27,7 @@ from typewriter.extraction import (
 from typewriter.model import load_data_tensors_TW, make_batch_prediction_TW
 from typewriter.prepocessing import filter_functions, gen_argument_df_TW, encode_aval_types_TW
 
+from libcst.codemod.visitors._apply_type_annotations import Annotations
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -44,6 +46,15 @@ def process_py_src_file(src_file_path):
     :param src_file_path:
     :return:
     """
+    try:
+
+        functions, _ = extractor.extract(read_file(src_file_path))
+        preprocessed_funcs = [preprocessor.preprocess(f) for f in functions]
+        return preprocessed_funcs
+
+    except (ParseError, UnicodeDecodeError):
+        print(f"Could not parse file {src_file_path}")
+        sys.exit(1)
 
 @no_type_check
 def write_ext_funcs(ext_funcs: List[Function], src_file: str, output_dir: str):
@@ -307,6 +318,9 @@ class TypeWriter(PerFileInference):
         )
 
         params_pred = [p for p in evaluate_TW(self.tw_model, params_data_loader, top_n=1)]
+
+        # annotations = Annotations.empty()
+
         for i, p in enumerate(params_pred):
             p = " ".join(
                 [

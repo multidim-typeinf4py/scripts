@@ -5,7 +5,8 @@ import click
 
 from .resolution import ConflictResolution, Argumentation, DecisionTheory, Delegation
 
-from .inference import Inference, MyPy, Pyre
+from .inference import Inference, MyPy, Pyre, TypeWriter
+from . import _factory
 
 
 @click.command(
@@ -15,25 +16,31 @@ from .inference import Inference, MyPy, Pyre
 @click.option(
     "-s",
     "--static",
-    type=click.Choice(choices=[MyPy.__name__.lower(), Pyre.__name__.lower()]),
-    callback=lambda ctx, _, value: {
-        MyPy.__name__.lower(): MyPy,
-        Pyre.__name__.lower(): Pyre,
-    }[value.lower()],
+    type=click.Choice(choices=[MyPy.__name__.lower(), Pyre.__name__.lower()], case_sensitive=False),
+    callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
+    required=False,
+    multiple=True,
+)
+@click.option(
+    "-p",
+    "--prob",
+    type=click.Choice(choices=[TypeWriter.__name__.lower()], case_sensitive=False),
+    callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
+    required=False,
     multiple=True,
 )
 @click.option(
     "-e",
     "--engine",
     type=click.Choice(
-        choices=[Argumentation.__name__, DecisionTheory.__name__, Delegation.__name__],
+        choices=[
+            Argumentation.__name__.lower(),
+            DecisionTheory.__name__.lower(),
+            Delegation.__name__.lower(),
+        ],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: {
-        Argumentation.__name__.lower(): Argumentation,
-        DecisionTheory.__name__.lower(): DecisionTheory,
-        Delegation.__name__.lower(): Delegation,
-    }[value.lower()],
+    callback=lambda ctx, _, value: _factory._engine_factory(value),
     required=True,
 )
 @click.option(
@@ -45,20 +52,28 @@ from .inference import Inference, MyPy, Pyre
 @click.option(
     "-o",
     "--output",
-    type=click.Path(exists=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(exists=False, path_type=pathlib.Path),
     required=False,
 )
 def entrypoint(
-    static_ts: list[type[Inference]],
-    engine_t: type[ConflictResolution],
+    static: list[type[Inference]],
+    prob: list[type[Inference]],
+    engine: type[ConflictResolution],
     input: pathlib.Path,
     output: pathlib.Path | None,
 ) -> None:
-    statics = list(map(lambda ctor: ctor(input), static_ts))
-    for inference in itertools.chain(statics):
+    statics = list(map(lambda ctor: ctor(input), static))
+    probabilistics = list(map(lambda ctor: ctor(input), prob))
+
+    infs = lambda: itertools.chain(statics, probabilistics)
+
+    for inference in infs():
         inference.infer()
 
-    inferences = {inference.method: inference.inferred for inference in itertools.chain(statics)}
+    inferences = {inference.method: inference.inferred for inference in infs()}
+
+    engine = engine()
+    inference = engine.forward(inferences)
 
 
 if __name__ == "__main__":
