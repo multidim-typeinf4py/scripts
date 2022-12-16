@@ -12,7 +12,7 @@ import pandas as pd
 
 
 @contextmanager
-def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path]:
+def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, None]:
     with tempfile.TemporaryDirectory() as td:
         shutil.copytree(src=str(untouched), dst=td, dirs_exist_ok=True)
         try:
@@ -64,7 +64,7 @@ class PerFileInference(Inference):
         for subfile in self.project.rglob("*.py"):
             relative = subfile.relative_to(self.project)
             if str(relative) not in self.inferred["file"]:
-                reldf = (
+                reldf: pt.DataFrame[InferredSchema] = (
                     self._infer_file(relative)
                     .assign(method=self.method)
                     .pipe(pt.DataFrame[InferredSchema])
