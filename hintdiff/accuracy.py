@@ -15,6 +15,8 @@ class AccuracySchema(pa.SchemaModel):
 
 
 class Accuracy(hintstat.StatisticImpl):
+    ident = "accuracy"
+
     def __init__(self, reference: pathlib.Path) -> None:
         self._reference = reference
         super().__init__()

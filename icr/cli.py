@@ -1,11 +1,12 @@
 import pathlib
+from pprint import pprint
 import itertools
 
 import click
 
 from .resolution import ConflictResolution, Argumentation, DecisionTheory, Delegation
 
-from .inference import Inference, MyPy, Pyre, TypeWriter
+from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py
 from . import _factory
 
 
@@ -24,7 +25,9 @@ from . import _factory
 @click.option(
     "-p",
     "--prob",
-    type=click.Choice(choices=[TypeWriter.__name__.lower()], case_sensitive=False),
+    type=click.Choice(
+        choices=[TypeWriter.__name__.lower(), Type4Py.__name__.lower()], case_sensitive=False
+    ),
     callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
@@ -71,6 +74,9 @@ def entrypoint(
         inference.infer()
 
     inferences = {inference.method: inference.inferred for inference in infs()}
+
+    for inferrer in infs():
+        print(inferrer.inferred)
 
     engine = engine()
     inference = engine.forward(inferences)
