@@ -4,12 +4,12 @@ import pickle
 import re
 import sys
 from typing import List, no_type_check
+from os.path import splitext, basename, join
 
 from ._base import PerFileInference
 from common.schemas import TypeCollectionSchema
 
-from os.path import splitext, basename, join
-
+from gensim.models import Word2Vec
 import numpy as np
 import pandas as pd
 import pandera.typing as pt
@@ -34,7 +34,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 # Device configuration
-device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pd.set_option("display.max_columns", 20)
 
 # Credits go to the original Author: Amir M. Mir (TU Delft)
@@ -55,6 +55,7 @@ def process_py_src_file(src_file_path):
     except (ParseError, UnicodeDecodeError):
         print(f"Could not parse file {src_file_path}")
         sys.exit(1)
+
 
 @no_type_check
 def write_ext_funcs(ext_funcs: List[Function], src_file: str, output_dir: str):
@@ -84,6 +85,7 @@ def write_ext_funcs(ext_funcs: List[Function], src_file: str, output_dir: str):
         join(output_dir, "ext_funcs_" + splitext(basename(src_file))[0] + ".csv"), index=False
     )
 
+
 @no_type_check
 def filter_ret_funcs(ext_funcs_df: pd.DataFrame):
     """
@@ -109,6 +111,7 @@ def filter_ret_funcs(ext_funcs_df: pd.DataFrame):
 
     return ext_funcs_df
 
+
 @no_type_check
 def load_param_data(vector_dir: str):
     """
@@ -122,6 +125,7 @@ def load_param_data(vector_dir: str):
         load_data_tensors_TW(join(vector_dir, "comments_params_datapoints_x.npy")),
         load_data_tensors_TW(join(vector_dir, "params__aval_types_dp.npy")),
     )
+
 
 @no_type_check
 def load_ret_data(vector_dir: str):
@@ -137,6 +141,7 @@ def load_ret_data(vector_dir: str):
         load_data_tensors_TW(join(vector_dir, "ret__aval_types_dp.npy")),
     )
 
+
 @no_type_check
 def evaluate_TW(model: torch.nn.Module, data_loader: DataLoader, top_n=1):
 
@@ -144,7 +149,7 @@ def evaluate_TW(model: torch.nn.Module, data_loader: DataLoader, top_n=1):
 
     for i, (batch_id, batch_tok, batch_cm, batch_type) in enumerate(data_loader):
         _, batch_labels = make_batch_prediction_TW(
-            model,
+            model.to(device),
             batch_id.to(device),
             batch_tok.to(device),
             batch_cm.to(device),
@@ -171,14 +176,14 @@ class TypeWriter(PerFileInference):
         TEMP_DIR = TD.name
 
         ext_funcs = process_py_src_file(str(self.project / relative))
-        #print("Number of the extracted functions: ", len(ext_funcs))
-        #print(
+        # print("Number of the extracted functions: ", len(ext_funcs))
+        # print(
         #    "Writing the extracted functions to the disk: ",
         #    join(
         #        TEMP_DIR,
         #        "ext_funcs_" + splitext(basename(str(self.project / relative)))[0] + ".csv",
         #    ),
-        #)
+        # )
         write_ext_funcs(ext_funcs, str(self.project / relative), TEMP_DIR)
 
         ext_funcs_df = pd.read_csv(
@@ -187,12 +192,12 @@ class TypeWriter(PerFileInference):
                 "ext_funcs_" + splitext(basename(str(self.project / relative)))[0] + ".csv",
             )
         )
-        #print("Filtering out trivial functions like __str__ if exists")
+        # print("Filtering out trivial functions like __str__ if exists")
         ext_funcs_df = filter_functions(ext_funcs_df)
 
         ext_funcs_df_params = gen_argument_df_TW(ext_funcs_df)
 
-        #print("Number of extracted arguments: ", ext_funcs_df_params["arg_name"].count())
+        # print("Number of extracted arguments: ", ext_funcs_df_params["arg_name"].count())
 
         ext_funcs_df_params = ext_funcs_df_params[
             (ext_funcs_df_params["arg_name"] != "self")
@@ -202,10 +207,10 @@ class TypeWriter(PerFileInference):
             )
         ]
 
-        #print(
+        # print(
         #    "Number of Arguments after ignoring self and types with Any and None: ",
         #    ext_funcs_df_params.shape[0],
-        #)
+        # )
 
         ext_funcs_df_ret = filter_ret_funcs(ext_funcs_df)
         ext_funcs_df_ret = format_df(ext_funcs_df_ret)
@@ -220,7 +225,7 @@ class TypeWriter(PerFileInference):
             columns=["has_type", "arg_names", "arg_types", "arg_descrs", "return_expr"]
         )
 
-        #print("Encodes available types hints...")
+        # print("Encodes available types hints...")
         df_avl_types = pd.read_csv(join(TypeWriter._MODEL_DIR, "top_999_types.csv"))
         ext_funcs_df_params, ext_funcs_df_ret = encode_aval_types_TW(
             ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
@@ -231,12 +236,10 @@ class TypeWriter(PerFileInference):
 
         path = str(TypeWriter._MODEL_DIR)
 
-        #print("Loading pre-trained Word2Vec models")
         if not hasattr(self, "w2v_token_model"):
-            self.w2v_token_model = join(path, "w2v_token_model.bin")
-
-        if not hasattr(self, "w2v_comments_model"):
-            self.w2v_comments_model = join(path, "w2v_comments_model.bin")
+            print("Loading pre-trained Word2Vec models")
+            self.w2v_token_model = Word2Vec.load(join(path, "w2v_token_model.bin"))
+            self.w2v_comments_model = Word2Vec.load(join(path, "w2v_comments_model.bin"))
 
         # Arguments transformers
         id_trans_func_param = lambda row: IdentifierSequence(
@@ -260,7 +263,7 @@ class TypeWriter(PerFileInference):
             self.w2v_comments_model, row.func_descr, None, row.return_descr
         )
 
-        #print("Generating identifiers sequences")
+        # print("Generating identifiers sequences")
         dp_ids_params = process_datapoints_TW(
             join(TEMP_DIR, "ext_funcs_params.csv"),
             TEMP_DIR,
@@ -272,7 +275,7 @@ class TypeWriter(PerFileInference):
             join(TEMP_DIR, "ext_funcs_ret.csv"), TEMP_DIR, "identifiers_", "ret", id_trans_func_ret
         )
 
-        #print("Generating tokens sequences")
+        # print("Generating tokens sequences")
         dp_tokens_params = process_datapoints_TW(
             join(TEMP_DIR, "ext_funcs_params.csv"),
             TEMP_DIR,
@@ -284,7 +287,7 @@ class TypeWriter(PerFileInference):
             join(TEMP_DIR, "ext_funcs_ret.csv"), TEMP_DIR, "tokens_", "ret", token_trans_func_ret
         )
 
-        #print("Generating comments sequences")
+        # print("Generating comments sequences")
         dp_cms_params = process_datapoints_TW(
             join(TEMP_DIR, "ext_funcs_params.csv"),
             TEMP_DIR,
@@ -296,7 +299,7 @@ class TypeWriter(PerFileInference):
             join(TEMP_DIR, "ext_funcs_ret.csv"), TEMP_DIR, "comments_", "ret", cm_trans_func_ret
         )
 
-        #print("Generating sequences for available types hints")
+        # print("Generating sequences for available types hints")
         dp_params_aval_types, dp_ret__aval_types = gen_aval_types_datapoints(
             join(TEMP_DIR, "ext_funcs_params.csv"),
             join(TEMP_DIR, "ext_funcs_ret.csv"),
@@ -304,8 +307,8 @@ class TypeWriter(PerFileInference):
             TEMP_DIR,
         )
 
-        #print("Loading the pre-trained neural model of TypeWriter from the disk...")
         if not hasattr(self, "tw_model"):
+            print("Loading the pre-trained neural model of TypeWriter from the disk...")
             self.tw_model = torch.load(TypeWriter._MODEL_DIR / "tw_pretrained_model_combined.pt")
             self.label_encoder = pickle.load(
                 open(join(TypeWriter._MODEL_DIR, "label_encoder.pkl"), "rb")
