@@ -15,8 +15,6 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
         match node:
             case cst.Annotation():
                 return _stringify(node.annotation)
-            case cst.Name(name):
-                return name
             case None:
                 return None
             case _:
