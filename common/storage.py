@@ -88,15 +88,15 @@ class TypeCollection:
             for stmt in cdef.body.body:
                 # NOTE: No need to check for validity of `annassign.annotation`
                 # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
-                annassign: cst.AnnAssign = stmt.body[0]
-                contents.append(
-                    (
-                        filename,
-                        TypeCollectionCategory.CLASS_ATTR,
-                        f"{cqname}.{_stringify(annassign.target)}",
-                        _stringify(annassign.annotation),
+                if isinstance(annassign := stmt.body[0], cst.AnnAssign):
+                    contents.append(
+                        (
+                            filename,
+                            TypeCollectionCategory.CLASS_ATTR,
+                            f"{cqname}.{_stringify(annassign.target)}",
+                            _stringify(annassign.annotation),
+                        )
                     )
-                )
 
         df = pd.DataFrame(contents, columns=TypeCollectionSchemaColumns)
         return TypeCollection(df.pipe(pt.DataFrame[TypeCollectionSchema]))
