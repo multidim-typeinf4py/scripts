@@ -237,24 +237,6 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
                         return None
 
     def _handle_func(self, f: _Type4PyFunc, params: cst.Parameters) -> FunctionAnnotation:
-        """if kp := f.params_p.get("args"):
-            f.params_p.pop("args")
-
-            hint, _ = kp[0]
-            hint = cst.parse_expression(hint)
-            star_arg = cst.Param(name=cst.Name("args"), annotation=cst.Annotation(hint))
-        else:
-            star_arg = None
-
-        if kp := f.params_p.get("kwargs"):
-            f.params_p.pop("kwargs")
-
-            hint, _ = kp[0]
-            hint = cst.parse_expression(hint)
-            star_kwarg = cst.Param(name=cst.Name("kwargs"), annotation=cst.Annotation(hint))
-        else:
-            star_kwarg = None """
-
         num_params: list[cst.Param] = list()
         kwonly_params: list[cst.Param] = list()
         posonly_params: list[cst.Param] = list()
@@ -277,7 +259,7 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
             elif variable in kwonly_param_names:
                 kwonly_params.append(param)
             elif variable in posonly_param_names:
-                posonly_params.append(param)                
+                posonly_params.append(param)
             else:
                 raise RuntimeError(
                     f"{variable} is neither a parameter, nor a pos-only, not a kw-only parameter of {f.q_name}"

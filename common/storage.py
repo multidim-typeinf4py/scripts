@@ -68,8 +68,6 @@ class TypeCollection:
                 fanno.parameters.posonly_params,
                 fanno.parameters.params,
                 fanno.parameters.kwonly_params,
-                [fanno.parameters.star_arg] if fanno.parameters.star_arg else [],
-                [fanno.parameters.star_kwarg] if fanno.parameters.star_kwarg else [],
             ):
                 contents.append(
                     (
