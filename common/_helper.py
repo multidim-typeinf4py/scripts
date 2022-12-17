@@ -15,8 +15,6 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
         match node:
             case cst.Annotation():
                 return _stringify(node.annotation)
-            case None:
-                return None
             case _:
                 raise AssertionError(f"Unhandled node: {node}")
 
