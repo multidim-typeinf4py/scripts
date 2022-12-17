@@ -38,4 +38,4 @@ class Pyre(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            return _adaptors.hints2df(sp / Pyre._OUTPUT_DIR)
+            return _adaptors.hints2df(sp)
