@@ -8,6 +8,8 @@ from ._base import ProjectWideInference, scratchpad
 from common.schemas import TypeCollectionSchema
 
 
+# TODO: Consider libcst's TypeInferenceProvider instead, which uses Pyre anyhow
+
 class Pyre(ProjectWideInference):
     method = "pyre"
 
