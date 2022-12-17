@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import itertools
 import pathlib
 import typing
 
@@ -63,7 +64,13 @@ class TypeCollection:
             # NOTE: unlike functions, no assumption of None is given
             # NOTE: therefore, we must differentiate between "None" and None, and mark
             # NOTE: the latter as INVALID!
-            for param in fanno.parameters.params:
+            for param in itertools.chain(
+                fanno.parameters.posonly_params,
+                fanno.parameters.params,
+                fanno.parameters.kwonly_params,
+                [fanno.parameters.star_arg] if fanno.parameters.star_arg else [],
+                [fanno.parameters.star_kwarg] if fanno.parameters.star_kwarg else [],
+            ):
                 contents.append(
                     (
                         filename,
