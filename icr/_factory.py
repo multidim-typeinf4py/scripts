@@ -9,7 +9,7 @@ _INFERENCE_FACTORY: dict[str, type[Inference]] = {
 }
 
 
-def _inference_factory(value: str | None) -> Inference:
+def _inference_factory(value: str | None) -> type[Inference]:
     if value is None:
         return []
 
@@ -23,7 +23,7 @@ _ENGINE_FACTORY: dict[str, type[ConflictResolution]] = {
 }
 
 
-def _engine_factory(value: str | None) -> ConflictResolution:
+def _engine_factory(value: str | None) -> type[ConflictResolution]:
     if value is None:
         return []
 

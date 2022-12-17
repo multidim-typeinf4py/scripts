@@ -155,8 +155,11 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
         else:
             self._method_self = None
 
+        return None
+
     def leave_FunctionDef(self, _: cst.FunctionDef) -> None:
         self._method_self = None
+        return None
 
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
         # Attempt to assign to class attributes
@@ -170,7 +173,7 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
     def _handle_class_attr(self, node: cst.AssignTarget) -> None:
         # Class attributes
         if not m.matches(node.target, m.Name()):
-            return
+            return None
 
         for clazz in self._answer.response.classes:
             for variable, hints in (clazz.variables_p or dict()).items():
@@ -203,6 +206,8 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
                 )
                 return None
 
+        return None
+
     def _handle_inst_attr(self, node: cst.AssignTarget) -> None:
         assert self._method_self is not None
         if m.matches(node.target, m.Attribute(value=m.Name(self._method_self), attr=m.Name())):
@@ -232,7 +237,7 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
                         return None
 
     def _handle_func(self, f: _Type4PyFunc, params: cst.Parameters) -> FunctionAnnotation:
-        if kp := f.params_p.get("args"):
+        """if kp := f.params_p.get("args"):
             f.params_p.pop("args")
 
             hint, _ = kp[0]
@@ -248,17 +253,17 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
             hint = cst.parse_expression(hint)
             star_kwarg = cst.Param(name=cst.Name("kwargs"), annotation=cst.Annotation(hint))
         else:
-            star_kwarg = None
+            star_kwarg = None """
 
         num_params: list[cst.Param] = list()
         kwonly_params: list[cst.Param] = list()
         posonly_params: list[cst.Param] = list()
 
-        num_param_names = set(map(lambda p: p.name.value, params.params))
-        kwonly_param_names = set(map(lambda p: p.name.value, params.kwonly_params))
         posonly_param_names = set(map(lambda p: p.name.value, params.posonly_params))
+        kwonly_param_names = set(map(lambda p: p.name.value, params.kwonly_params))
+        param_names = set(map(lambda p: p.name.value, params.params))
 
-        for variable, hints in f.params_p.items():
+        for variable, hints in (f.params_p or dict()).items():
             if not hints:
                 continue
 
@@ -267,12 +272,12 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
                 name=cst.Name(variable), annotation=cst.Annotation(cst.parse_expression(hint))
             )
 
-            if variable in num_param_names:
+            if variable in param_names:
                 num_params.append(param)
             elif variable in kwonly_param_names:
                 kwonly_params.append(param)
             elif variable in posonly_param_names:
-                posonly_params.append(param)
+                posonly_params.append(param)                
             else:
                 raise RuntimeError(
                     f"{variable} is neither a parameter, nor a pos-only, not a kw-only parameter of {f.q_name}"
@@ -280,15 +285,13 @@ class Type4Py2CallableAnnotations(cst.CSTVisitor):
 
         ps = cst.Parameters(
             params=num_params,
-            star_arg=star_arg,
             kwonly_params=kwonly_params,
-            star_kwarg=star_kwarg,
             posonly_params=posonly_params,
         )
 
         match f.ret_type_p:
             case [(hint, _), *_]:
-                annoexpr = cst.Annotation(cst.parse_expression(hint))
+                annoexpr: cst.Annotation | None = cst.Annotation(cst.parse_expression(hint))
             case _:
                 annoexpr = None
 

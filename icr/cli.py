@@ -78,8 +78,8 @@ def entrypoint(
     for inferrer in infs():
         print(inferrer.inferred)
 
-    engine = engine()
-    inference = engine.forward(inferences)
+    eng = engine()
+    inference = eng.forward(inferences)
 
 
 if __name__ == "__main__":
