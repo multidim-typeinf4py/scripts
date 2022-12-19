@@ -18,6 +18,7 @@ pydantic = "^1.10.2"
 
 typewriter = {git = "https://github.com/multidim-typeinf4py/typewriter.git", branch = "feature/dltinproj"}
 types-requests = "^2.28.11.5"
+hityper = {git = "https://github.com/multidim-typeinf4py/HiTyper.git"}
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

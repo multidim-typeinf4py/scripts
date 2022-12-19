@@ -48,7 +48,11 @@ class ProjectWideInference(Inference):
     def infer(self) -> None:
         if self.inferred.empty:
             proj_inf = self._infer_project()
-            self.inferred = proj_inf.assign(method=self.method).pipe(pt.DataFrame[InferredSchema])
+            self.inferred = (
+                proj_inf.assign(method=self.method)
+                .reindex(columns=InferredSchemaColumns)
+                .pipe(pt.DataFrame[InferredSchema])
+            )
 
     @abc.abstractmethod
     def _infer_project(self) -> pt.DataFrame[TypeCollectionSchema]:
@@ -73,7 +77,7 @@ class PerFileInference(Inference):
         if updates:
             self.inferred = (
                 pd.concat([self.inferred, *updates])
-                .drop_duplicates(keep="first", ignore_index=True)
+                .reindex(columns=InferredSchemaColumns)
                 .pipe(pt.DataFrame[InferredSchema])
             )
 

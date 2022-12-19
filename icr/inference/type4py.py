@@ -40,7 +40,7 @@ _Type4PyName2Hint = dict[str, list[tuple[str, float]]]
 
 class _Type4PyFunc(NullifyEmptyDictModel):
     q_name: str
-    fn_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]]
+    fn_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]] | None
     params_p: _Type4PyName2Hint | None
     ret_type_p: list[tuple[str, float]] | None
     variables_p: _Type4PyName2Hint | None
@@ -83,9 +83,10 @@ class Type4Py(PerFileInference):
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         with (self.project / relative).open() as f:
             r = requests.post("http://localhost:5001/api/predict?tc=0", f.read())
-            print(r.text)
+            # print(r.text)
 
         answer = _Type4PyAnswer.parse_raw(r.text)
+        print(answer)
 
         if answer.error is not None:
             print(
@@ -133,7 +134,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
         # Functions
         indirect_clazz_scope = self._class_scope(node)
         if indirect_clazz_scope is None and (f := self._func(func_qname=fqnames[0])) is not None:
-            key = FunctionKey.make(f.q_name, node.params)
+            key = FunctionKey.make(f.q_name.replace(".<locals>.", "."), node.params)
             self.annotations.functions[key] = self._handle_func(f, node.params)
 
         # Methods
@@ -142,7 +143,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
             and (class_qname := indirect_clazz_scope.name) is not None
             and (f := self._method(clazz_qname=class_qname, method_qname=fqnames[0])) is not None
         ):
-            key = FunctionKey.make(f.q_name, node.params)
+            key = FunctionKey.make(f.q_name.replace(".<locals>.", "."), node.params)
             self.annotations.functions[key] = self._handle_func(f, node.params)
 
         # Mark callables when trying to assign variables
@@ -150,13 +151,15 @@ class Type4Py2Annotations(cst.CSTVisitor):
             match scope:
                 # Method
                 case metadata.ClassScope():
-                    method_self = next(map(lambda p: p.name.value, node.params.params), None)
+                    method_self: str | None = next(
+                        map(lambda p: p.name.value, node.params.params), None
+                    )
 
                 # Function
                 case _:
                     method_self = None
 
-            self._method_callable = (f.q_name, method_self)
+            self._method_callable = (fqnames[0], method_self)
 
         else:
             self._method_callable = None
@@ -389,7 +392,6 @@ class Type4Py2Annotations(cst.CSTVisitor):
         ]
 
         assert len(ms) <= 1
-
         return ms[0] if ms else None
 
     def _class_scope(self, node: cst.CSTNode) -> metadata.ClassScope | None:
