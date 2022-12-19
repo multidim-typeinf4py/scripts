@@ -4,8 +4,8 @@ import itertools
 
 import click
 
+from symbols.cli import _collect
 from .resolution import ConflictResolution, Argumentation, DecisionTheory, Delegation
-
 from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
@@ -79,8 +79,14 @@ def entrypoint(
     for inferrer in infs():
         print(inferrer.inferred)
 
-    # eng = engine()
-    # inference = eng.forward(inferences)
+    baseline = _collect(root=input)[1].df
+
+    eng = engine(project=input, reference=baseline.drop(columns=["anno"], axis=1))
+    inference = eng.resolve(
+        probabilistics[0].inferred, dynamic=None, probabilistic=probabilistics[1].inferred
+    )
+
+    print(inference)
 
 
 if __name__ == "__main__":

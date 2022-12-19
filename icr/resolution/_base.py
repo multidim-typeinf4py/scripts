@@ -1,13 +1,101 @@
 import abc
-from common.schemas import InferredSchema
+from dataclasses import dataclass
+import pathlib
+from common.schemas import (
+    SymbolSchema,
+    InferredSchema,
+    InferredSchemaColumns,
+    TypeCollectionCategory,
+)
 
+import pandas as pd
+from pandas._libs import missing
 import pandera.typing as pt
 
 
+@dataclass(frozen=True)
+class Metadata:
+    file: str
+    category: TypeCollectionCategory
+    qname: str
+
+
 class ConflictResolution(abc.ABC):
+    UNRESOLVED = missing.NA
+
+    def __init__(self, project: pathlib.Path, reference: pt.DataFrame[SymbolSchema]) -> None:
+        super().__init__()
+        self.project = project
+        self.reference = reference
+
+    def resolve(
+        self,
+        static: pt.DataFrame[InferredSchema] | None = None,
+        dynamic: pt.DataFrame[InferredSchema] | None = None,
+        probabilistic: pt.DataFrame[InferredSchema] | None = None,
+    ) -> pt.DataFrame[InferredSchema]:
+        # Defaulting
+        static = (
+            static
+            if static is not None
+            else pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
+        )
+        dynamic = (
+            dynamic
+            if dynamic is not None
+            else pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
+        )
+        probabilistic = (
+            probabilistic
+            if probabilistic is not None
+            else pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
+        )
+
+        # Discover common symbols
+        # TODO: This does not quite work, as class attributes are added to classes
+        # TODO: that are likely not present in the source file
+
+        # TODO: So how do we determine a fitting baseline?
+        # how = "right"
+        # common_cols = ["file", "qname", "category"]
+
+        # static = pd.merge(left=static, right=self.reference, how=how, on=common_cols)
+        # dynamic = pd.merge(left=dynamic, right=self.reference, how=how, on=common_cols)
+        # probabilistic = pd.merge(left=probabilistic, right=self.reference, how=how, on=common_cols)
+
+        updates: list[pt.DataFrame[InferredSchema]] = []
+
+        for (file, category, qname) in self.reference.itertuples(index=False):
+            update = self.forward(
+                static=static[
+                    (static["file"] == file)
+                    #& (static["category"] == category)
+                    & (static["qname"] == qname)
+                ],
+                dynamic=dynamic[
+                    (dynamic["file"] == file)
+                    #& (dynamic["category"] == category)
+                    & (dynamic["qname"] == qname)
+                ],
+                probabilistic=probabilistic[
+                    (probabilistic["file"] == file)
+                    #& (probabilistic["category"] == category)
+                    & (probabilistic["qname"] == qname)
+                ],
+                metadata=Metadata(file=file, category=category, qname=qname),
+            )
+
+            assert len(update) == 1
+            updates.append(update)
+
+        return pd.concat(updates, ignore_index=True).pipe(pt.DataFrame[InferredSchema])
+
     @abc.abstractmethod
     def forward(
         self,
-        inferences: dict[str, pt.DataFrame[InferredSchema]]
+        static: pt.DataFrame[InferredSchema],
+        dynamic: pt.DataFrame[InferredSchema],
+        probabilistic: pt.DataFrame[InferredSchema],
+        metadata: Metadata,
     ) -> pt.DataFrame[InferredSchema]:
         ...
