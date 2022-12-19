@@ -6,7 +6,7 @@ import click
 
 from .resolution import ConflictResolution, Argumentation, DecisionTheory, Delegation
 
-from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py
+from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
 
@@ -26,7 +26,8 @@ from . import _factory
     "-p",
     "--prob",
     type=click.Choice(
-        choices=[TypeWriter.__name__.lower(), Type4Py.__name__.lower()], case_sensitive=False
+        choices=[HiTyper.__name__.lower(), TypeWriter.__name__.lower(), Type4Py.__name__.lower()],
+        case_sensitive=False,
     ),
     callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
     required=False,
@@ -78,8 +79,8 @@ def entrypoint(
     for inferrer in infs():
         print(inferrer.inferred)
 
-    eng = engine()
-    inference = eng.forward(inferences)
+    # eng = engine()
+    # inference = eng.forward(inferences)
 
 
 if __name__ == "__main__":
