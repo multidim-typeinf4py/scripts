@@ -19,13 +19,13 @@ class MyPy(ProjectWideInference):
         with scratchpad(self.project) as sp:
             stubgen.generate_stubs(
                 options=stubgen.Options(
-                    ignore_errors=True,
+                    ignore_errors=False,
                     no_import=False,
                     parse_only=False,
                     include_private=True,
                     export_less=True,
                     pyversion=sys.version_info[:2],
-                    output_dir=MyPy._OUTPUT_DIR,
+                    output_dir=str(sp / MyPy._OUTPUT_DIR),
                     files=cstcli.gather_files([str(sp)], include_stubs=False),
                     doc_dir="",
                     search_path=[],

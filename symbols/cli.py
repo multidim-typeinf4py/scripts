@@ -39,13 +39,14 @@ def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
 
 def _collect(
     root: pathlib.Path,
+    allow_stubs=False,
 ) -> tuple[cstcli.ParallelTransformResult, TypeCollection]:
     repo_root = str(root.parent if root.is_file() else root)
 
     visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
     result = codemod.parallel_exec_transform_with_prettyprint(
         transform=visitor,
-        files=cstcli.gather_files([str(root)]),
+        files=cstcli.gather_files([str(root)], include_stubs=allow_stubs),
         jobs=1,
         blacklist_patterns=["__init__.py"],
         repo_root=repo_root,
