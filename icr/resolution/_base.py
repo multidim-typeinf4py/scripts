@@ -1,6 +1,9 @@
 import abc
 from dataclasses import dataclass
 import pathlib
+import functools
+import operator
+
 from common.schemas import (
     SymbolSchema,
     InferredSchema,
@@ -66,24 +69,51 @@ class ConflictResolution(abc.ABC):
         updates: list[pt.DataFrame[InferredSchema]] = []
 
         for (file, category, qname) in self.reference.itertuples(index=False):
+            _static = static[
+                (static["file"] == file)
+                # & (static["category"] == category)
+                & (static["qname"] == qname)
+            ]
+            _dynamic = dynamic[
+                (dynamic["file"] == file)
+                # & (dynamic["category"] == category)
+                & (dynamic["qname"] == qname)
+            ]
+            _probabilistic = probabilistic[
+                (probabilistic["file"] == file)
+                # & (probabilistic["category"] == category)
+                & (probabilistic["qname"] == qname)
+            ]
+            _metadata = Metadata(file=file, category=category, qname=qname)
+
             update = self.forward(
-                static=static[
-                    (static["file"] == file)
-                    #& (static["category"] == category)
-                    & (static["qname"] == qname)
-                ],
-                dynamic=dynamic[
-                    (dynamic["file"] == file)
-                    #& (dynamic["category"] == category)
-                    & (dynamic["qname"] == qname)
-                ],
-                probabilistic=probabilistic[
-                    (probabilistic["file"] == file)
-                    #& (probabilistic["category"] == category)
-                    & (probabilistic["qname"] == qname)
-                ],
-                metadata=Metadata(file=file, category=category, qname=qname),
+                static=_static,
+                dynamic=_dynamic,
+                probabilistic=_probabilistic,
+                metadata=_metadata,
             )
+
+            if update is None:
+                participants = "+".join(
+                    filter(
+                        None,
+                        (
+                            _static["method"].iloc[0] if not _static.empty else "",
+                            _dynamic["method"].iloc[0] if not _dynamic.empty else "",
+                            _probabilistic["method"].iloc[0] if not _probabilistic.empty else "",
+                        ),
+                    )
+                )
+
+                update = pt.DataFrame[InferredSchema](
+                    {
+                        "method": [participants],
+                        "file": [_metadata.file],
+                        "category": [_metadata.category],
+                        "qname": [_metadata.qname],
+                        "anno": [ConflictResolution.UNRESOLVED],
+                    }
+                )
 
             assert len(update) == 1
             updates.append(update)
@@ -97,5 +127,5 @@ class ConflictResolution(abc.ABC):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
         metadata: Metadata,
-    ) -> pt.DataFrame[InferredSchema]:
+    ) -> pt.DataFrame[InferredSchema] | None:
         ...
