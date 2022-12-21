@@ -77,11 +77,14 @@ class Argumentation(ConflictResolution):
     ) -> pt.DataFrame[InferredSchema] | None:
         """Perform n rounds of discussions, and select discussion with the most approvers"""
 
-        G, profile, predictions = build_graph_from_predictions(static, dynamic, probabilistic)
+        G, profile, predictions = build_discussion_from_predictions(static, dynamic, probabilistic)
         candidates: list[tuple[str, int]] = []
 
         for target in predictions:
             G_target: nx.DiGraph = G.copy()
+
+            for p in predictions:
+                G_target.nodes[p]["label"] = const.IN if _subtyping(p, target) else const.OUT
 
             # TODO: pick correct aggregation function
             collective_labelling = compute_collective_labelling(G_target, profile, target, CF)
@@ -111,11 +114,12 @@ class Argumentation(ConflictResolution):
 import networkx as nx
 
 
-def build_graph_from_predictions(
+def build_discussion_from_predictions(
     static: pt.DataFrame[InferredSchema],
     dynamic: pt.DataFrame[InferredSchema],
     probabilistic: pt.DataFrame[InferredSchema],
 ) -> tuple[nx.DiGraph, list[dict[str, str]], list[str]]:
+    """Returns discussion Graph, profile, unique predictions"""
     agents = lambda: itertools.chain([static, dynamic, probabilistic])
 
     combined = pd.concat(list(agents()), ignore_index=True)
@@ -124,28 +128,12 @@ def build_graph_from_predictions(
     G = nx.DiGraph()
     G.add_nodes_from(unique_predictions, label=const.UNDEC)
 
-    ## Edges denote defence or attacking between arguments.
-    ## NOTE: arg1 and arg2 cannot be the same as all arguments are unique
-    ## TODO: Use to capture subtyping
-    def _subtyping(arg1: str, arg2: str) -> bool:
-        "Return True if arg1 should support arg2, i.e. arg1 is derived from from arg2"
-        t1: type = pydoc.locate(arg1)
-        t2: type = pydoc.locate(arg2)
-
-        return t2 in t1.mro()
-
     # if argument A is derived from argument B, then create defending edge from A -> B
     # as A can always be typed as B, but B cannot always be typed as A
     subtypes = list(
         filter(lambda ps: _subtyping(*ps), itertools.permutations(unique_predictions, r=2))
     )
-    G.add_edges_from(subtypes, color=const.DEFENCE_COLOUR)
-
-    ## Argument labellings are put forward to demonstrate agent opinions
-    def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
-        if pred in agent["anno"]:
-            return const.IN
-        return const.OUT
+    G.add_edges_from(subtypes, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
 
     profile: list[dict[str, str]] = [
         {prediction: _agent_opinion(agent, prediction) for prediction in unique_predictions}
@@ -153,6 +141,24 @@ def build_graph_from_predictions(
     ]
 
     return G, profile, unique_predictions
+
+
+## Edges denote defence or attacking between arguments.
+## NOTE: arg1 and arg2 cannot be the same as all arguments are unique
+## TODO: Use to capture subtyping
+def _subtyping(arg1: str, arg2: str) -> bool:
+    "Return True if arg1 should support arg2, i.e. arg1 is derived from from arg2"
+    t1: type = pydoc.locate(arg1)
+    t2: type = pydoc.locate(arg2)
+
+    return t2 in t1.mro()
+
+
+## Argument labellings are put forward to demonstrate agent opinions
+def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
+    if pred in agent["anno"].values:
+        return const.IN
+    return const.OUT
 
 
 ### NOTE: All following source code was taken from
