@@ -5,7 +5,6 @@ import pydoc
 from ._base import ConflictResolution, Metadata
 from common.schemas import InferredSchema
 
-import numpy as np
 import pandera.typing as pt
 import pandas as pd
 
@@ -19,10 +18,10 @@ class Argumentation(ConflictResolution):
         metadata: Metadata,
     ) -> pt.DataFrame[InferredSchema] | None:
 
-        if (df := self._basic_voting(static, dynamic, probabilistic, metadata)) is not None:
-            return df
+        #if (df := self._basic_voting(static, dynamic, probabilistic, metadata)) is not None:
+        #    return df
 
-        elif (df := self._discussion(static, dynamic, probabilistic, metadata)) is not None:
+        if (df := self._discussion(static, dynamic, probabilistic, metadata)) is not None:
             return df
 
         else:
@@ -77,32 +76,31 @@ class Argumentation(ConflictResolution):
     ) -> pt.DataFrame[InferredSchema] | None:
         """Perform n rounds of discussions, and select discussion with the most approvers"""
 
-        G, profile, predictions = build_discussion_from_predictions(static, dynamic, probabilistic)
+        Gs, profiles = build_discussion_from_predictions(static, dynamic, probabilistic)
         candidates: list[tuple[str, int]] = []
 
-        for target in predictions:
-            G_target: nx.DiGraph = G.copy()
-
-            # for p in predictions:
-            #    G_target.nodes[p]["label"] = const.IN if _subtyping(p, target) else const.OUT
-
-            # TODO: pick correct aggregation function
-            collective_labelling = compute_collective_labelling(G_target, profile, target, CF)
+        for target, G_target in Gs.items():
+            collective_labelling = compute_collective_labelling(G_target, profiles, target, Majority)
             decision = compute_collective_decision(collective_labelling, target)
 
             if decision == const.IN:
-                candidates.append(
-                    (target, sum(map(lambda node: node["label"] == const.IN, G_target.nodes)))
-                )
+                candidates.append((target, sum(p[target] == const.IN for p in profiles)))
 
+        print(candidates)
         if not candidates:
             return None
 
         anno, _ = max(candidates, key=operator.itemgetter(1))
+        method = "+".join(
+            map(
+                lambda inf: inf["method"].iloc[0],
+                filter(lambda inf: anno in inf["anno"].values, [static, dynamic, probabilistic]),
+            )
+        )
 
         return pt.DataFrame[InferredSchema](
             {
-                "method": ["placeholder"],
+                "method": [method],
                 "file": [metadata.file],
                 "category": [metadata.category],
                 "qname": [metadata.qname],
@@ -141,7 +139,7 @@ def build_discussion_from_predictions(
         # Support amongst non-targets
         non_targets = [pred for pred in unique_predictions if pred != target]
         non_target_supp = list(
-            filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
+           filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
         )
         g = G.copy()
         g.add_edges_from(non_target_supp, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
@@ -149,9 +147,13 @@ def build_discussion_from_predictions(
         # Attack and defence between non-targets and target
         for non_target in non_targets:
             if _subtyping(non_target, target):
+                # print(f"{non_target} defends {target}")
                 g.add_edge(non_target, target, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
             else:
+                # print(f"{non_target} attacks {target}")
                 g.add_edge(non_target, target, color=const.ATTACK_COLOUR, label=const.ATTACK)
+
+        print()
 
         # Track
         assert nx.is_directed_acyclic_graph(
@@ -164,25 +166,33 @@ def build_discussion_from_predictions(
 
 ## Edges denote defence or attacking between arguments.
 ## NOTE: arg1 and arg2 cannot be the same as all arguments are unique
-def _subtyping(arg1: str, arg2: str) -> bool:
+def _subtyping(derived: str, base: str) -> bool:
     "Return True if arg1 should support arg2, i.e. arg1 is derived from from arg2"
-    t1: type = pydoc.locate(arg1)
-    t2: type = pydoc.locate(arg2)
+    derived_t: type = pydoc.locate(derived)
+    base_t: type = pydoc.locate(base)
 
-    return t2 in t1.mro()
+    assert derived_t is not None, f"Unable to lookup {derived}"
+    assert base_t is not None, f"Unable to lookup {base}"
+
+    return base_t in derived_t.mro()
 
 
 ## Argument labellings are put forward to demonstrate agent opinions
 def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
     if any(_subtyping(v, pred) for v in agent["anno"].values):
+    # if pred in agent["anno"].values:
+        # print(f"{agent['method'].iloc[0]} believes in {pred}")
         return const.IN
-    return const.OUT
+
+    else:
+        # print(f"{agent['method'].iloc[0]} disregards {pred}")
+        return const.OUT
 
 
 ### NOTE: All following source code was taken from
 ### NOTE: https://bitbucket.org/jariiia/argumentation-for-collective-decision-making/src/master/
 
-__author__ = "jar"
+# __author__ = "jar"
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -343,6 +353,16 @@ def SF(G, profile, collective_labelling, argument):
     cons = Con(G, collective_labelling, argument)
     direct_positive_support = direct_support(profile, argument, const.IN)
     direct_negative_support = direct_support(profile, argument, const.OUT)
+
+    # print(
+    #    f"{SF.__name__}"
+    #    f"{argument=}",
+    #    f"{pros=}",
+    #    f"{cons=}",
+    #    f"{direct_positive_support=}",
+    #    f"{direct_negative_support=}",
+    # )
+
     if (pros > cons) or ((pros == cons) and (direct_positive_support > direct_negative_support)):
         collective_labelling[argument] = const.IN
     elif (pros < cons) or ((pros == cons) and (direct_positive_support < direct_negative_support)):
@@ -361,6 +381,13 @@ def CF(G, profile, collective_labelling, argument):
         collective_labelling[argument] = const.OUT
     else:
         collective_labelling[argument] = const.UNDEC
+
+    #print(
+    #    f"{CF.__name__}" f"{argument=}",
+    #    f"{indirect_opinion=}",
+    #    f"{direct_opinion=}",
+    #    f"{aggregated_opinion=}",
+    #)
 
 
 def compute_collective_labelling(G, profile, target, AF):
