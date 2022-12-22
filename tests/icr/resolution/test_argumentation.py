@@ -1,11 +1,15 @@
+import pprint
 from common.schemas import TypeCollectionCategory, InferredSchema
 from icr.resolution.argumentation import (
+    Majority,
+    OF,
+    SF,
     CF,
     build_discussion_from_predictions,
     compute_collective_decision,
     compute_collective_labelling,
     draw_profile,
-    const
+    const,
 )
 
 import pandera.typing as pt
@@ -51,12 +55,11 @@ def test_discussion_building():
         }
     )
 
-    G, profile, _ = build_discussion_from_predictions(
+    Gs, profile = build_discussion_from_predictions(
         static=static, dynamic=dynamic, probabilistic=prob
     )
 
-
-    ### static
+    """  ### static
     static_profile = profile[0].copy()
     # Support own prediction
     assert static_profile.get("int") == const.IN
@@ -79,14 +82,28 @@ def test_discussion_building():
         assert prob_profile.get(pred) == const.IN
         # Disregard all other predictions
         prob_profile.pop(pred)
-    
-    assert all(v == const.OUT for v in prob_profile.values())
 
-    for target in ("str", sc_qualname, "int"):
-        all_titles = ["static", "dynamic", "prob", "Collective Decision"]
-        draw_profile(G, profile, target, all_titles)
+    assert all(v == const.OUT for v in prob_profile.values()) """
 
-        collective_labelling = compute_collective_labelling(G, profile, target, CF)
-        decision = compute_collective_decision(collective_labelling, target)
+    # Majority only looks at const.INs and const.OUTs
 
-        print(target, decision)
+    for agg in (Majority, OF, SF, CF):
+        for target, G in Gs.items():
+            #if target == sc_qualname:
+            collective_labelling = compute_collective_labelling(G, profile, target, agg)
+            decision = compute_collective_decision(collective_labelling, target)
+
+            print(f"{target=}, {agg.__name__=}, {decision=}")
+
+            profiles = [collective_labelling]
+            pprint.pprint(profiles)
+
+            # all_titles = [
+            #     fr"static - $\tau$={target}",
+            #     fr"dynamic - $\tau$={target}",
+            #     fr"prob - $\tau$={target}",
+            #     fr"Collective Decision - $\tau$={target} under {agg.__name__}",
+            # ]
+
+            # draw_profile(G, profiles, target, all_titles)
+            break

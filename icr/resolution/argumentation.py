@@ -83,8 +83,8 @@ class Argumentation(ConflictResolution):
         for target in predictions:
             G_target: nx.DiGraph = G.copy()
 
-            for p in predictions:
-                G_target.nodes[p]["label"] = const.IN if _subtyping(p, target) else const.OUT
+            # for p in predictions:
+            #    G_target.nodes[p]["label"] = const.IN if _subtyping(p, target) else const.OUT
 
             # TODO: pick correct aggregation function
             collective_labelling = compute_collective_labelling(G_target, profile, target, CF)
@@ -118,8 +118,9 @@ def build_discussion_from_predictions(
     static: pt.DataFrame[InferredSchema],
     dynamic: pt.DataFrame[InferredSchema],
     probabilistic: pt.DataFrame[InferredSchema],
-) -> tuple[nx.DiGraph, list[dict[str, str]], list[str]]:
+) -> tuple[dict[str, nx.DiGraph], list[dict[str, str]]]:
     """Returns discussion Graph, profile, unique predictions"""
+    Gs: dict[str, nx.DiGraph] = {}
     agents = lambda: itertools.chain([static, dynamic, probabilistic])
 
     combined = pd.concat(list(agents()), ignore_index=True)
@@ -128,24 +129,41 @@ def build_discussion_from_predictions(
     G = nx.DiGraph()
     G.add_nodes_from(unique_predictions, label=const.UNDEC)
 
-    # if argument A is derived from argument B, then create defending edge from A -> B
-    # as A can always be typed as B, but B cannot always be typed as A
-    subtypes = list(
-        filter(lambda ps: _subtyping(*ps), itertools.permutations(unique_predictions, r=2))
-    )
-    G.add_edges_from(subtypes, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
-
     profile: list[dict[str, str]] = [
         {prediction: _agent_opinion(agent, prediction) for prediction in unique_predictions}
         for agent in agents()
     ]
 
-    return G, profile, unique_predictions
+    for target in unique_predictions:
+        # if argument A is derived from argument B, then create defending edge from A -> B
+        # as A can always be typed as B, but B cannot always be typed as A
+
+        # Support amongst non-targets
+        non_targets = [pred for pred in unique_predictions if pred != target]
+        non_target_supp = list(
+            filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
+        )
+        g = G.copy()
+        g.add_edges_from(non_target_supp, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
+
+        # Attack and defence between non-targets and target
+        for non_target in non_targets:
+            if _subtyping(non_target, target):
+                g.add_edge(non_target, target, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
+            else:
+                g.add_edge(non_target, target, color=const.ATTACK_COLOUR, label=const.ATTACK)
+
+        # Track
+        assert nx.is_directed_acyclic_graph(
+            g
+        ), f"Found cycles: {list(enumerate(nx.strongly_connected_components(g), start=1))}"
+        Gs[target] = g
+
+    return Gs, profile
 
 
 ## Edges denote defence or attacking between arguments.
 ## NOTE: arg1 and arg2 cannot be the same as all arguments are unique
-## TODO: Use to capture subtyping
 def _subtyping(arg1: str, arg2: str) -> bool:
     "Return True if arg1 should support arg2, i.e. arg1 is derived from from arg2"
     t1: type = pydoc.locate(arg1)
@@ -156,7 +174,7 @@ def _subtyping(arg1: str, arg2: str) -> bool:
 
 ## Argument labellings are put forward to demonstrate agent opinions
 def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
-    if pred in agent["anno"].values:
+    if any(_subtyping(v, pred) for v in agent["anno"].values):
         return const.IN
     return const.OUT
 
