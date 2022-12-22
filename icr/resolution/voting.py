@@ -9,7 +9,7 @@ import pandera.typing as pt
 import pandas as pd
 
 
-class Argumentation(ConflictResolution):
+class SubtypeVoting(ConflictResolution):
     def forward(
         self,
         static: pt.DataFrame[InferredSchema],
@@ -81,7 +81,7 @@ class Argumentation(ConflictResolution):
 
         for target, G_target in Gs.items():
             collective_labelling = compute_collective_labelling(
-                G_target, profiles, target, Majority
+                G_target, profiles, target, SF
             )
             decision = compute_collective_decision(collective_labelling, target)
 
@@ -139,6 +139,8 @@ def build_discussion_from_predictions(
     ]
 
     for target in unique_predictions:
+        g = G.copy()
+        
         # if argument A is derived from argument B, then create defending edge from A -> B
         # as A can always be typed as B, but B cannot always be typed as A
 
@@ -147,7 +149,6 @@ def build_discussion_from_predictions(
         non_target_supp = list(
             filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
         )
-        g = G.copy()
         g.add_edges_from(non_target_supp, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
 
         # Attack and defence between non-targets and target
@@ -159,7 +160,7 @@ def build_discussion_from_predictions(
                 # print(f"{non_target} attacks {target}")
                 g.add_edge(non_target, target, color=const.ATTACK_COLOUR, label=const.ATTACK)
 
-        print()
+        # print()
 
         # Track
         assert nx.is_directed_acyclic_graph(
@@ -173,7 +174,7 @@ def build_discussion_from_predictions(
 ## Edges denote defence or attacking between arguments.
 ## NOTE: arg1 and arg2 cannot be the same as all arguments are unique
 def _subtyping(derived: str, base: str) -> bool:
-    "Return True if arg1 should support arg2, i.e. arg1 is derived from from arg2"
+    "Return True if derived should support base, i.e. derived is derived from from base"
     derived_t: type = pydoc.locate(derived)
     base_t: type = pydoc.locate(base)
 
@@ -186,7 +187,7 @@ def _subtyping(derived: str, base: str) -> bool:
 ## Argument labellings are put forward to demonstrate agent opinions
 def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
     if any(_subtyping(v, pred) for v in agent["anno"].values):
-        # if pred in agent["anno"].values:
+    # if pred in agent["anno"].values:
         # print(f"{agent['method'].iloc[0]} believes in {pred}")
         return const.IN
 

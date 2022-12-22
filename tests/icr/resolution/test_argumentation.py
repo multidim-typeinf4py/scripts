@@ -1,7 +1,7 @@
 from common.schemas import TypeCollectionCategory, InferredSchema
 from icr.resolution._base import Metadata
-from icr.resolution.argumentation import (
-    Argumentation,
+from icr.resolution.voting import (
+    SubtypeVoting,
     Majority,
     OF,
     SF,
@@ -85,7 +85,7 @@ def test_discussion_building(
         }
     )
 
-    prediction = Argumentation(project=None, reference=None).forward(
+    prediction = SubtypeVoting(project=None, reference=None).forward(
         static=static,
         dynamic=dynamic,
         probabilistic=prob,
