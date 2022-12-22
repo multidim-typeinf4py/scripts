@@ -1,6 +1,7 @@
-import pprint
 from common.schemas import TypeCollectionCategory, InferredSchema
+from icr.resolution._base import Metadata
 from icr.resolution.argumentation import (
+    Argumentation,
     Majority,
     OF,
     SF,
@@ -13,97 +14,84 @@ from icr.resolution.argumentation import (
 )
 
 import pandera.typing as pt
+import pytest
 
 
 class IntSubclass(int):
     ...
 
 
-def test_discussion_building():
-    sc_qualname = IntSubclass.__module__ + "." + IntSubclass.__qualname__
+class StrSubclass(str):
+    ...
+
+
+intsc_qualname = IntSubclass.__module__ + "." + IntSubclass.__qualname__
+strsc_qualname = StrSubclass.__module__ + "." + StrSubclass.__qualname__
+
+
+@pytest.mark.parametrize(
+    argnames=["stat_preds", "dyn_preds", "prob_preds", "correct"],
+    argvalues=[
+        ## More than one approach voted for the same type; capture it
+        (["int"], ["bytearray"], ["str", "int", "float"], "int"),
+        ## All approaches predict differently, but subtyping was found
+        (["bytes"], ["int"], ["str", "float", intsc_qualname], "int"),
+        ## Same derived type AND base type with emphasis on base type
+        (["str"], ["str"], ["bool", "float", strsc_qualname], "str"),
+        ## Same derived type AND base type with emphasis on derived
+        (["str"], [strsc_qualname], ["bool", "float", strsc_qualname], "str"),
+    ],
+    ids=[
+        "simple majority vote",
+        "simple subtype majority",
+        "multiple base type + single derived type",
+        "single base type + multiple derived type",
+    ],
+)
+def test_discussion_building(
+    stat_preds: list[str], dyn_preds: list[str], prob_preds: list[str], correct: str
+):
 
     # static inference infers type int
     static = pt.DataFrame[InferredSchema](
         {
-            "method": ["static"],
-            "file": ["x.py"],
-            "category": [TypeCollectionCategory.VARIABLE],
-            "qname": ["x"],
-            "anno": ["int"],
+            "method": ["static"] * len(stat_preds),
+            "file": ["x.py"] * len(stat_preds),
+            "category": [TypeCollectionCategory.VARIABLE] * len(stat_preds),
+            "qname": ["x"] * len(stat_preds),
+            "anno": stat_preds,
         }
     )
 
-    # dynamic inference infers bool
+    # dynamic inference infers bytestring
     dynamic = pt.DataFrame[InferredSchema](
         {
-            "method": ["dynamic"],
-            "file": ["x.py"],
-            "category": [TypeCollectionCategory.VARIABLE],
-            "qname": ["x"],
-            "anno": ["bool"],
+            "method": ["dynamic"] * len(dyn_preds),
+            "file": ["x.py"] * len(dyn_preds),
+            "category": [TypeCollectionCategory.VARIABLE] * len(dyn_preds),
+            "qname": ["x"] * len(dyn_preds),
+            "anno": dyn_preds,
         }
     )
 
     # probabilistic inference infers top-3, including subtype of int in place 2
     prob = pt.DataFrame[InferredSchema](
         {
-            "method": ["prob"] * 3,
-            "file": ["x.py"] * 3,
-            "category": [TypeCollectionCategory.VARIABLE] * 3,
-            "qname": ["x"] * 3,
-            "anno": ["str", sc_qualname, "float"],
+            "method": ["prob"] * len(prob_preds),
+            "file": ["x.py"] * len(prob_preds),
+            "category": [TypeCollectionCategory.VARIABLE] * len(prob_preds),
+            "qname": ["x"] * len(prob_preds),
+            "anno": prob_preds,
         }
     )
 
-    Gs, profile = build_discussion_from_predictions(
-        static=static, dynamic=dynamic, probabilistic=prob
+    prediction = Argumentation(project=None, reference=None).forward(
+        static=static,
+        dynamic=dynamic,
+        probabilistic=prob,
+        metadata=Metadata(file="x.py", category=TypeCollectionCategory.VARIABLE, qname="x"),
     )
 
-    """  ### static
-    static_profile = profile[0].copy()
-    # Support own prediction
-    assert static_profile.get("int") == const.IN
-    # Disregard all other predictions
-    static_profile.pop("int")
-    assert all(v == const.OUT for v in static_profile.values())
-
-    ### dynamic
-    dyn_profile = profile[1].copy()
-    # Support own prediction
-    assert dyn_profile.get("bool") == const.IN
-    # Disregard all other predictions
-    dyn_profile.pop("bool")
-    assert all(v == const.OUT for v in dyn_profile.values())
-
-    ### probabilistic
-    prob_profile = profile[2].copy()
-    # Support own prediction
-    for pred in prob["anno"].values:
-        assert prob_profile.get(pred) == const.IN
-        # Disregard all other predictions
-        prob_profile.pop(pred)
-
-    assert all(v == const.OUT for v in prob_profile.values()) """
-
-    # Majority only looks at const.INs and const.OUTs
-
-    for agg in (Majority, OF, SF, CF):
-        for target, G in Gs.items():
-            #if target == sc_qualname:
-            collective_labelling = compute_collective_labelling(G, profile, target, agg)
-            decision = compute_collective_decision(collective_labelling, target)
-
-            print(f"{target=}, {agg.__name__=}, {decision=}")
-
-            profiles = [collective_labelling]
-            pprint.pprint(profiles)
-
-            # all_titles = [
-            #     fr"static - $\tau$={target}",
-            #     fr"dynamic - $\tau$={target}",
-            #     fr"prob - $\tau$={target}",
-            #     fr"Collective Decision - $\tau$={target} under {agg.__name__}",
-            # ]
-
-            # draw_profile(G, profiles, target, all_titles)
-            break
+    assert prediction is not None
+    assert len(prediction) == 1
+    assert prediction["anno"].iloc[0] == correct

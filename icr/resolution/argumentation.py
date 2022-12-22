@@ -18,7 +18,7 @@ class Argumentation(ConflictResolution):
         metadata: Metadata,
     ) -> pt.DataFrame[InferredSchema] | None:
 
-        #if (df := self._basic_voting(static, dynamic, probabilistic, metadata)) is not None:
+        # if (df := self._basic_voting(static, dynamic, probabilistic, metadata)) is not None:
         #    return df
 
         if (df := self._discussion(static, dynamic, probabilistic, metadata)) is not None:
@@ -80,7 +80,9 @@ class Argumentation(ConflictResolution):
         candidates: list[tuple[str, int]] = []
 
         for target, G_target in Gs.items():
-            collective_labelling = compute_collective_labelling(G_target, profiles, target, Majority)
+            collective_labelling = compute_collective_labelling(
+                G_target, profiles, target, Majority
+            )
             decision = compute_collective_decision(collective_labelling, target)
 
             if decision == const.IN:
@@ -90,7 +92,11 @@ class Argumentation(ConflictResolution):
         if not candidates:
             return None
 
-        anno, _ = max(candidates, key=operator.itemgetter(1))
+        _, votes = max(candidates, key=operator.itemgetter(1))
+        anno = " | ".join(
+            map(operator.itemgetter(0), filter(lambda av: av[1] == votes, candidates))
+        )
+
         method = "+".join(
             map(
                 lambda inf: inf["method"].iloc[0],
@@ -104,7 +110,7 @@ class Argumentation(ConflictResolution):
                 "file": [metadata.file],
                 "category": [metadata.category],
                 "qname": [metadata.qname],
-                "anno": anno,
+                "anno": [anno],
             }
         )
 
@@ -139,7 +145,7 @@ def build_discussion_from_predictions(
         # Support amongst non-targets
         non_targets = [pred for pred in unique_predictions if pred != target]
         non_target_supp = list(
-           filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
+            filter(lambda ps: _subtyping(*ps), itertools.permutations(non_targets, r=2))
         )
         g = G.copy()
         g.add_edges_from(non_target_supp, color=const.DEFENCE_COLOUR, label=const.DEFENCE)
@@ -180,7 +186,7 @@ def _subtyping(derived: str, base: str) -> bool:
 ## Argument labellings are put forward to demonstrate agent opinions
 def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
     if any(_subtyping(v, pred) for v in agent["anno"].values):
-    # if pred in agent["anno"].values:
+        # if pred in agent["anno"].values:
         # print(f"{agent['method'].iloc[0]} believes in {pred}")
         return const.IN
 
@@ -382,12 +388,12 @@ def CF(G, profile, collective_labelling, argument):
     else:
         collective_labelling[argument] = const.UNDEC
 
-    #print(
+    # print(
     #    f"{CF.__name__}" f"{argument=}",
     #    f"{indirect_opinion=}",
     #    f"{direct_opinion=}",
     #    f"{aggregated_opinion=}",
-    #)
+    # )
 
 
 def compute_collective_labelling(G, profile, target, AF):
