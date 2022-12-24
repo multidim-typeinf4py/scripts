@@ -1,12 +1,12 @@
 from ._base import ConflictResolution
-from .argumentation import Argumentation
+from .voting import SubtypeVoting
 from .decisiontheory import DecisionTheory
 from .delegation import Delegation
 
 
 __all__ = [
     "ConflictResolution",
-    "Argumentation",
+    "SubtypeVoting",
     "DecisionTheory",
     "Delegation",
 ]
