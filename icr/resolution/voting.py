@@ -2,14 +2,14 @@ import itertools
 import operator
 import pydoc
 
-from ._base import ConflictResolution, Metadata
+from ._base import IterativeResolution, Metadata
 from common.schemas import InferredSchema
 
 import pandera.typing as pt
 import pandas as pd
 
 
-class SubtypeVoting(ConflictResolution):
+class SubtypeVoting(IterativeResolution):
     def forward(
         self,
         static: pt.DataFrame[InferredSchema],
