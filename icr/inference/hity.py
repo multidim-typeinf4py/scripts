@@ -177,5 +177,5 @@ class HiTyper(ProjectWideInference):
 
 
 def _derive_qname(scope: str) -> list[str]:
-    scope = scope.removeprefix("global").removesuffix("global")
+    scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
     return list(filter(bool, reversed(scope.split("@"))))
