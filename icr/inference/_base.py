@@ -1,5 +1,6 @@
 import abc
 from contextlib import contextmanager
+import os
 import pathlib
 import tempfile
 import typing
@@ -19,6 +20,16 @@ def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, 
             yield pathlib.Path(td)
         finally:
             pass
+
+@contextmanager
+def working_dir(wd: pathlib.Path) -> typing.Generator[None, None, None]:
+    oldcwd = pathlib.Path.cwd()
+    os.chdir(wd)
+
+    try:
+        yield
+    finally:
+        os.chdir(oldcwd)
 
 
 class Inference(abc.ABC):
