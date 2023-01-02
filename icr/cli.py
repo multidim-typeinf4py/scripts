@@ -6,7 +6,7 @@ import click
 
 from symbols.cli import _collect
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
-from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py, HiTyper
+from .inference import Inference, MyPy, PyreInfer, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
 
@@ -17,7 +17,7 @@ from . import _factory
 @click.option(
     "-s",
     "--static",
-    type=click.Choice(choices=[MyPy.__name__.lower(), Pyre.__name__.lower()], case_sensitive=False),
+    type=click.Choice(choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower()], case_sensitive=False),
     callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
