@@ -1,7 +1,7 @@
 import pathlib
 
 from common.schemas import InferredSchema
-from . import dfassertions
+from ..helpers import dfassertions
 
 from icr.inference import HiTyper, PyreInfer
 
