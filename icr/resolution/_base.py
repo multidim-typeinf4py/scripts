@@ -66,7 +66,21 @@ class ConflictResolution(abc.ABC):
         dynamic = pd.merge(left=dynamic, right=self.reference, how=how, on=common_cols)
         probabilistic = pd.merge(left=probabilistic, right=self.reference, how=how, on=common_cols)
 
-        return self._resolve(static, dynamic, probabilistic)
+        inferred = self._resolve(static, dynamic, probabilistic)
+
+        # Readd symbols with unresolved that were removed due to no
+        # tool making a prediction
+        method_names = [inf["method"].iloc[0] for inf in [static, dynamic, probabilistic] if len(inf)]
+        readd = self.reference.assign(
+            method="+".join(method_names), anno=BatchResolution.UNRESOLVED
+        )
+
+        return (
+            pd.concat([inferred, readd])
+            .drop_duplicates(subset=list(self.reference.columns), keep="first")
+            .pipe(pt.DataFrame[InferredSchema])
+        )
+
 
     @abc.abstractmethod
     def _resolve(

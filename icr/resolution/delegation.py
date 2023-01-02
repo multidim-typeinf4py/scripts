@@ -53,15 +53,4 @@ class Delegation(BatchResolution):
             .drop_duplicates(subset=list(self.reference.columns), keep="first")
         ).pipe(pt.DataFrame[InferredSchema])
 
-        # Readd symbols with unresolved that were removed due to no
-        # tool making a prediction
-        method_names = [inf["method"].iloc[0] for inf in ordered if len(inf)]
-        readd = self.reference.assign(
-            method="+".join(method_names), anno=BatchResolution.UNRESOLVED
-        )
-
-        return (
-            pd.concat([covered, readd])
-            .drop_duplicates(subset=list(self.reference.columns), keep="first")
-            .pipe(pt.DataFrame[InferredSchema])
-        )
+        return covered
