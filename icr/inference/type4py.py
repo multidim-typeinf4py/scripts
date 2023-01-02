@@ -86,7 +86,7 @@ class Type4Py(PerFileInference):
             # print(r.text)
 
         answer = _Type4PyAnswer.parse_raw(r.text)
-        print(answer)
+        # print(answer)
 
         if answer.error is not None:
             print(
@@ -102,6 +102,9 @@ class Type4Py(PerFileInference):
         module.visit(anno_maker)
 
         annotations = anno_maker.annotations
+
+        # LibCST isnt picking up the global for some reason
+
         collection = TypeCollection.from_annotations(
             file=relative, annotations=annotations, strict=True
         )
@@ -170,11 +173,17 @@ class Type4Py2Annotations(cst.CSTVisitor):
         self._method_callable = None
         return None
 
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
+        return self._handle_assign_target(node.target)
+
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
+        return self._handle_assign_target(node.target)
+
+    def _handle_assign_target(self, node: cst.BaseAssignTargetExpression) -> bool | None:
         scope = self.get_metadata(metadata.ScopeProvider, node)
 
         # Attempt to assign to variables and handle bug with identically named vars
-        # code = cst.Module([node]).code
+        code = cst.Module([node]).code
         match (self._method_callable, scope.parent, scope):
             # Method
             case (str(qmethod), str(method_self)), metadata.ClassScope(), metadata.FunctionScope():
@@ -201,15 +210,15 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 self._handle_global_var(node)
 
             case _:
-                # print(f"{code} is being ignored")
+                print(f"{code} is being ignored")
                 return None
 
-    def _handle_class_attr(self, node: cst.AssignTarget, clazz_qname: str) -> None:
+    def _handle_class_attr(self, node: cst.BaseAssignTargetExpression, clazz_qname: str) -> None:
         # Class attributes
-        if not isinstance(node.target, cst.Name):
+        if not isinstance(node, cst.Name):
             return None
 
-        attr = self._clazz_attr(clazz_qname=clazz_qname, attr_name=node.target.value)
+        attr = self._clazz_attr(clazz_qname=clazz_qname, attr_name=node.value)
         if attr is None:
             return
 
@@ -286,14 +295,14 @@ class Type4Py2Annotations(cst.CSTVisitor):
         return FunctionAnnotation(parameters=ps, returns=annoexpr)
 
     def _handle_assgn_in_method(
-        self, node: cst.AssignTarget, clazz_qname: str, method_qname: str, method_self: str
+        self, node: cst.BaseAssignTargetExpression, clazz_qname: str, method_qname: str, method_self: str
     ) -> None:
-        match node.target:
+        match node:
             case cst.Name(value=ident):
-                span = self.get_metadata(metadata.PositionProvider, node.target)
+                span = self.get_metadata(metadata.PositionProvider, node)
 
             case cst.Attribute(value=cst.Name(method_self), attr=cst.Name(ident)):
-                span = self.get_metadata(metadata.PositionProvider, node.target.attr)
+                span = self.get_metadata(metadata.PositionProvider, node.attr)
 
             case _:
                 return None
@@ -308,56 +317,56 @@ class Type4Py2Annotations(cst.CSTVisitor):
             if (resp_span := func.fn_var_ln.get(variable)) is None:
                 continue
 
-            if not self._span_matches(node.target, resp_span, span):
+            if not self._span_matches(node, resp_span, span):
                 continue
 
             (hint, _) = hints[0]
 
             self.annotations.attributes[
                 f"{func.q_name}.{method_self}.{variable}"
-                if isinstance(node.target, cst.Attribute)
+                if isinstance(node, cst.Attribute)
                 else f"{func.q_name}.{variable}"
             ] = cst.Annotation(cst.parse_expression(hint))
             return None
 
-    def _handle_assgn_in_function(self, node: cst.AssignTarget, funcqname: str) -> None:
-        if not isinstance(node.target, cst.Name):
+    def _handle_assgn_in_function(
+        self, node: cst.BaseAssignTargetExpression, funcqname: str
+    ) -> None:
+        if not isinstance(node, cst.Name):
             return None
 
         if (func := self._func(func_qname=funcqname)) is None:
             return None
 
         for variable, hints in (func.variables_p or dict()).items():
-            if not hints or node.target.value != variable:
+            if not hints or node.value != variable:
                 continue
 
             if (resp_span := func.fn_var_ln.get(variable)) is None:
                 continue
 
-            if not self._span_matches(node.target, resp_span):
+            if not self._span_matches(node, resp_span):
                 continue
 
             (hint, _) = hints[0]
-            self.annotations.attributes[
-                f"{func.q_name}.{variable}"
-                if isinstance(node.target, cst.Attribute)
-                else f"{func.q_name}.{variable}"
-            ] = cst.Annotation(cst.parse_expression(hint))
+            self.annotations.attributes[f"{func.q_name}.{variable}"] = cst.Annotation(
+                cst.parse_expression(hint)
+            )
 
             return None
 
-    def _handle_global_var(self, node: cst.AssignTarget) -> None:
-        if not isinstance(node.target, cst.Name) or not self._answer.response.variables_p:
+    def _handle_global_var(self, node: cst.BaseAssignTargetExpression) -> None:
+        if not isinstance(node, cst.Name) or not self._answer.response.variables_p:
             return None
 
-        if not (hints := self._answer.response.variables_p[node.target.value]):
+        if not (hints := self._answer.response.variables_p[node.value]):
             return None
 
-        if not self._span_matches(node.target, self._answer.response.mod_var_ln[node.target.value]):
+        if not self._span_matches(node, self._answer.response.mod_var_ln[node.value]):
             return None
 
         (hint, _) = hints[0]
-        self.annotations.attributes[node.target.value] = cst.Annotation(cst.parse_expression(hint))
+        self.annotations.attributes[node.value] = cst.Annotation(cst.parse_expression(hint))
 
         return None
 
