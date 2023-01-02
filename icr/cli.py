@@ -5,7 +5,7 @@ import itertools
 import click
 
 from symbols.cli import _collect
-from .resolution import ConflictResolution, SubtypeVoting, DecisionTheory, Delegation
+from .resolution import ConflictResolution, SubtypeVoting, Delegation
 from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
@@ -39,7 +39,6 @@ from . import _factory
     type=click.Choice(
         choices=[
             SubtypeVoting.__name__.lower(),
-            DecisionTheory.__name__.lower(),
             Delegation.__name__.lower(),
         ],
         case_sensitive=False,

@@ -33,8 +33,8 @@ class _GenTDGArguments:
 
     source = None
     location = None
-    alias_analysis = None
-    call_analysis = None
+    alias_analysis = True
+    call_analysis = True
 
 
 @dataclass
@@ -116,7 +116,13 @@ class HiTyper(ProjectWideInference):
             str(output_dir) + "/" + str(self.project).replace("/", "_") + "_INFERREDTYPES.json"
         )
         predictions = _HiTyperPredictions.parse_file(inferred_types_path)
-        print(predictions)
+        # print(open(inferred_types_path).read())
+
+        return self._predictions2df(predictions)
+
+    def _predictions2df(
+        self, predictions: _HiTyperPredictions
+    ) -> pt.DataFrame[TypeCollectionSchema]:
 
         df_updates: list[tuple(str, TypeCollectionCategory, str, str)] = []
 
@@ -172,4 +178,4 @@ class HiTyper(ProjectWideInference):
 
 def _derive_qname(scope: str) -> list[str]:
     scope = scope.removeprefix("global").removesuffix("global")
-    return list(filter(None, reversed(scope.split("@"))))
+    return list(filter(bool, reversed(scope.split("@"))))
