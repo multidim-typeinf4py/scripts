@@ -1,8 +1,6 @@
 import abc
 from dataclasses import dataclass
 import pathlib
-import functools
-import operator
 
 from common.schemas import (
     SymbolSchema,

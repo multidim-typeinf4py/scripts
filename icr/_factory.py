@@ -1,5 +1,5 @@
 from .inference import Inference, MyPy, Pyre, TypeWriter, Type4Py, HiTyper
-from .resolution import ConflictResolution, SubtypeVoting, DecisionTheory, Delegation
+from .resolution import ConflictResolution, SubtypeVoting, Delegation
 
 _INFERENCE_FACTORY: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
@@ -19,7 +19,6 @@ def _inference_factory(value: str | None) -> type[Inference]:
 
 _ENGINE_FACTORY: dict[str, type[ConflictResolution]] = {
     SubtypeVoting.__name__.lower(): SubtypeVoting,
-    DecisionTheory.__name__.lower(): DecisionTheory,
     Delegation.__name__.lower(): Delegation,
 }
 
