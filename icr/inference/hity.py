@@ -33,8 +33,8 @@ class _GenTDGArguments:
 
     source = None
     location = None
-    alias_analysis = None
-    call_analysis = None
+    alias_analysis = True
+    call_analysis = True
 
 
 @dataclass
@@ -116,7 +116,7 @@ class HiTyper(ProjectWideInference):
             str(output_dir) + "/" + str(self.project).replace("/", "_") + "_INFERREDTYPES.json"
         )
         predictions = _HiTyperPredictions.parse_file(inferred_types_path)
-        # print(predictions)
+        # print(open(inferred_types_path).read())
 
         return self._predictions2df(predictions)
 

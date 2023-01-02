@@ -5,7 +5,7 @@ import tempfile
 import typing
 import shutil
 
-from common.schemas import InferredSchema, InferredSchemaColumns, TypeCollectionSchema
+from common.schemas import InferredSchema, InferredSchemaColumns, TypeCollectionSchema, TypeCollectionCategory
 
 import pandera.typing as pt
 import pandas as pd
@@ -28,7 +28,7 @@ class Inference(abc.ABC):
 
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__()
-        self.project = project
+        self.project = project.resolve()
         self.inferred = pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
 
     @abc.abstractmethod
@@ -42,9 +42,6 @@ class Inference(abc.ABC):
 
 
 class ProjectWideInference(Inference):
-    def __init__(self, project: pathlib.Path) -> None:
-        super().__init__(project)
-
     def infer(self) -> None:
         if self.inferred.empty:
             proj_inf = self._infer_project()
@@ -60,9 +57,6 @@ class ProjectWideInference(Inference):
 
 
 class PerFileInference(Inference):
-    def __init__(self, project: pathlib.Path) -> None:
-        super().__init__(project)
-
     def infer(self) -> None:
         updates = list()
         for subfile in self.project.rglob("*.py"):

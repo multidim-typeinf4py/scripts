@@ -4,13 +4,13 @@ from c import C
 
 
 def function(a: int, b: str, c: int) -> int:
-    v: str = f"{a}{b}{c}"
-    return int(v)
+    v = a + b + c
+    return v
 
 
 def function_with_multiline_parameters(a: str, b: int, c: str) -> int:
-    v: str = f"{a}{b}{c}"
-    return int(v)
+    v = a + b + c
+    return v
 
 
 class Clazz(dict):
@@ -34,8 +34,8 @@ class Clazz(dict):
 
     # NOTE: Check that the parameter's hints symbols are fully qualified!
     def function(self, a: A, b: B, c: C) -> int:
-        v = f"{a}{b}{c}"  # NOTE: Not typed on purpose!
-        return int(v)
+        v = a + b + c  # NOTE: Not typed on purpose!
+        return v
 
 
 a: int = 5
@@ -47,3 +47,8 @@ def outer() -> int:
         return result
 
     return int(nested(10))
+
+class Outer:
+    class Inner:
+        def __init__(self) -> None:
+            self.x = 10
