@@ -53,6 +53,10 @@ class TestCoverage:
         # Body
         assert dfassertions.has_variable(df, var_qname="function_with_multiline_parameters.v")
 
+    def test_Clazz_a(self, df: pt.DataFrame[InferredSchema]):
+        # Body
+        assert dfassertions.has_variable(df, var_qname="Clazz.a")
+
     def test_Clazz_init(self, df: pt.DataFrame[InferredSchema]):
         # Returns
         assert dfassertions.has_callable(df, f_qname="Clazz.__init__")
