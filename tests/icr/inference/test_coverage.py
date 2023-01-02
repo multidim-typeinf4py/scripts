@@ -1,16 +1,18 @@
 import pathlib
 
 from common.schemas import InferredSchema
-from ..helpers import dfassertions
+from tests.icr.helpers import dfassertions
 
-from icr.inference import HiTyper, PyreInfer
+from icr.inference import HiTyper, PyreInfer, Type4Py, TypeWriter
 
 import pytest
 
 import pandera.typing as pt
 
 
-@pytest.fixture(scope="class", params=[HiTyper, PyreInfer], ids=lambda e: e.__qualname__)
+@pytest.fixture(
+    scope="class", params=[HiTyper, PyreInfer, Type4Py], ids=lambda e: e.__qualname__
+)
 def df(request) -> pt.DataFrame[InferredSchema]:
     inf = request.param(pathlib.Path.cwd() / "tests" / "resources" / "proj1")
     inf.infer()
