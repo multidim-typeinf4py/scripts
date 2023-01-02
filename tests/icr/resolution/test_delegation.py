@@ -31,6 +31,10 @@ agent2 = pt.DataFrame[InferredSchema](
     }
 )
 
+## Test data summary:
+## a is entirely unknown, c is unknown to agent1, b is known to both
+## c has a top 2 prediction for agent2; the less likely one should never be picked
+
 
 @pytest.fixture()
 def proj1() -> tuple[pathlib.Path, pt.DataFrame[SymbolSchema]]:
