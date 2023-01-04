@@ -51,7 +51,7 @@ class TestCoverage:
             df, f_qname="function_with_multiline_parameters", arg_name="c"
         )
 
-    def test_function_with_multiline_parameters_body():    
+    def test_function_with_multiline_parameters_body(self, df: pt.DataFrame[InferredSchema]): 
         # Body
         assert dfassertions.has_variable(df, var_qname="function_with_multiline_parameters.v")
 
@@ -66,7 +66,7 @@ class TestCoverage:
         # Params
         assert dfassertions.has_parameter(df, f_qname="Clazz.__init__", arg_name="a")
 
-    def test_Clazz_init_body():    
+    def test_Clazz_init_body(self, df: pt.DataFrame[InferredSchema]): 
         # Body
         assert dfassertions.has_variable(df, var_qname="Clazz.__init__.self.a")
 
@@ -101,7 +101,7 @@ class TestCoverage:
         assert dfassertions.has_parameter(df, f_qname="Clazz.function", arg_name="b")
         assert dfassertions.has_parameter(df, f_qname="Clazz.function", arg_name="c")
 
-    def test_Clazz_function_body():    
+    def test_Clazz_function_body(self, df: pt.DataFrame[InferredSchema]): 
         # Body
         assert dfassertions.has_variable(df, var_qname="Clazz.function.v")
 
@@ -115,7 +115,7 @@ class TestCoverage:
         # Params
         assert dfassertions.has_parameter(df, f_qname="outer.nested", arg_name="a")
 
-    def test_outer_nested_body():    
+    def test_outer_nested_body(self, df: pt.DataFrame[InferredSchema]): 
         # Body
         assert dfassertions.has_variable(df, var_qname="outer.nested.result")
 
@@ -129,6 +129,6 @@ class TestCoverage:
 
         # Params
 
-    def test_Outer_Inner_body():    
+    def test_Outer_Inner_body(self, df: pt.DataFrame[InferredSchema]): 
         # Body
         assert dfassertions.has_variable(df, var_qname="Outer.Inner.__init__.self.x")
