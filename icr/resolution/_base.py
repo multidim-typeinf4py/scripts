@@ -81,7 +81,7 @@ class ConflictResolution(abc.ABC):
         )
 
         return (
-            pd.concat([inferred, readd])
+            pd.concat([inferred, readd], ignore_index=True)
             .drop_duplicates(subset=list(self.reference.columns), keep="first")
             .pipe(pt.DataFrame[InferredSchema])
         )

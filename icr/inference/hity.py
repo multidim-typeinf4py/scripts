@@ -95,12 +95,21 @@ class HiTyper(PerFileInference):
 
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         if not hasattr(self, "predictions"):
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-            self.predictions = self._predict()
+            if not self.output_dir.is_dir():
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+                self._predict()
+
+                inferred_types_path = (
+                    str(self.output_dir)
+                    + "/"
+                    + str(self.project).replace("/", "_")
+                    + "_INFERREDTYPES.json"
+                )
+                self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
 
         return self._predictions2df(self.predictions, relative)
 
-    def _predict(self) -> _HiTyperPredictions:
+    def _predict(self):
         hityper.findusertype(
             _FindUserTypeArguments(
                 repo=str(self.project), core=4, validate=True, output_directory=str(self.output_dir)
@@ -125,11 +134,6 @@ class HiTyper(PerFileInference):
             )
         )
 
-        inferred_types_path = (
-            str(self.output_dir) + "/" + str(self.project).replace("/", "_") + "_INFERREDTYPES.json"
-        )
-        return _HiTyperPredictions.parse_file(inferred_types_path)
-
     def _predictions2df(
         self, predictions: _HiTyperPredictions, file: pathlib.Path
     ) -> pt.DataFrame[TypeCollectionSchema]:
@@ -147,7 +151,7 @@ class HiTyper(PerFileInference):
             qname_prefix = scope
 
             for scope_pred in scope_predictions:
-                for ty in (scope_pred.type[:self.topn] or [None]):
+                for ty in scope_pred.type[: self.topn] or [None]:
                     ty = ty or missing.NA
 
                     match scope_pred.category:

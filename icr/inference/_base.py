@@ -6,7 +6,12 @@ import tempfile
 import typing
 import shutil
 
-from common.schemas import InferredSchema, InferredSchemaColumns, TypeCollectionSchema, TypeCollectionCategory
+from common.schemas import (
+    InferredSchema,
+    InferredSchemaColumns,
+    TypeCollectionSchema,
+    TypeCollectionCategory,
+)
 
 import pandera.typing as pt
 import pandas as pd
@@ -20,6 +25,7 @@ def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, 
             yield pathlib.Path(td)
         finally:
             pass
+
 
 @contextmanager
 def working_dir(wd: pathlib.Path) -> typing.Generator[None, None, None]:
@@ -81,7 +87,7 @@ class PerFileInference(Inference):
                 updates.append(reldf)
         if updates:
             self.inferred = (
-                pd.concat([self.inferred, *updates])
+                pd.concat([self.inferred, *updates], ignore_index=True)
                 .reindex(columns=InferredSchemaColumns)
                 .pipe(pt.DataFrame[InferredSchema])
             )
