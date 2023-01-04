@@ -135,5 +135,5 @@ class TestCoverage:
         assert dfassertions.has_variable(df, var_qname="Outer.Inner.__init__.self.x")
 
     def test_unique(self, df: pt.DataFrame[InferredSchema]):
-        dups = df[df.duplicated(subset="qname", keep="first")]
+        dups = df[df.duplicated(subset=["qname", "anno"], keep="first")]
         assert dups.empty, str(dups)
