@@ -24,6 +24,11 @@ class Metadata:
 class ConflictResolution(abc.ABC):
     UNRESOLVED = missing.NA
 
+    @property
+    @abc.abstractmethod
+    def method() -> str:
+        ...
+
     def __init__(self, project: pathlib.Path, reference: pt.DataFrame[SymbolSchema]) -> None:
         super().__init__()
         self.project = project

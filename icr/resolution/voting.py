@@ -10,6 +10,8 @@ import pandas as pd
 
 
 class SubtypeVoting(IterativeResolution):
+    method = "subtyping-voting"
+
     def forward(
         self,
         static: pt.DataFrame[InferredSchema],
