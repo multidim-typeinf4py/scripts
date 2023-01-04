@@ -11,8 +11,8 @@ import pandera.typing as pt
 
 
 @pytest.fixture(
-    #scope="class", params=[HiTyper, PyreInfer, Type4Py, TypeWriter], ids=lambda e: e.__qualname__
-    scope="class", params=[TypeWriter], ids=lambda e: e.__qualname__
+    scope="class", params=[HiTyper, PyreInfer, Type4Py, TypeWriter], ids=lambda e: e.__qualname__
+    #scope="class", params=[TypeWriter], ids=lambda e: e.__qualname__
 )
 def df(request) -> pt.DataFrame[InferredSchema]:
     inf = request.param(pathlib.Path.cwd() / "tests" / "resources" / "proj1")
