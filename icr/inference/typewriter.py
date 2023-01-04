@@ -515,7 +515,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
         if not self.parameters[0][1]:
             self.parameters = self.parameters[1:]
 
-        return hints
+        return [(arg, _handle_missing_coverage(anno)) for arg, anno in hints]
 
     def _load_return(self, node: cst.FunctionDef) -> tuple[bool, str | None]:
         if not self.returns:
@@ -526,6 +526,10 @@ class Typewriter2Annotations(cst.CSTVisitor):
             return False, None
 
         self.returns = self.returns[1:]
-        if hint == "other":
-            return True, None
-        return True, hint
+        return True, _handle_missing_coverage(hint)
+
+def _handle_missing_coverage(annotation: str | None) -> str | None:
+    if annotation is None or annotation == "other":
+        return None
+    return annotation
+    
