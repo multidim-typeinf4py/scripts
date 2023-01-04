@@ -425,7 +425,11 @@ class TypeWriter(PerFileInference):
                 ).df
             )
 
-        return pd.concat(collections).pipe(pt.DataFrame[TypeCollectionSchema])
+        return (
+            pd.concat(collections, ignore_index=True)
+            .drop_duplicates(subset=["category", "qname", "anno"], keep="first")
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
 
 
 class Typewriter2Annotations(cst.CSTVisitor):
@@ -506,11 +510,17 @@ class Typewriter2Annotations(cst.CSTVisitor):
 
         # Fix overly greediness of itertools.groupby when identically named functions and methods follow each other
         if function or not len(node.params.params):
-            self.parameters[0] = self.parameters[0][0], self.parameters[0][1][len(node.params.params) :]
+            self.parameters[0] = (
+                self.parameters[0][0],
+                self.parameters[0][1][len(node.params.params) :],
+            )
 
         else:
             hints = [(node.params.params[0].name.value, None)] + hints
-            self.parameters[0] = self.parameters[0][0], self.parameters[0][1][len(node.params.params) - 1 :]
+            self.parameters[0] = (
+                self.parameters[0][0],
+                self.parameters[0][1][len(node.params.params) - 1 :],
+            )
 
         if not self.parameters[0][1]:
             self.parameters = self.parameters[1:]
@@ -528,8 +538,8 @@ class Typewriter2Annotations(cst.CSTVisitor):
         self.returns = self.returns[1:]
         return True, _handle_missing_coverage(hint)
 
+
 def _handle_missing_coverage(annotation: str | None) -> str | None:
     if annotation is None or annotation == "other":
         return None
     return annotation
-    

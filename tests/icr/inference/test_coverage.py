@@ -12,7 +12,7 @@ import pandera.typing as pt
 
 @pytest.fixture(
     #scope="class", params=[HiTyper, PyreInfer, Type4Py, TypeWriter], ids=lambda e: e.__qualname__
-    scope="class", params=[HiTyper], ids=lambda e: e.__qualname__
+    scope="class", params=[TypeWriter], ids=lambda e: e.__qualname__
 )
 def df(request) -> pt.DataFrame[InferredSchema]:
     inf = request.param(pathlib.Path.cwd() / "tests" / "resources" / "proj1")
@@ -135,5 +135,6 @@ class TestCoverage:
         assert dfassertions.has_variable(df, var_qname="Outer.Inner.__init__.self.x")
 
     def test_unique(self, df: pt.DataFrame[InferredSchema]):
-        dups = df[df.duplicated(subset=["qname", "anno"], keep="first")]
+        # unique based on slot, e.g. parameter and variable can be the same
+        dups = df[df.duplicated(subset=["category", "qname", "anno"], keep=False)]
         assert dups.empty, str(dups)
