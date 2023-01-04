@@ -133,7 +133,7 @@ class HiTyper(ProjectWideInference):
                 qname_prefix = _derive_qname(scope)
 
                 for scope_pred in scope_predictions:
-                    ty = scope_pred.type[0] if scope_pred.type else missing.NA
+                    ty = scope_pred.type[0] if scope_pred.type else HiTyper.UNRESOLVED
 
                     match scope_pred.category:
                         case _HiTyperPredictionCategory.ARG:

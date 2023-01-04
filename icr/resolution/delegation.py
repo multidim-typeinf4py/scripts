@@ -17,6 +17,8 @@ class DelegationOrder(enum.IntEnum):
 
 
 class Delegation(BatchResolution):
+    method = "delegation"
+
     def __init__(
         self,
         project: pathlib.Path,
