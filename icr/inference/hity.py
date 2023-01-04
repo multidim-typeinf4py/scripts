@@ -88,6 +88,7 @@ class HiTyper(PerFileInference):
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__(project)
         self.output_dir = self.project / ".hityper"
+        self.topn = 3
 
         if self.output_dir.is_dir():
             shutil.rmtree(path=str(self.output_dir))
@@ -119,7 +120,7 @@ class HiTyper(PerFileInference):
             _InferenceArguments(
                 repo=str(self.project),
                 output_directory=str(self.output_dir),
-                topn=1,
+                topn=self.topn,
                 type4py=True,
             )
         )
@@ -146,45 +147,46 @@ class HiTyper(PerFileInference):
             qname_prefix = scope
 
             for scope_pred in scope_predictions:
-                ty = scope_pred.type[0] if scope_pred.type else missing.NA
+                for ty in (scope_pred.type[:self.topn] or [None]):
+                    ty = ty or missing.NA
 
-                match scope_pred.category:
-                    case _HiTyperPredictionCategory.ARG:
-                        # Parameters are never global, simply join
-                        df_updates.append(
-                            (
-                                str(file),
-                                TypeCollectionCategory.CALLABLE_PARAMETER,
-                                f"{qname_prefix}.{scope_pred.name}",
-                                ty,
+                    match scope_pred.category:
+                        case _HiTyperPredictionCategory.ARG:
+                            # Parameters are never global, simply join
+                            df_updates.append(
+                                (
+                                    str(file),
+                                    TypeCollectionCategory.CALLABLE_PARAMETER,
+                                    f"{qname_prefix}.{scope_pred.name}",
+                                    ty,
+                                )
                             )
-                        )
 
-                    case _HiTyperPredictionCategory.RET:
-                        # Returns are never global, simply join
-                        df_updates.append(
-                            (
-                                str(file),
-                                TypeCollectionCategory.CALLABLE_RETURN,
-                                qname_prefix,
-                                ty,
+                        case _HiTyperPredictionCategory.RET:
+                            # Returns are never global, simply join
+                            df_updates.append(
+                                (
+                                    str(file),
+                                    TypeCollectionCategory.CALLABLE_RETURN,
+                                    qname_prefix,
+                                    ty,
+                                )
                             )
-                        )
 
-                    case _HiTyperPredictionCategory.LOCAL:
-                        qname = (
-                            scope_pred.name
-                            if not qname_prefix
-                            else f"{qname_prefix}.{scope_pred.name}"
-                        )
-                        df_updates.append(
-                            (
-                                str(file),
-                                TypeCollectionCategory.VARIABLE,
-                                qname,
-                                ty,
+                        case _HiTyperPredictionCategory.LOCAL:
+                            qname = (
+                                scope_pred.name
+                                if not qname_prefix
+                                else f"{qname_prefix}.{scope_pred.name}"
                             )
-                        )
+                            df_updates.append(
+                                (
+                                    str(file),
+                                    TypeCollectionCategory.VARIABLE,
+                                    qname,
+                                    ty,
+                                )
+                            )
 
         return pt.DataFrame[TypeCollectionSchema](df_updates, columns=TypeCollectionSchemaColumns)
 
