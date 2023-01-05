@@ -543,7 +543,7 @@ dev = ["Sphinx (>=5.1.1)", "black (==22.10.0)", "coverage (>=4.5.4)", "fixit (==
 type = "git"
 url = "https://github.com/multidim-typeinf4py/LibCST.git"
 reference = "HEAD"
-resolved_reference = "c50af9f7649cc68729c5384c92759785e3de85ef"
+resolved_reference = "0caea9842360029f4ddef08d7936fee6dfbe0a98"
 
 [[package]]
 name = "Markdown"
