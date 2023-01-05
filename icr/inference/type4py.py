@@ -302,7 +302,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 span = self.get_metadata(metadata.PositionProvider, node)
 
             case cst.Attribute(value=cst.Name(method_self), attr=cst.Name(ident)):
-                span = self.get_metadata(metadata.PositionProvider, node.attr)
+                span = self.get_metadata(metadata.PositionProvider, node)
 
             case _:
                 return None
