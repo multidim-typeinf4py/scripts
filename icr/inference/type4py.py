@@ -103,8 +103,6 @@ class Type4Py(PerFileInference):
 
         annotations = anno_maker.annotations
 
-        # LibCST isnt picking up the global for some reason
-
         collection = TypeCollection.from_annotations(
             file=relative, annotations=annotations, strict=True
         )
@@ -314,11 +312,11 @@ class Type4Py2Annotations(cst.CSTVisitor):
             if not hints or ident != variable:
                 continue
 
-            if (resp_span := func.fn_var_ln.get(variable)) is None:
-                continue
+            # if (resp_span := func.fn_var_ln.get(variable)) is None:
+            #    continue
 
-            if not self._span_matches(node, resp_span, span):
-                continue
+            # if not self._span_matches(node, resp_span, span):
+            #     continue
 
             (hint, _) = hints[0]
 
