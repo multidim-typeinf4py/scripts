@@ -165,7 +165,6 @@ class TypeCollection:
             vs: dict[str, cst.Annotation] = {}
             var_df = df[df["category"] == TypeCollectionCategory.VARIABLE]
 
-            print(var_df)
             for qname, anno in var_df[["qname", "anno"]].itertuples(index=False):
                 if pd.notna(anno):
                     vs[qname] = cst.Annotation(cst.parse_expression(anno))

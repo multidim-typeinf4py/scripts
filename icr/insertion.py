@@ -61,7 +61,9 @@ class TypeAnnotationApplierVisitor(codemod.Codemod):
             _HintRemover(),
             ApplyTypeAnnotationsVisitor(
                 context=self.context,
-                annotations=TypeCollection.to_annotations(module_tycol),
+                annotations=TypeCollection.to_annotations(
+                    module_tycol.pipe(pt.DataFrame[TypeCollectionSchema])
+                ),
                 overwrite_existing_annotations=True,
                 use_future_annotations=True,
                 handle_function_bodies=True,
