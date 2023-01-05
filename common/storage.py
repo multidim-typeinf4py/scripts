@@ -1,12 +1,18 @@
 from __future__ import annotations
+import collections
 
 import functools
 import itertools
 import pathlib
 import typing
 
-from libcst.codemod.visitors._apply_type_annotations import Annotations
+from libcst.codemod.visitors._apply_type_annotations import (
+    Annotations,
+    FunctionKey,
+    FunctionAnnotation,
+)
 import libcst as cst
+import libcst.metadata as metadata
 
 from pandas._libs import missing
 import pandas as pd
@@ -105,6 +111,104 @@ class TypeCollection:
 
         df = pd.DataFrame(contents, columns=TypeCollectionSchemaColumns)
         return TypeCollection(df.pipe(pt.DataFrame[TypeCollectionSchema]))
+
+    @staticmethod
+    def to_annotations(
+        collection: TypeCollection | pt.DataFrame[TypeCollectionSchema],
+    ) -> Annotations:
+        df = collection.df if isinstance(collection, TypeCollection) else collection
+        # dups = df[df.duplicated(subset=["category", "qname", "anno"], keep=False)]
+        if df.duplicated(subset=["category", "qname", "anno"], keep=False).any():
+            raise RuntimeError(
+                "Cannot annotate source code when conflicts have not been resolved (this includes remnants of top-n predictions!)"
+            )
+
+        def functions() -> dict[FunctionKey, FunctionAnnotation]:
+            fs: dict[FunctionKey, FunctionAnnotation] = {}
+
+            fs_df = df[df["category"] == TypeCollectionCategory.CALLABLE_RETURN]
+            param_df = df[df["category"] == TypeCollectionCategory.CALLABLE_PARAMETER]
+
+            sep_df = (
+                param_df["qname"]
+                .str.rsplit(pat=".", n=1, expand=True)
+            )
+            if sep_df.empty:
+                return fs
+            sep_df = sep_df.set_axis(["fname", "argname"], axis=1)
+            param_df = pd.merge(param_df, sep_df, left_index=True, right_index=True)
+
+            for fname, rettype in fs_df[["qname", "anno"]].itertuples(index=False):
+                select_params = param_df[param_df["fname"] == fname]
+                params = [
+                    cst.Param(
+                        name=cst.Name(value),
+                        annotation=cst.Annotation(cst.parse_expression(anno))
+                        if pd.notna(anno)
+                        else None,
+                    )
+                    for value, anno in select_params[["argname", "anno"]].itertuples(index=False)
+                ]
+
+                key = FunctionKey.make(name=fname, params=cst.Parameters(params))
+                anno = FunctionAnnotation(
+                    parameters=cst.Parameters(params),
+                    returns=cst.Annotation(cst.parse_expression(rettype))
+                    if pd.notna(rettype)
+                    else None,
+                )
+                fs[key] = anno
+
+            return fs
+
+        def variables() -> dict[str, cst.Annotation]:
+            vs: dict[str, cst.Annotation] = {}
+            var_df = df[df["category"] == TypeCollectionCategory.VARIABLE]
+
+            print(var_df)
+            for qname, anno in var_df[["qname", "anno"]].itertuples(index=False):
+                if pd.notna(anno):
+                    vs[qname] = cst.Annotation(cst.parse_expression(anno))
+
+            return vs
+
+        def attributes() -> dict[str, cst.ClassDef]:
+            attrs: dict[str, cst.ClassDef] = {}
+            attr_df = df[df["category"] == TypeCollectionCategory.CLASS_ATTR]
+
+            sep_df = (
+                attr_df["qname"]
+                .str.rsplit(pat=".", n=1, expand=True)
+            )
+            if sep_df.empty:
+                return attrs
+            sep_df = sep_df.set_axis(["cqname", "attrname"], axis=1)
+            attr_df = pd.merge(attr_df, sep_df, left_index=True, right_index=True)
+
+            for cqname, group in attr_df.groupby(by="cqname"):
+                *_, cname = cqname.split(".")
+                hints = [
+                    cst.AnnAssign(
+                        target=cst.Name(aname),
+                        annotation=cst.Annotation(cst.parse_expression(hint)),
+                    )
+                    for aname, hint in group[["attrname", "anno"]].itertuples(index=False)
+                    if pd.notna(hint)
+                ]
+                attrs[cqname] = cst.ClassDef(
+                    name=cst.Name(cname),
+                    body=cst.IndentedBlock(body=[cst.SimpleStatementSuite(body=hints)]),
+                )
+
+            return attrs
+
+        return Annotations(
+            functions=functions(),
+            attributes=variables(),
+            class_definitions=attributes(),
+            typevars=dict(),
+            names=set(),
+        )
 
     @staticmethod
     def load(path: str | pathlib.Path) -> TypeCollection:

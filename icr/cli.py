@@ -1,12 +1,21 @@
 import pathlib
 import itertools
+import shutil
+import sys
 
 import click
+from common.schemas import InferredSchemaColumns
+from common.storage import TypeCollection
+from icr.insertion import TypeAnnotationApplierVisitor
 
 from symbols.cli import _collect
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
 from .inference import Inference, MyPy, PyreInfer, TypeWriter, Type4Py, HiTyper
 from . import _factory
+
+from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
+from libcst import codemod
+from libcst.codemod import _cli as cstcli
 
 
 @click.command(
@@ -93,7 +102,7 @@ def entrypoint(
     infs = lambda: itertools.chain(statics, probabilistics)
 
     for inference in infs():
-       inference.infer()
+        inference.infer()
 
     # inferences = {inference.method: inference.inferred for inference in infs()}
 
@@ -118,9 +127,40 @@ def entrypoint(
                 f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
             )
 
-        outdir.mkdir(exist_ok=True, parents=True)
+        elif outdir.is_dir() and overwrite:
+            shutil.rmtree(outdir)
+
+        # outdir.mkdir(exist_ok=True, parents=True)
+        shutil.copytree(inpath, outdir)
+        print("Applying annotations to code")
+
+        result = codemod.parallel_exec_transform_with_prettyprint(
+            transform=TypeAnnotationApplierVisitor(
+                context=codemod.CodemodContext(), tycol=inference.drop(columns=["method"])
+            ),
+            files=cstcli.gather_files([str(outdir)]),
+            jobs=1,
+            repo_root=str(outdir),
+        )
+        print(
+            f"Finished codemodding {result.successes + result.skips + result.failures} files!",
+            file=sys.stderr,
+        )
+        print(
+            f" - Collected symbol from {result.successes} files successfully.",
+            file=sys.stderr,
+        )
+        print(f" - Skipped {result.skips} files.", file=sys.stderr)
+        print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
+        print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
+
         outpath = outdir / ".icr.csv"
-        inference.to_csv(outpath)
+        inference.to_csv(
+            outpath,
+            sep="\t",
+            index=False,
+            header=InferredSchemaColumns,
+        )
         print(f"Inferred types have been stored at {outpath}; exiting...")
 
     else:
@@ -133,7 +173,10 @@ def _derive_output_folder(
     infs: list[Inference],
     engine: type[ConflictResolution] | None = None,
 ) -> pathlib.Path:
-    return inpath.parent / f"{inpath.name} - {engine.method if engine else ''}({'+'.join(m.method for m in infs)})"
+    return (
+        inpath.parent
+        / f"{inpath.name}@{engine.method if engine else ''}({'+'.join(m.method for m in infs)})"
+    )
 
 
 if __name__ == "__main__":
