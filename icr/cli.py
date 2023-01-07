@@ -10,7 +10,7 @@ from icr.insertion import TypeAnnotationApplierVisitor
 
 from symbols.cli import _collect
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
-from .inference import Inference, MyPy, PyreInfer, TypeWriter, Type4Py, HiTyper
+from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
 from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
@@ -26,7 +26,7 @@ from libcst.codemod import _cli as cstcli
     "-s",
     "--static",
     type=click.Choice(
-        choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower()], case_sensitive=False
+        choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower(), PyreQuery.__name__.lower()], case_sensitive=False
     ),
     callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
     required=False,
@@ -131,7 +131,7 @@ def entrypoint(
             shutil.rmtree(outdir)
 
         # outdir.mkdir(exist_ok=True, parents=True)
-        shutil.copytree(inpath, outdir)
+        shutil.copytree(inpath, outdir, symlinks=True)
         print("Applying annotations to code")
 
         result = codemod.parallel_exec_transform_with_prettyprint(
@@ -164,6 +164,7 @@ def entrypoint(
         print(f"Inferred types have been stored at {outpath}; exiting...")
 
     else:
+        print(inference)
         print("Not persisting; exiting...")
 
 

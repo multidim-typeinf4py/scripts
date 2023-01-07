@@ -10,9 +10,6 @@ from common.schemas import TypeCollectionSchema
 from libcst.codemod import _cli as cstcli
 
 
-# TODO: Consider libcst's TypeInferenceProvider instead, which uses Pyre anyhow
-
-
 class PyreInfer(ProjectWideInference):
     method = "pyre-infer"
 

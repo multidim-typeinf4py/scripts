@@ -1,6 +1,6 @@
-from a import A
-from b import B
-from c import C
+from amod import A
+from bmod import B
+from cmod import C
 
 
 def function(a: int, b: str, c: int) -> int:

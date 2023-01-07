@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import enum
-import typing
 
 import pandera as pa
 import pandera.typing as pt
