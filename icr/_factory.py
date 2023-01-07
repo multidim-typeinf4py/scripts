@@ -1,9 +1,10 @@
-from .inference import Inference, MyPy, PyreInfer, TypeWriter, Type4Py, HiTyper
+from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
 
 _INFERENCE_FACTORY: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
     PyreInfer.__name__.lower(): PyreInfer,
+    PyreQuery.__name__.lower(): PyreQuery,
     HiTyper.__name__.lower(): HiTyper,
     TypeWriter.__name__.lower(): TypeWriter,
     Type4Py.__name__.lower(): Type4Py,

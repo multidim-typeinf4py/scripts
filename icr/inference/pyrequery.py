@@ -1,6 +1,10 @@
+import os
+import pathlib
+import re
+import shutil
 import weakref
 
-import pathlib
+import pandas._libs.missing as missing
 import pandera.typing as pt
 
 import libcst as cst
@@ -14,7 +18,7 @@ from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
 
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
 
@@ -25,9 +29,7 @@ class PyreQuery(PerFileInference):
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__(project)
 
-        cmd_args = command_arguments.CommandArguments(
-            dot_pyre_directory=project / ".pyre", source_directories=[str(project)]
-        )
+        cmd_args = command_arguments.CommandArguments(source_directories=[str(project)])
         config = configuration.create_configuration(
             arguments=cmd_args,
             base_directory=project,
@@ -41,16 +43,22 @@ class PyreQuery(PerFileInference):
         )
         weakref.finalize(self, lambda: stop.run(config))
 
+        paths = cstcli.gather_files([str(self.project)])
+        relpaths = [os.path.relpath(path, str(project)) for path in paths]
         self.repo_manager = metadata.FullRepoManager(
             repo_root_dir=str(self.project),
-            paths=cstcli.gather_files([str(self.project)]),
+            paths=relpaths,
             providers=[metadata.TypeInferenceProvider],
         )
 
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
-        module = self.repo_manager.get_metadata_wrapper_for_path(str(self.project / relative))
+        fullpath = str(self.project / relative)
+        module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
 
-        visitor = _PyreQuery2Annotations()
+        modpkg = helpers.calculate_module_and_package(
+            repo_root=str(self.project), filename=fullpath
+        )
+        visitor = _PyreQuery2Annotations(modpkg)
         module.visit(visitor)
 
         return (
@@ -61,14 +69,17 @@ class PyreQuery(PerFileInference):
 
 
 class _PyreQuery2Annotations(cst.CSTVisitor):
+    _CALLABLE_RETTYPE_REGEX = re.compile(rf", ([^\]]+)\]$")
+
     METADATA_DEPENDENCIES = (
         metadata.TypeInferenceProvider,
         metadata.ScopeProvider,
         metadata.QualifiedNameProvider,
     )
 
-    def __init__(self) -> None:
+    def __init__(self, modpkg: helpers.ModuleNameAndPackage) -> None:
         super().__init__()
+        self.modpkg = modpkg
         self.annotations: list[tuple[TypeCollectionCategory, str, str]] = []
 
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
@@ -84,23 +95,27 @@ class _PyreQuery2Annotations(cst.CSTVisitor):
         if (inferred := self._infer_type(target)) is None:
             return None
 
+        qname, functy = inferred
         match self.get_metadata(metadata.ScopeProvider, target):
             case metadata.ClassScope():
-                self.annotations.append((TypeCollectionCategory.CLASS_ATTR, *inferred))
+                self.annotations.append((TypeCollectionCategory.CLASS_ATTR, qname, functy))
 
             case _:
-                self.annotations.append((TypeCollectionCategory.VARIABLE, *inferred))
+                self.annotations.append((TypeCollectionCategory.VARIABLE, qname, functy))
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
-        if (inferred := self._infer_type(node.name)) is None:
+        if (inferred := self._infer_rettype(node)) is None:
             return None
-        self.annotations.append((TypeCollectionCategory.CALLABLE_RETURN, *inferred))
+
+        qname, functy = inferred
+        self.annotations.append((TypeCollectionCategory.CALLABLE_RETURN, qname, functy))
 
     def visit_Param(self, node: cst.Param) -> bool | None:
         if (inferred := self._infer_type(node.name)) is None:
             return None
 
-        self.annotations.append((TypeCollectionCategory.CALLABLE_PARAMETER, *inferred))
+        qname, functy = inferred
+        self.annotations.append((TypeCollectionCategory.CALLABLE_PARAMETER, qname, functy))
 
     def _infer_type(self, node: cst.CSTNode) -> tuple[str, str] | None:
         if (anno := self.get_metadata(metadata.TypeInferenceProvider, node, None)) is None:
@@ -108,5 +123,18 @@ class _PyreQuery2Annotations(cst.CSTVisitor):
         if not (qname := self.get_metadata(metadata.QualifiedNameProvider, node)):
             return None
 
-        full_qname = next(iter(qname)).name.replace(".<locals>.", ".")
-        return full_qname, anno
+        qname = next(iter(qname)).name.replace(".<locals>.", ".")
+        return qname, anno.removeprefix(self.modpkg.name + ".")
+
+    def _infer_rettype(self, node: cst.FunctionDef) -> tuple[str, str] | None:
+        if (anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)) is None:
+            return None
+        if not (qname := self.get_metadata(metadata.QualifiedNameProvider, node.name)):
+            return None
+
+        functy = re.findall(_PyreQuery2Annotations._CALLABLE_RETTYPE_REGEX, anno)
+        assert len(functy) <= 1
+        functy = functy[0] if functy else missing.NA
+
+        qname = next(iter(qname)).name.replace(".<locals>.", ".")
+        return qname, functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy
