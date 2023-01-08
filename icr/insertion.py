@@ -3,6 +3,7 @@ import pathlib
 
 from libcst import codemod
 import libcst as cst
+from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
 from libcst import codemod
 
@@ -56,22 +57,34 @@ class TypeAnnotationApplierVisitor(codemod.Codemod):
         )
 
         module_tycol = self.tycol[self.tycol["file"] == str(relative)]
+        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
+        if not req_mod_imports.empty:
+            viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
+            viable_imports = viable_imports[
+                viable_imports["_"].notna() & viable_imports["pkg"].str.islower()
+            ].drop_duplicates(keep="first")
+            pkgs = viable_imports["pkg"].values
 
-        transformers = [
-            _HintRemover(),
-            ApplyTypeAnnotationsVisitor(
-                context=self.context,
-                annotations=TypeCollection.to_annotations(
-                    module_tycol.pipe(pt.DataFrame[TypeCollectionSchema])
-                ),
-                overwrite_existing_annotations=True,
-                use_future_annotations=True,
-                handle_function_bodies=True,
-                create_class_attributes=True,
-            ),
-        ]
+            for pkg in pkgs:
+                AddImportsVisitor.add_needed_import(self.context, pkg)
 
-        # importer = AddImportsVisitor(context=self.context)
-        # tree = tree.visit(importer)
+        removed = tree.visit(_HintRemover())
 
-        return functools.reduce(lambda m, t: m.visit(t), transformers, tree)
+        annotations = TypeCollection.to_annotations(
+            module_tycol.pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        hinted = ApplyTypeAnnotationsVisitor(
+            context=self.context,
+            annotations=annotations,
+            overwrite_existing_annotations=True,
+            use_future_annotations=True,
+            handle_function_bodies=True,
+            create_class_attributes=True,
+        ).transform_module(removed)
+
+        # ApplyTypeAnnotationsVisitor.store_stub_in_context(self.context, hinted)
+        # imported = ApplyTypeAnnotationsVisitor(
+        #    context=self.context, overwrite_existing_annotations=False
+        # ).transform_module(hinted)
+        return hinted
