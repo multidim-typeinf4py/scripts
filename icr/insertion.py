@@ -57,16 +57,16 @@ class TypeAnnotationApplierVisitor(codemod.Codemod):
         )
 
         module_tycol = self.tycol[self.tycol["file"] == str(relative)]
-        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
-        if not req_mod_imports.empty:
-            viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
-            viable_imports = viable_imports[
-                viable_imports["_"].notna() & viable_imports["pkg"].str.islower()
-            ].drop_duplicates(keep="first")
-            pkgs = viable_imports["pkg"].values
-
-            for pkg in pkgs:
-                AddImportsVisitor.add_needed_import(self.context, pkg)
+#        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
+#        if not req_mod_imports.empty:
+            #viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
+            #viable_imports = viable_imports[
+                #viable_imports["_"].notna() & viable_imports["pkg"].str.islower()
+            #].drop_duplicates(keep="first")
+            #pkgs = viable_imports["pkg"].values
+#
+            #for pkg in pkgs:
+                #AddImportsVisitor.add_needed_import(self.context, pkg)
 
         removed = tree.visit(_HintRemover())
 
