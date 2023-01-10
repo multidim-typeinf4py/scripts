@@ -62,7 +62,7 @@ class _Type4PyResponse(NullifyEmptyDictModel):
 
 class _Type4PyAnswer(pydantic.BaseModel):
     error: str | None
-    response: _Type4PyResponse
+    response: _Type4PyResponse | None
 
 
 # NOTE: THERE IS A BUG / THERE IS AMBIGUITY IN THE PREDICTIONS OF TYPE4PY!!
@@ -93,6 +93,13 @@ class Type4Py(PerFileInference):
                 f"WARNING: {Type4Py.__qualname__} failed for {self.project / relative} - {answer.error}"
             )
             return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+
+        if answer.response is None:
+            print(
+                f"WARNING: {Type4Py.__qualname__} couldnt infer anything for {self.project / relative}"
+            )
+            return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+
 
         src = (self.project / relative).open().read()
         module = cst.MetadataWrapper(cst.parse_module(src))
