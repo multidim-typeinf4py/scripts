@@ -48,7 +48,6 @@ def _collect(
         transform=visitor,
         files=cstcli.gather_files([str(root)], include_stubs=allow_stubs),
         jobs=1,
-        blacklist_patterns=["__init__.py"],
         repo_root=repo_root,
     )
 
