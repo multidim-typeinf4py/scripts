@@ -1,32 +1,50 @@
 import builtins
 import collections
 import pathlib
-import pydoc
+
 import pandera.typing as pt
-from common.schemas import ContextCategory, ContextSymbolSchema, TypeCollectionCategory
-from common._helper import _stringify
 
-
+import pandas as pd
 import libcst as cst
+from libcst import helpers
 import libcst.codemod as codemod
 import libcst.metadata as metadata
+
+from common.schemas import (
+    ContextCategory,
+    ContextSymbolSchema,
+    ContextSymbolSchemaColumns,
+    TypeCollectionCategory,
+)
+from common._helper import _stringify
 
 from context.features import RelevantFeatures
 
 
-class ContextVectorMaker(codemod.ContextAwareTransformer):
+def generate_context_vectors_for_file(
+    features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
+) -> pt.DataFrame[ContextSymbolSchema]:
+    visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
+    module = cst.parse_module(path.open().read())
+
+    md = metadata.MetadataWrapper(module)
+    md.visit(visitor)
+
+    if not visitor.dfrs:
+        df = pd.DataFrame(columns=ContextSymbolSchemaColumns)
+        return df
+
+    return pt.DataFrame[ContextSymbolSchema](visitor.dfrs, columns=ContextSymbolSchemaColumns)
+
+
+class ContextVectorVisitor(cst.CSTVisitor):
     METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
 
-    def __init__(self, context: codemod.CodemodContext, features: RelevantFeatures) -> None:
-        super().__init__(context)
-
+    def __init__(self, filepath: str, features: RelevantFeatures) -> None:
         self.features: RelevantFeatures = features
 
         self.scope_stack: list[tuple[str, ...]] = []
-        self.scope_vars: collections.defaultdict[
-            tuple[str, ...], set[str]
-        ] = collections.defaultdict(set)
-
+        self.filepath = filepath
         self.loop_stack: list[cst.CSTNode] = []
 
         self.dfrs: list[tuple[str, str, str, int, int, int, int, int]] = []
@@ -49,28 +67,23 @@ class ContextVectorMaker(codemod.ContextAwareTransformer):
             category=TypeCollectionCategory.CALLABLE_PARAMETER,
         )
 
-    def leave_FunctionDef(
-        self, _: "cst.FunctionDef", updated_node: "cst.FunctionDef"
-    ) -> cst.FunctionDef:
+    def leave_FunctionDef(self, _: "cst.FunctionDef") -> None:
         self._leave_scope()
-        return updated_node
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool | None:
         self._update_scope_stack(node.name.value)
 
-    def leave_ClassDef(self, _: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
+    def leave_ClassDef(self, _: cst.ClassDef) -> None:
         self._leave_scope()
-        return updated_node
 
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
         ident = _stringify(node.target)
         self._handle_annotatable(
             annotatable=node.target,
-            identifier=_stringify(node.target),
+            identifier=ident,
             annotation=None,
             category=TypeCollectionCategory.VARIABLE,
         )
-        self._update_scope_vars(ident)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         match self.get_metadata(metadata.ScopeProvider, node):
@@ -87,23 +100,12 @@ class ContextVectorMaker(codemod.ContextAwareTransformer):
             annotation=node.annotation,
             category=category,
         )
-        self._update_scope_vars(ident)
 
     def _update_scope_stack(self, name: str) -> None:
         self.scope_stack.append((*self.scope(), name))
 
-    def _update_scope_vars(self, v: str) -> None:
-        # TODO: Use recorded assignments instead; much easier to resolve
-        scope = self.scope()
-        slices = map(lambda o: scope[:o], range(len(scope)))
-
-        if any(v in self.scope_vars[s] for s in slices):
-            return
-        self.scope_vars[scope].add(v)
-
     def _leave_scope(self) -> None:
-        s = self.scope_stack.pop()
-        del self.scope_vars[s]
+        self.scope_stack.pop()
 
     def scope(self) -> tuple[str, ...]:
         return self.scope_stack[-1] if self.scope_stack else tuple()
@@ -133,21 +135,15 @@ class ContextVectorMaker(codemod.ContextAwareTransformer):
         category: TypeCollectionCategory,
     ) -> None:
         loopf = int(self.features.loop and self._is_in_loop())
-        reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
+        reassignedf = int(self.features.reassigned and self._is_reassigned(annotatable))
         nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
         user_definedf = int(self.features.user_defined and self._is_userdefined(annotation))
 
         categoryf = self._ctxt_category(annotatable, category)
 
-        assert self.context.filename is not None
-        assert self.context.metadata_manager is not None
         self.dfrs.append(
             (
-                str(
-                    pathlib.Path(self.context.filename).relative_to(
-                        self.context.metadata_manager.root_path
-                    )
-                ),
+                self.filepath,
                 category,
                 self.qname_within_scope(identifier),
                 loopf,
@@ -161,28 +157,35 @@ class ContextVectorMaker(codemod.ContextAwareTransformer):
     def _is_in_loop(self) -> bool:
         return bool(self.loop_stack)
 
-    def _is_reassigned(self, identifier: str) -> bool:
-        scope = self.scope()
-        slices = map(lambda o: scope[:o], range(len(scope)))
+    def _is_reassigned(self, node: cst.CSTNode) -> bool:
+        # Iterate over all scopes, up to builtin and count occurrences
+        scopes = [scope := self.get_metadata(metadata.ScopeProvider, node)]
+        # while not (scope is None or isinstance(scope, metadata.BuiltinScope)):
+        #     scopes.append(scope := scope.parent)
 
-        return any(identifier in self.scope_vars[s] for s in slices)
+        # assgns = [scope.assignments._assignments.get(_stringify(node), []) for scope in scopes]
+        # return sum(map(len, assgns)) >= 2
 
-    def _is_nested_scope(self, n: cst.CSTNode) -> bool:
+        assgns = scope.assignments._assignments.get(_stringify(node), [])
+        return len(assgns) >= 2
+
+    def _is_nested_scope(self, node: cst.CSTNode) -> bool:
         # Detect class in class or function in function
-        scopes = [scope := self.get_metadata(metadata.ScopeProvider, n)]
+        scopes = [scope := self.get_metadata(metadata.ScopeProvider, node)]
         while not (scope is None or isinstance(scope, metadata.BuiltinScope)):
             scopes.append(scope := scope.parent)
 
-        return len(set(map(type, scopes))) < len(scopes)
+        counted = collections.Counter(map(type, scopes))
+
+        fncount = counted.get(metadata.FunctionScope, 0) + isinstance(node, cst.FunctionDef)
+        czcount = counted.get(metadata.ClassScope, 0) + isinstance(node, metadata.ClassScope)
+        return fncount >= 2 or czcount >= 2
 
     def _is_userdefined(self, annotation: cst.Annotation | None) -> bool:
         if annotation is None:
             return False
 
-        if (loc := pydoc.locate(_stringify(annotation.annotation))) is None:
-            return False
-
-        return loc.__qualname__ in dir(builtins)
+        return _stringify(annotation.annotation) not in dir(builtins)
 
     def _ctxt_category(
         self, annotatable: cst.CSTNode, category: TypeCollectionCategory

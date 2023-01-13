@@ -1,16 +1,21 @@
 import enum
 import pathlib
-import sys
+
 import click
 import pandera.typing as pt
-
+import pandas as pd
 import libcst.codemod as codemod
 
+from common.schemas import (
+    ContextCategory,
+    ContextSymbolSchema,
+    ContextSymbolSchemaColumns,
+    TypeCollectionCategory,
+)
 
 from context.features import RelevantFeatures
 
-from common.schemas import ContextSymbolSchema, ContextSymbolSchemaColumns
-from .visitors import ContextVectorMaker
+from .visitors import generate_context_vectors_for_file
 
 
 class Purpose(str, enum.Enum):
@@ -57,14 +62,14 @@ class Purpose(str, enum.Enum):
     default=False,
     help="1 iff given annotation is user-defined else 0",
 )
-#@click.option(
+# @click.option(
 #    "-s",
 #    "--scope",
 #    is_flag=True,
 #    show_default=True,
 #    default=False,
 #    help="Generate numeric indicator for annotatable's scope; GlobalScope, FunctionScope, etc.",
-#)
+# )
 # @click.option(
 #     "-p",
 #     "--purpose",
@@ -78,37 +83,18 @@ def entrypoint(
     reassigned: bool,
     nested: bool,
     user_defined: bool,
-    #scope: bool,  # , purpose: Purpose
+    # scope: bool,  # , purpose: Purpose
 ) -> None:
-    vmaker = ContextVectorMaker(
-        context=codemod.CodemodContext(),
-        features=RelevantFeatures(
-            loop=loop, reassigned=reassigned, nested=nested, user_defined=user_defined# , scope=scope
-        ),
+    features = RelevantFeatures(
+        loop=loop, reassigned=reassigned, nested=nested, user_defined=user_defined  # , scope=scope
     )
 
-    presult = codemod.parallel_exec_transform_with_prettyprint(
-        transform=vmaker,
-        files=codemod.gather_files(
-            [str(inpath)],
-        ),
-        jobs=1,
-        repo_root=str(inpath),
-    )
+    rs: list = []
 
-    print(
-        f"Finished codemodding {presult.successes + presult.skips + presult.failures} files!",
-        file=sys.stderr,
-    )
-    print(
-        f" - Collected symbol from {presult.successes} files successfully.",
-        file=sys.stderr,
-    )
-    print(f" - Skipped {presult.skips} files.", file=sys.stderr)
-    print(f" - Failed to collect from {presult.failures} files.", file=sys.stderr)
-    print(f" - {presult.warnings} warnings were generated.", file=sys.stderr)
+    for file in codemod.gather_files([str(inpath)]):
+        rs.append(generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file)))
 
-    df = pt.DataFrame[ContextSymbolSchema](vmaker.dfrs, columns=ContextSymbolSchemaColumns)
+    df = pd.concat(rs).pipe(pt.DataFrame[ContextSymbolSchema])
     print(df)
 
 
