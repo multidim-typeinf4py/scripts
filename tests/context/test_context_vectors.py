@@ -25,23 +25,23 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     argnames=("qnames", "feature"),
     argvalues=(
         # 1. loopage i.e. the annotatable is in some kind of loop
-        ({"looping.x", "looping.a"}, ContextSymbolSchema.loop),
+        (["looping.x", "looping.a"], ContextSymbolSchema.loop),
         # 2. nestage i.e. the annotatble is in some nested scope (class in class, function in function)
-        ({"f.g", "f.g.a"}, ContextSymbolSchema.nested),
+        (["f.g", "f.g.a"], ContextSymbolSchema.nested),
         # 3. user-deffed i.e. the attached annotation is not a builtin type
-        ({"userdeffed.udc"}, ContextSymbolSchema.user_defined),
+        (["userdeffed.udc"], ContextSymbolSchema.user_defined),
         # 4. reassigned i.e. the annotatable's symbol occurs multiple times in the same scope
         (
-            {"looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"},
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
             ContextSymbolSchema.reassigned,
         ),
     ),
     ids=str,
 )
 def test_feature(
-    context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: set[str], feature: str
+    context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
 ):
-    assert pd.Series(list(qnames)).isin(context_dataset[ContextSymbolSchema.qname]).all()
+    assert pd.Series(qnames).isin(context_dataset[ContextSymbolSchema.qname]).all()
 
     mask = context_dataset[ContextSymbolSchema.qname].isin(qnames)
     positive_df, negative_df = context_dataset[mask], context_dataset[~mask]
