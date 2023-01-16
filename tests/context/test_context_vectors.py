@@ -72,7 +72,7 @@ def test_userdeffed(context_dataset: pt.DataFrame[ContextSymbolSchema]):
 
 # 4. reassigned i.e. the annotatable's symbol occurs multiple times in the same scope
 def test_reassigned(context_dataset: pt.DataFrame[ContextSymbolSchema]):
-    expected_reassigned = ("looping.x", "looping.a", "local_reassign.c", "a", "g.a")
+    expected_reassigned = ("looping.x", "looping.a", "local_reassign.c", "parammed.a", "a", "g.a")
 
     for v in expected_reassigned:
         select = context_dataset[context_dataset["qname"] == v]
@@ -81,5 +81,5 @@ def test_reassigned(context_dataset: pt.DataFrame[ContextSymbolSchema]):
         ].all(), f"{v} is not marked as reassigned!; {select}"
 
     remainder = context_dataset[~context_dataset["qname"].isin(expected_reassigned)]
-    nested = remainder[remainder[ContextSymbolSchema.user_defined] == 1]
+    nested = remainder[remainder[ContextSymbolSchema.reassigned] == 1]
     assert nested.empty, f"{nested} are marked as reassigned!"

@@ -49,6 +49,9 @@ def g():
     # Repeated reassignment of global variable
     a = bytes([1, 2, 3])
 
+def parammed(p: int | None):
+    p = p or 10
+
 
 if __name__ == "__main__":
     local_reassign()
