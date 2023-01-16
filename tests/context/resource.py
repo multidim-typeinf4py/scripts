@@ -13,8 +13,10 @@ def looping():
         while a not in range(0, 2):
             a /= 2
 
+
 class UserDefinedClass:
     ...
+
 
 def userdeffed():
     abc: int = 10
@@ -27,8 +29,10 @@ def local_reassign():
     c = 50
     print(c)
 
+
 # Global variable
 a = 10
+
 
 def f():
     # Local variable; NOT a reassignment of the global
@@ -41,16 +45,18 @@ def f():
     g()
     print(type(a))
 
+
 def g():
-    # Reassignment of global variable
+    # Reassignment of global variable; do NOT mark as reassigned as the assignment is contained within this scope?
     global a
     a = "magic"
 
     # Repeated reassignment of global variable
     a = bytes([1, 2, 3])
 
+
 def parammed(p: int | None):
-    p = p or 10
+    p: int = p or 10
 
 
 if __name__ == "__main__":

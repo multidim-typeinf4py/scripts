@@ -21,65 +21,37 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     )
 
 
-# 1. loopage i.e. the annotatable is in some kind of loop
-def test_loopage(context_dataset: pt.DataFrame[ContextSymbolSchema]):
-    x = "looping.x"
-    a = "looping.a"
+@pytest.mark.parametrize(
+    argnames=("qnames", "feature"),
+    argvalues=(
+        # 1. loopage i.e. the annotatable is in some kind of loop
+        ({"looping.x", "looping.a"}, ContextSymbolSchema.loop),
+        # 2. nestage i.e. the annotatble is in some nested scope (class in class, function in function)
+        ({"f.g", "f.g.a"}, ContextSymbolSchema.nested),
+        # 3. user-deffed i.e. the attached annotation is not a builtin type
+        ({"userdeffed.udc"}, ContextSymbolSchema.user_defined),
+        # 4. reassigned i.e. the annotatable's symbol occurs multiple times in the same scope
+        (
+            {"looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"},
+            ContextSymbolSchema.reassigned,
+        ),
+    ),
+    ids=str,
+)
+def test_feature(
+    context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: set[str], feature: str
+):
+    assert pd.Series(list(qnames)).isin(context_dataset[ContextSymbolSchema.qname]).all()
 
-    expected_in_loop = (x, a)
+    mask = context_dataset[ContextSymbolSchema.qname].isin(qnames)
+    positive_df, negative_df = context_dataset[mask], context_dataset[~mask]
 
-    for v in expected_in_loop:
-        select = context_dataset[context_dataset["qname"] == v]
-        assert select[ContextSymbolSchema.loop].all(), f"{v} is not in a loop!; {select}"
+    pos_failing = positive_df[positive_df[feature] != 1]
+    assert (
+        pos_failing.empty
+    ), f"{pos_failing[ContextSymbolSchema.qname].unique()} are not marked as '{feature}'"
 
-    remainder = context_dataset[~context_dataset["qname"].isin(expected_in_loop)]
-    in_loop = remainder[remainder[ContextSymbolSchema.loop] == 1]
-    assert in_loop.empty, f"{in_loop} are marked as in a loop!"
-
-
-# 2. nestage i.e. the annotatble is in some nested scope (class in class, function in function)
-def test_nestage(context_dataset: pt.DataFrame[ContextSymbolSchema]):
-    fdotg = "f.g"
-    fdotgdota = "f.g.a"
-
-    expected_nested = (fdotg, fdotgdota)
-
-    for v in expected_nested:
-        select = context_dataset[context_dataset["qname"] == v]
-        assert select[ContextSymbolSchema.nested].all(), f"{v} is not marked as nested!; {select}"
-
-    remainder = context_dataset[~context_dataset["qname"].isin(expected_nested)]
-    nested = remainder[remainder[ContextSymbolSchema.nested] == 1]
-    assert nested.empty, f"{nested} are marked as nested!"
-
-
-# 3. user-deffed i.e. the attached annotation is not a builtin type
-def test_userdeffed(context_dataset: pt.DataFrame[ContextSymbolSchema]):
-    udc = "userdeffed.udc"
-
-    expected_userdeffed = (udc,)
-
-    for v in expected_userdeffed:
-        select = context_dataset[context_dataset["qname"] == v]
-        assert select[
-            ContextSymbolSchema.user_defined
-        ].all(), f"{v} is not marked as user defined!; {select}"
-
-    remainder = context_dataset[~context_dataset["qname"].isin(expected_userdeffed)]
-    nested = remainder[remainder[ContextSymbolSchema.user_defined] == 1]
-    assert nested.empty, f"{nested} are marked as user defined!"
-
-
-# 4. reassigned i.e. the annotatable's symbol occurs multiple times in the same scope
-def test_reassigned(context_dataset: pt.DataFrame[ContextSymbolSchema]):
-    expected_reassigned = ("looping.x", "looping.a", "local_reassign.c", "parammed.a", "a", "g.a")
-
-    for v in expected_reassigned:
-        select = context_dataset[context_dataset["qname"] == v]
-        assert select[
-            ContextSymbolSchema.reassigned
-        ].all(), f"{v} is not marked as reassigned!; {select}"
-
-    remainder = context_dataset[~context_dataset["qname"].isin(expected_reassigned)]
-    nested = remainder[remainder[ContextSymbolSchema.reassigned] == 1]
-    assert nested.empty, f"{nested} are marked as reassigned!"
+    neg_failing = negative_df[negative_df[feature] != 0]
+    assert (
+        neg_failing.empty
+    ), f"{neg_failing[ContextSymbolSchema.qname].unique()} shouldn't be marked as '{feature}'"

@@ -9,6 +9,7 @@ import libcst as cst
 from libcst import helpers
 import libcst.codemod as codemod
 import libcst.metadata as metadata
+import libcst.matchers as m
 
 from common.schemas import (
     ContextCategory,
@@ -34,7 +35,17 @@ def generate_context_vectors_for_file(
         df = pd.DataFrame(columns=ContextSymbolSchemaColumns)
         return df
 
-    return pt.DataFrame[ContextSymbolSchema](visitor.dfrs, columns=ContextSymbolSchemaColumns)
+    df = pt.DataFrame[ContextSymbolSchema](visitor.dfrs, columns=ContextSymbolSchemaColumns)
+
+    # Reassigned variables also mean redefined parameters
+    variables = df[
+        (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
+        & (df[ContextSymbolSchema.reassigned] == 1)
+    ]
+    # Find parameters by the same name
+    parameters = df[ContextSymbolSchema.qname].isin(variables[ContextSymbolSchema.qname])
+    df.loc[parameters, ContextSymbolSchema.reassigned] = 1
+    return df
 
 
 class ContextVectorVisitor(cst.CSTVisitor):
@@ -158,9 +169,10 @@ class ContextVectorVisitor(cst.CSTVisitor):
         return bool(self.loop_stack)
 
     def _is_reassigned(self, node: cst.CSTNode) -> bool:
-        scope = self.get_metadata(metadata.ScopeProvider, node)
-        assgns = scope.assignments[_stringify(node)]
-        return len(assgns) >= 2
+        scope: metadata.Scope = self.get_metadata(metadata.ScopeProvider, node)
+        scope_assgns = scope.assignments[node]
+
+        return len(scope_assgns) >= 2
 
     def _is_nested_scope(self, node: cst.CSTNode) -> bool:
         # Detect class in class or function in function
@@ -178,7 +190,11 @@ class ContextVectorVisitor(cst.CSTVisitor):
         if annotation is None:
             return False
 
-        return _stringify(annotation.annotation) not in dir(builtins)
+        a = _stringify(annotation.annotation)
+        sanitised = "".join(a.split())
+        unions = sanitised.split("|")
+
+        return any(u not in dir(builtins) for u in unions)
 
     def _ctxt_category(
         self, annotatable: cst.CSTNode, category: TypeCollectionCategory
