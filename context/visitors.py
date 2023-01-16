@@ -158,15 +158,8 @@ class ContextVectorVisitor(cst.CSTVisitor):
         return bool(self.loop_stack)
 
     def _is_reassigned(self, node: cst.CSTNode) -> bool:
-        # Iterate over all scopes, up to builtin and count occurrences
-        scopes = [scope := self.get_metadata(metadata.ScopeProvider, node)]
-        # while not (scope is None or isinstance(scope, metadata.BuiltinScope)):
-        #     scopes.append(scope := scope.parent)
-
-        # assgns = [scope.assignments._assignments.get(_stringify(node), []) for scope in scopes]
-        # return sum(map(len, assgns)) >= 2
-
-        assgns = scope.assignments._assignments.get(_stringify(node), [])
+        scope = self.get_metadata(metadata.ScopeProvider, node)
+        assgns = scope.assignments[_stringify(node)]
         return len(assgns) >= 2
 
     def _is_nested_scope(self, node: cst.CSTNode) -> bool:
