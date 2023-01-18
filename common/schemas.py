@@ -52,3 +52,25 @@ class SymbolSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
     qname: pt.Series[str] = pa.Field()
+
+
+
+class ContextCategory(enum.IntEnum):
+    CALLABLE_RETURN = enum.auto()
+    CALLABLE_PARAMETER = enum.auto()
+    VARIABLE = enum.auto()
+    INSTANCE_ATTR = enum.auto()
+    CLASS_ATTR = enum.auto()
+
+    def __str__(self) -> str:
+        return self.name
+
+class ContextSymbolSchema(SymbolSchema):
+    loop: pt.Series[int] = pa.Field()
+    reassigned: pt.Series[int] = pa.Field()
+    nested: pt.Series[int] = pa.Field()
+    user_defined: pt.Series[int] = pa.Field()
+    ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
+
+
+ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())

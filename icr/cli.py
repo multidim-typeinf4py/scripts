@@ -4,8 +4,8 @@ import shutil
 import sys
 
 import click
+from common import output
 from common.schemas import InferredSchemaColumns
-from common.storage import TypeCollection
 from icr.insertion import TypeAnnotationApplierVisitor
 
 from symbols.cli import _collect
@@ -13,7 +13,6 @@ from .resolution import ConflictResolution, SubtypeVoting, Delegation
 from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 from . import _factory
 
-from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
 from libcst import codemod
 from libcst.codemod import _cli as cstcli
 
@@ -154,14 +153,8 @@ def entrypoint(
         print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
         print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
 
-        outpath = outdir / ".icr.csv"
-        inference.to_csv(
-            outpath,
-            sep="\t",
-            index=False,
-            header=InferredSchemaColumns,
-        )
-        print(f"Inferred types have been stored at {outpath}; exiting...")
+        output.write_icr(inference, outdir)
+        print(f"Inferred types have been stored at {outdir}; exiting...")
 
     else:
         print(inference)
