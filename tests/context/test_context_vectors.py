@@ -1,10 +1,9 @@
 import pathlib
 
-import libcst
 import pandas as pd
 import pandera.typing as pt
 
-from common.schemas import ContextSymbolSchema, ContextSymbolSchemaColumns
+from common.schemas import ContextSymbolSchema
 from context.features import RelevantFeatures
 from context.visitors import generate_context_vectors_for_file
 
@@ -14,11 +13,13 @@ import pytest
 @pytest.fixture
 def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "context"
-    return generate_context_vectors_for_file(
+    cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(loop=True, reassigned=True, nested=True, user_defined=True),
         repo=repo,
         path=repo / "resource.py",
     )
+
+    return cvs
 
 
 @pytest.mark.parametrize(

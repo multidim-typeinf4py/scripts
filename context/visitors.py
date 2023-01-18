@@ -9,7 +9,7 @@ import libcst as cst
 import libcst.metadata as metadata
 
 from common.schemas import (
-    ContextCategory,
+        ContextCategory,
     ContextSymbolSchema,
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
@@ -21,7 +21,7 @@ from context.features import RelevantFeatures
 
 def generate_context_vectors_for_file(
     features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
-) -> pt.DataFrame[ContextSymbolSchema]:
+) -> pt.DataFrame[ContextSymbolSchema] | None:
     visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
     module = cst.parse_module(path.open().read())
 
@@ -29,8 +29,7 @@ def generate_context_vectors_for_file(
     md.visit(visitor)
 
     if not visitor.dfrs:
-        df = pd.DataFrame(columns=ContextSymbolSchemaColumns)
-        return df
+        return None
 
     df = pt.DataFrame[ContextSymbolSchema](visitor.dfrs, columns=ContextSymbolSchemaColumns)
 

@@ -6,12 +6,8 @@ import pandera.typing as pt
 import pandas as pd
 import libcst.codemod as codemod
 
-from common.schemas import (
-    ContextCategory,
-    ContextSymbolSchema,
-    ContextSymbolSchemaColumns,
-    TypeCollectionCategory,
-)
+from common.schemas import ContextSymbolSchema
+from common import output
 
 from context.features import RelevantFeatures
 
@@ -62,40 +58,23 @@ class Purpose(str, enum.Enum):
     default=False,
     help="1 iff given annotation is user-defined else 0",
 )
-# @click.option(
-#    "-s",
-#    "--scope",
-#    is_flag=True,
-#    show_default=True,
-#    default=False,
-#    help="Generate numeric indicator for annotatable's scope; GlobalScope, FunctionScope, etc.",
-# )
-# @click.option(
-#     "-p",
-#     "--purpose",
-#     type=click.Choice(["library", "application"]),
-#     callback=lambda ctx, _, val: Purpose[val] if val is not None else None,
-#     help="Supply library purpose",
-# )
 def entrypoint(
     inpath: pathlib.Path,
     loop: bool,
     reassigned: bool,
     nested: bool,
     user_defined: bool,
-    # scope: bool,  # , purpose: Purpose
 ) -> None:
     features = RelevantFeatures(
         loop=loop, reassigned=reassigned, nested=nested, user_defined=user_defined  # , scope=scope
     )
 
-    rs: list = []
-
-    for file in codemod.gather_files([str(inpath)]):
-        rs.append(generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file)))
-
-    df = pd.concat(rs).pipe(pt.DataFrame[ContextSymbolSchema])
-    print(df)
+    rs = [
+        generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file))
+        for file in codemod.gather_files([str(inpath)])
+    ]
+    df = pd.concat(list(filter(lambda d: d is not None, rs)), ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+    output.write_context(df, inpath)
 
 
 if __name__ == "__main__":

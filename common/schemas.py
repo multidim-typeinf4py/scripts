@@ -55,7 +55,7 @@ class SymbolSchema(pa.SchemaModel):
 
 
 
-class ContextCategory(int, enum.Enum):
+class ContextCategory(enum.IntEnum):
     CALLABLE_RETURN = enum.auto()
     CALLABLE_PARAMETER = enum.auto()
     VARIABLE = enum.auto()
