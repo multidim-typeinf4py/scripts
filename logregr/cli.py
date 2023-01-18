@@ -10,7 +10,8 @@ from symbols.cli import _collect
 
 
 @click.group(
-    name="logregr", help="Interact with logistic regression model to evaluate efficacy of inference tools"
+    name="logregr",
+    help="Interact with logistic regression model to evaluate efficacy of inference tools",
 )
 def entrypoint():
     ...
@@ -36,7 +37,15 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
     tool_annotated_dfs = [output.read_context(ip) for _, ip in inpath]
     ta_df = pd.concat(tool_annotated_dfs)
 
-    vectors = ta_df[
+    features_on_symbols = pd.merge(
+        left=gt_df,
+        right=ta_df,
+        how="left",
+        on=[ContextSymbolSchema.file, ContextSymbolSchema.category, ContextSymbolSchema.qname],
+        suffixes=("_gt", "_ta"),
+    )
+
+    features_on_symbols = ta_df[
         [
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
@@ -45,4 +54,4 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
             ContextSymbolSchema.ctxt_category,
         ]
     ]
-    print(vectors.dtypes)
+    print(features_on_symbols.dtypes)

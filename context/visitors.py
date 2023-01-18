@@ -5,11 +5,12 @@ import pathlib
 import pandera.typing as pt
 
 import pandas as pd
+from pandas._libs import missing
 import libcst as cst
 import libcst.metadata as metadata
 
 from common.schemas import (
-        ContextCategory,
+    ContextCategory,
     ContextSymbolSchema,
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
@@ -153,6 +154,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
                 self.filepath,
                 category,
                 self.qname_within_scope(identifier),
+                _stringify(annotation) or missing.NA,
                 loopf,
                 reassignedf,
                 nestedf,
