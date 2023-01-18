@@ -1,6 +1,7 @@
 import click
 
 import context
+import logregr
 import icr
 import srcdiff
 import hintdiff
@@ -14,6 +15,7 @@ if __name__ == "__main__":
             hintdiff.entrypoint,
             symbols.entrypoint,
             srcdiff.entrypoint,
+            logregr.entrypoint,
         ]
     )
     main()
