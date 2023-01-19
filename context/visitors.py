@@ -9,7 +9,7 @@ import libcst as cst
 import libcst.metadata as metadata
 
 from common.schemas import (
-        ContextCategory,
+    ContextCategory,
     ContextSymbolSchema,
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
@@ -28,20 +28,7 @@ def generate_context_vectors_for_file(
     md = metadata.MetadataWrapper(module)
     md.visit(visitor)
 
-    if not visitor.dfrs:
-        return None
-
-    df = pt.DataFrame[ContextSymbolSchema](visitor.dfrs, columns=ContextSymbolSchemaColumns)
-
-    # Reassigned variables also mean redefined parameters
-    variables = df[
-        (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
-        & (df[ContextSymbolSchema.reassigned] == 1)
-    ]
-    # Find parameters by the same name
-    parameters = df[ContextSymbolSchema.qname].isin(variables[ContextSymbolSchema.qname])
-    df.loc[parameters, ContextSymbolSchema.reassigned] = 1
-    return df
+    return visitor.build()
 
 
 class ContextVectorVisitor(cst.CSTVisitor):
@@ -211,3 +198,20 @@ class ContextVectorVisitor(cst.CSTVisitor):
                     if isinstance(annotatable, cst.Name)
                     else ContextCategory.INSTANCE_ATTR
                 )
+
+
+    def build(self) -> pt.DataFrame[ContextSymbolSchema] | None:
+        if not self.dfrs:
+            return None
+
+        df = pt.DataFrame[ContextSymbolSchema](self.dfrs, columns=ContextSymbolSchemaColumns)
+
+        # Reassigned variables also mean redefined parameters
+        variables = df[
+            (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
+            & (df[ContextSymbolSchema.reassigned] == 1)
+        ]
+        # Find parameters by the same name
+        parameters = df[ContextSymbolSchema.qname].isin(variables[ContextSymbolSchema.qname])
+        df.loc[parameters, ContextSymbolSchema.reassigned] = 1
+        return df
