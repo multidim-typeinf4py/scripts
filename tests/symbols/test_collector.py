@@ -9,7 +9,7 @@ from common.schemas import (
 from common.storage import TypeCollection
 
 
-from symbols import cli
+from symbols.collector import build_type_collection
 
 from pandas._libs import missing
 
@@ -121,7 +121,7 @@ def test_hints_found(
     category: TypeCollectionCategory,
     hinted_symbols: list[tuple[str, str | missing.NAType]],
 ) -> None:
-    collection = cli._collect(code_path)
+    collection = build_type_collection(code_path)
 
     hints = [
         (str(code_path.name), category, qname, qname_ssa, anno)
@@ -148,7 +148,7 @@ def test_hints_found(
 def test_loadable(code_path: pathlib.Path) -> None:
     import tempfile
 
-    collection = cli._collect(code_path)
+    collection = build_type_collection(code_path)
     with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
         collection.write(tmpfile.name)
         reloaded = TypeCollection.load(tmpfile.name)
