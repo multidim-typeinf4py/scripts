@@ -1,13 +1,10 @@
 import pathlib
-import sys
 
 import click
 
-from libcst.codemod import _cli as cstcli
-import libcst.codemod as codemod
 
 from common import TypeCollection
-from .collector import TypeCollectorVistor
+from .collector import build_type_collection
 
 
 @click.command(
@@ -29,41 +26,8 @@ from .collector import TypeCollectorVistor
     help="Output path for .tsv",
 )
 def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
-    result, collection = _collect(root)
-    if result.failures or result.warnings:
-        print(
-            "WARNING: Failures and / or warnings occurred, the symbol collection may be incomplete!"
-        )
+    collection = build_type_collection(root)
     _store(collection, output)
-
-
-def _collect(
-    root: pathlib.Path,
-    allow_stubs=False,
-) -> TypeCollection:
-    repo_root = str(root.parent if root.is_file() else root)
-
-    visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
-    _ = codemod.parallel_exec_transform_with_prettyprint(
-        transform=visitor,
-        files=cstcli.gather_files([str(root)], include_stubs=allow_stubs),
-        jobs=1,
-        repo_root=repo_root,
-    )
-
-    # print(
-    #     f"Finished codemodding {result.successes + result.skips + result.failures} files!",
-    #     file=sys.stderr,
-    # )
-    # print(
-    #     f" - Collected symbol from {result.successes} files successfully.",
-    #     file=sys.stderr,
-    # )
-    # print(f" - Skipped {result.skips} files.", file=sys.stderr)
-    # print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
-    # print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
-
-    return visitor.collection
 
 
 def _store(collection: TypeCollection, output: pathlib.Path) -> None:

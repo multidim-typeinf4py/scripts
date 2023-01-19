@@ -2,7 +2,7 @@ import pathlib
 from icr.resolution import Delegation, DelegationOrder
 
 from common.schemas import SymbolSchema, InferredSchema, TypeCollectionCategory
-from symbols.cli import _collect
+from symbols.collector import build_type_collection
 
 from pandas._libs import missing
 import pandera.typing as pt
@@ -17,6 +17,7 @@ agent1 = pt.DataFrame[InferredSchema](
         "method": ["static"] * 3,
         "category": [TypeCollectionCategory.CALLABLE_PARAMETER] * 3,
         "qname": [f"function.{name}" for name in "abc"],
+        "qname_ssa": [f"function.{name}" for name in "abc"],
         "anno": [missing.NA, "int", missing.NA],
     }
 )
@@ -27,6 +28,7 @@ agent2 = pt.DataFrame[InferredSchema](
         "method": ["prob"] * 4,
         "category": [TypeCollectionCategory.CALLABLE_PARAMETER] * 4,
         "qname": [f"function.{name}" for name in "abcc"],
+        "qname_ssa": [f"function.{name}" for name in "abcc"],
         "anno": [missing.NA, "bool", "str", "bytes"],
     }
 )
@@ -39,7 +41,7 @@ agent2 = pt.DataFrame[InferredSchema](
 @pytest.fixture()
 def proj1() -> tuple[pathlib.Path, pt.DataFrame[SymbolSchema]]:
     path = pathlib.Path.cwd() / "tests" / "resources" / "proj1"
-    reference = _collect(path)[1].df.drop(columns="anno").pipe(pt.DataFrame[SymbolSchema])
+    reference = build_type_collection(path).df.drop(columns="anno").pipe(pt.DataFrame[SymbolSchema])
 
     return (path, reference)
 

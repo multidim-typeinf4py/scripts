@@ -4,11 +4,10 @@ import shutil
 import sys
 
 import click
-from common import output
-from common.schemas import InferredSchemaColumns
+from common.schemas import TypeCollectionSchema
 from icr.insertion import TypeAnnotationApplierVisitor
 
-from symbols.cli import _collect
+from symbols.collector import build_type_collection
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
 from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 from . import _factory
@@ -25,7 +24,8 @@ from libcst.codemod import _cli as cstcli
     "-s",
     "--static",
     type=click.Choice(
-        choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower(), PyreQuery.__name__.lower()], case_sensitive=False
+        choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower(), PyreQuery.__name__.lower()],
+        case_sensitive=False,
     ),
     callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
     required=False,
@@ -109,9 +109,11 @@ def entrypoint(
     #     print(inferrer.inferred)
 
     if engine is not None:
-        baseline = _collect(root=inpath)[1].df
+        baseline = build_type_collection(root=inpath).df
 
-        eng = engine(project=inpath, reference=baseline.drop(columns=["anno"], axis=1))
+        eng = engine(
+            project=inpath, reference=baseline.drop(columns=[TypeCollectionSchema.anno], axis=1)
+        )
         inference = eng.resolve(
             probabilistics[0].inferred, dynamic=None, probabilistic=probabilistics[1].inferred
         )

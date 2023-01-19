@@ -201,19 +201,35 @@ class ContextVectorVisitor(cst.CSTVisitor):
                     else ContextCategory.INSTANCE_ATTR
                 )
 
-
     def build(self) -> pt.DataFrame[ContextSymbolSchema] | None:
         if not self.dfrs:
             return None
 
-        df = pt.DataFrame[ContextSymbolSchema](self.dfrs, columns=ContextSymbolSchemaColumns)
+        wout_qname_ssa = [c for c in ContextSymbolSchemaColumns if c != "qname_ssa"]
+        df = pd.DataFrame(self.dfrs, columns=wout_qname_ssa).assign(qname_ssa=missing.NA)
 
         # Reassigned variables also mean redefined parameters
-        variables = df[
+        reass_variables = df[
             (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
             & (df[ContextSymbolSchema.reassigned] == 1)
         ]
         # Find parameters by the same name
-        parameters = df[ContextSymbolSchema.qname].isin(variables[ContextSymbolSchema.qname])
+        parameters = df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname])
         df.loc[parameters, ContextSymbolSchema.reassigned] = 1
-        return df
+
+        # Create qname_ssas
+        variables = df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE
+        df.loc[~variables, ContextSymbolSchema.qname_ssa] = df.loc[
+            ~variables, ContextSymbolSchema.qname
+        ]
+
+        var_df = df[variables]
+
+        qname_ssa_ns = var_df.groupby(by=ContextSymbolSchema.qname).cumcount()
+
+        print(df, variables, sep="\n")
+        df.loc[variables, ContextSymbolSchema.qname_ssa] = (
+            df.loc[variables, ContextSymbolSchema.qname] + "$" + (qname_ssa_ns + 1).astype(str)
+        )
+
+        return df.pipe(pt.DataFrame[ContextSymbolSchema])
