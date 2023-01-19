@@ -16,10 +16,14 @@ class TypeCollectionCategory(enum.Enum):
         return self.name
 
 
-class TypeCollectionSchema(pa.SchemaModel):
+class SymbolSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
     qname: pt.Series[str] = pa.Field()
+    qname_ssa: pt.Series[str] = pa.Field()
+
+
+class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
@@ -38,21 +42,11 @@ class MergedAnnotationSchema(pa.SchemaModel):
 MergedAnnotationSchemaColumns = list(MergedAnnotationSchema.to_schema().columns.keys())
 
 
-class InferredSchema(pa.SchemaModel):
+class InferredSchema(TypeCollectionSchema):
     method: pt.Series[str] = pa.Field()
-    file: pt.Series[str] = pa.Field()
-    category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
-    qname: pt.Series[str] = pa.Field()
-    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+
 
 InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
-
-
-class SymbolSchema(pa.SchemaModel):
-    file: pt.Series[str] = pa.Field()
-    category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
-    qname: pt.Series[str] = pa.Field()
-
 
 
 class ContextCategory(enum.IntEnum):
@@ -64,6 +58,7 @@ class ContextCategory(enum.IntEnum):
 
     def __str__(self) -> str:
         return self.name
+
 
 class ContextSymbolSchema(SymbolSchema):
     loop: pt.Series[int] = pa.Field()
