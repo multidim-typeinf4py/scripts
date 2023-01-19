@@ -40,30 +40,30 @@ def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
 def _collect(
     root: pathlib.Path,
     allow_stubs=False,
-) -> tuple[cstcli.ParallelTransformResult, TypeCollection]:
+) -> TypeCollection:
     repo_root = str(root.parent if root.is_file() else root)
 
     visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
-    result = codemod.parallel_exec_transform_with_prettyprint(
+    _ = codemod.parallel_exec_transform_with_prettyprint(
         transform=visitor,
         files=cstcli.gather_files([str(root)], include_stubs=allow_stubs),
         jobs=1,
         repo_root=repo_root,
     )
 
-    print(
-        f"Finished codemodding {result.successes + result.skips + result.failures} files!",
-        file=sys.stderr,
-    )
-    print(
-        f" - Collected symbol from {result.successes} files successfully.",
-        file=sys.stderr,
-    )
-    print(f" - Skipped {result.skips} files.", file=sys.stderr)
-    print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
-    print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
+    # print(
+    #     f"Finished codemodding {result.successes + result.skips + result.failures} files!",
+    #     file=sys.stderr,
+    # )
+    # print(
+    #     f" - Collected symbol from {result.successes} files successfully.",
+    #     file=sys.stderr,
+    # )
+    # print(f" - Skipped {result.skips} files.", file=sys.stderr)
+    # print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
+    # print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
 
-    return result, visitor.collection
+    return visitor.collection
 
 
 def _store(collection: TypeCollection, output: pathlib.Path) -> None:
