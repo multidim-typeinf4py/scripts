@@ -224,10 +224,8 @@ class ContextVectorVisitor(cst.CSTVisitor):
         ]
 
         var_df = df[variables]
-
         qname_ssa_ns = var_df.groupby(by=ContextSymbolSchema.qname).cumcount()
 
-        print(df, variables, sep="\n")
         df.loc[variables, ContextSymbolSchema.qname_ssa] = (
             df.loc[variables, ContextSymbolSchema.qname] + "$" + (qname_ssa_ns + 1).astype(str)
         )

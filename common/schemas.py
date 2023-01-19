@@ -30,6 +30,13 @@ class TypeCollectionSchema(SymbolSchema):
 TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
 
 
+class InferredSchema(TypeCollectionSchema):
+    method: pt.Series[str] = pa.Field()
+
+
+InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
+
+
 class MergedAnnotationSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
@@ -40,13 +47,6 @@ class MergedAnnotationSchema(pa.SchemaModel):
 
 
 MergedAnnotationSchemaColumns = list(MergedAnnotationSchema.to_schema().columns.keys())
-
-
-class InferredSchema(TypeCollectionSchema):
-    method: pt.Series[str] = pa.Field()
-
-
-InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
 
 
 class ContextCategory(enum.IntEnum):

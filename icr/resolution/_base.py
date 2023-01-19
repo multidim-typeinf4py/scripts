@@ -65,7 +65,7 @@ class ConflictResolution(abc.ABC):
 
         # TODO: So how do we determine a fitting baseline?
         how = "right"
-        common_cols = ["file", "qname", "category"]
+        common_cols = [InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa]
 
         static = pd.merge(left=static, right=self.reference, how=how, on=common_cols)
         dynamic = pd.merge(left=dynamic, right=self.reference, how=how, on=common_cols)
@@ -75,7 +75,7 @@ class ConflictResolution(abc.ABC):
 
         # Readd symbols with unresolved that were removed due to no
         # tool making a prediction
-        method_names = [inf["method"].iloc[0] for inf in [static, dynamic, probabilistic] if len(inf)]
+        method_names = [inf[InferredSchema.method].iloc[0] for inf in [static, dynamic, probabilistic] if len(inf)]
         readd = self.reference.assign(
             method="+".join(method_names), anno=BatchResolution.UNRESOLVED
         )
