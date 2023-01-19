@@ -61,6 +61,7 @@ class ContextCategory(enum.IntEnum):
 
 
 class ContextSymbolSchema(SymbolSchema):
+    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     loop: pt.Series[int] = pa.Field()
     reassigned: pt.Series[int] = pa.Field()
     nested: pt.Series[int] = pa.Field()
