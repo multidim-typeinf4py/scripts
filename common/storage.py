@@ -12,7 +12,6 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionAnnotation,
 )
 import libcst as cst
-import libcst.metadata as metadata
 
 from pandas._libs import missing
 import pandas as pd
@@ -48,6 +47,12 @@ class TypeCollection:
         file: pathlib.Path, annotations: Annotations, strict: bool
     ) -> TypeCollection:
 
+        c = collections.Counter()
+
+        def _generate_var_qname_ssa(counter: collections.Counter, qname: str) -> str:
+            counter.update([qname])
+            return f"{qname}${counter.get(qname)}"
+
         from pandas._libs import missing
 
         filename = str(file)
@@ -57,11 +62,13 @@ class TypeCollection:
             # NOTE: if fanno.returns is None, this is ACCURATE (for Python itself)!,
             # NOTE: However, in strict mode, we take this to be INACCURATE, as our primary objective
             # NOTE: is to denote missing coverage
+            qname_ssa = qname = fkey.name
             contents.append(
                 (
                     filename,
                     TypeCollectionCategory.CALLABLE_RETURN,
-                    fkey.name,
+                    qname,
+                    qname_ssa,
                     _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
             )
@@ -75,22 +82,26 @@ class TypeCollection:
                 fanno.parameters.params,
                 fanno.parameters.kwonly_params,
             ):
+                qname_ssa = qname = f"{fkey.name}.{param.name.value}"
                 contents.append(
                     (
                         filename,
                         TypeCollectionCategory.CALLABLE_PARAMETER,
-                        f"{fkey.name}.{param.name.value}",
+                        qname,
+                        qname_ssa,
                         _stringify(param.annotation) or missing.NA,
                     )
                 )
 
         for qname, anno in annotations.attributes.items():
             # NOTE: assignments to variables without an annotation are deemed INVALID
+            qname_ssa = _generate_var_qname_ssa(c, qname)
             contents.append(
                 (
                     filename,
                     TypeCollectionCategory.VARIABLE,
                     qname,
+                    qname_ssa,
                     _stringify(anno) or missing.NA,
                 )
             )
@@ -100,25 +111,36 @@ class TypeCollection:
                 # NOTE: No need to check for validity of `annassign.annotation`
                 # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
                 if isinstance(annassign := stmt.body[0], cst.AnnAssign):
+                    qname_ssa = qname = f"{cqname}.{_stringify(annassign.target)}"
+
                     contents.append(
                         (
                             filename,
                             TypeCollectionCategory.CLASS_ATTR,
-                            f"{cqname}.{_stringify(annassign.target)}",
+                            qname,
+                            qname_ssa,
                             _stringify(annassign.annotation),
                         )
                     )
 
-        df = pd.DataFrame(contents, columns=TypeCollectionSchemaColumns)
-        return TypeCollection(df.pipe(pt.DataFrame[TypeCollectionSchema]))
+        df = pt.DataFrame[TypeCollectionSchema](contents, columns=TypeCollectionSchemaColumns)
+        return TypeCollection(df)
 
     @staticmethod
     def to_annotations(
         collection: TypeCollection | pt.DataFrame[TypeCollectionSchema],
     ) -> Annotations:
         df = collection.df if isinstance(collection, TypeCollection) else collection
-        # dups = df[df.duplicated(subset=["category", "qname", "anno"], keep=False)]
-        if df.duplicated(subset=["category", "qname", "anno"], keep=False).any():
+        dups = df.duplicated(
+            subset=[
+                TypeCollectionSchema.file,
+                TypeCollectionSchema.category,
+                TypeCollectionSchema.qname_ssa,
+                TypeCollectionSchema.anno,
+            ],
+            keep=False,
+        )
+        if dups.any():
             raise RuntimeError(
                 "Cannot annotate source code when conflicts have not been resolved (this includes remnants of top-n predictions!)"
             )
@@ -126,19 +148,20 @@ class TypeCollection:
         def functions() -> dict[FunctionKey, FunctionAnnotation]:
             fs: dict[FunctionKey, FunctionAnnotation] = {}
 
-            fs_df = df[df["category"] == TypeCollectionCategory.CALLABLE_RETURN]
-            param_df = df[df["category"] == TypeCollectionCategory.CALLABLE_PARAMETER]
+            fs_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.CALLABLE_RETURN]
+            param_df = df[
+                df[TypeCollectionSchema.category] == TypeCollectionCategory.CALLABLE_PARAMETER
+            ]
 
-            sep_df = (
-                param_df["qname"]
-                .str.rsplit(pat=".", n=1, expand=True)
-            )
+            sep_df = param_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
             if sep_df.empty:
                 return fs
             sep_df = sep_df.set_axis(["fname", "argname"], axis=1)
             param_df = pd.merge(param_df, sep_df, left_index=True, right_index=True)
 
-            for fname, rettype in fs_df[["qname", "anno"]].itertuples(index=False):
+            for fname, rettype in fs_df[
+                [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.anno]
+            ].itertuples(index=False):
                 select_params = param_df[param_df["fname"] == fname]
                 params = [
                     cst.Param(
@@ -147,7 +170,9 @@ class TypeCollection:
                         if pd.notna(anno)
                         else None,
                     )
-                    for value, anno in select_params[["argname", "anno"]].itertuples(index=False)
+                    for value, anno in select_params[
+                        ["argname", TypeCollectionSchema.anno]
+                    ].itertuples(index=False)
                 ]
 
                 key = FunctionKey.make(name=fname, params=cst.Parameters(params))
@@ -163,9 +188,11 @@ class TypeCollection:
 
         def variables() -> dict[str, cst.Annotation]:
             vs: dict[str, cst.Annotation] = {}
-            var_df = df[df["category"] == TypeCollectionCategory.VARIABLE]
+            var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
-            for qname, anno in var_df[["qname", "anno"]].itertuples(index=False):
+            for qname, anno in var_df[
+                [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.anno]
+            ].itertuples(index=False):
                 if pd.notna(anno):
                     vs[qname] = cst.Annotation(cst.parse_expression(anno))
 
@@ -173,12 +200,9 @@ class TypeCollection:
 
         def attributes() -> dict[str, cst.ClassDef]:
             attrs: dict[str, cst.ClassDef] = {}
-            attr_df = df[df["category"] == TypeCollectionCategory.CLASS_ATTR]
+            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.CLASS_ATTR]
 
-            sep_df = (
-                attr_df["qname"]
-                .str.rsplit(pat=".", n=1, expand=True)
-            )
+            sep_df = attr_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
             if sep_df.empty:
                 return attrs
             sep_df = sep_df.set_axis(["cqname", "attrname"], axis=1)
@@ -191,7 +215,9 @@ class TypeCollection:
                         target=cst.Name(aname),
                         annotation=cst.Annotation(cst.parse_expression(hint)),
                     )
-                    for aname, hint in group[["attrname", "anno"]].itertuples(index=False)
+                    for aname, hint in group[["attrname", TypeCollectionSchema.anno]].itertuples(
+                        index=False
+                    )
                     if pd.notna(hint)
                 ]
                 attrs[cqname] = cst.ClassDef(
