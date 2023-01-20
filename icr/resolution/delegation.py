@@ -46,13 +46,27 @@ class Delegation(BatchResolution):
                     ordered.append(probabilistic)
 
         ordered = list(filter(len, ordered))
+        ordered_df = pd.concat(ordered, ignore_index=True)
 
         # Remove all predictions where no prediction was made,
         # Then retain the first occurrence of every symbol with a hint in a given file
-        covered = (
-            pd.concat(ordered)
-            .dropna(subset="anno")
-            .drop_duplicates(subset=list(self.reference.columns), keep="first")
-        ).pipe(pt.DataFrame[InferredSchema])
+        covered = ordered_df.dropna(subset="anno").drop_duplicates(
+            subset=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
+            keep="first",
+        )
 
-        return covered
+        # If symbol is missing after dropping all that, that means all agents did not make a prediction for the symbol
+        uniq_ordered = ordered_df.drop_duplicates(
+            subset=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
+            keep="first",
+        )
+        missing = pd.concat((covered, uniq_ordered), ignore_index=True).drop_duplicates(
+            subset=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
+            keep=False,
+        )
+        missing_method_tag = "+".join(o[InferredSchema.method].iloc[0] for o in ordered)
+
+        restored = pd.concat(
+            (covered, missing.assign(method=missing_method_tag, anno=BatchResolution.UNRESOLVED)), ignore_index=True
+        )
+        return restored.pipe(pt.DataFrame[InferredSchema])

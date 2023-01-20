@@ -4,11 +4,11 @@ import pandera.typing as pt
 from common.schemas import InferredSchema, TypeCollectionCategory
 
 
-def _assert(needle: pd.DataFrame, hackstack: pt.DataFrame[InferredSchema], check_anno: bool):
+def _assert(needle: pd.DataFrame, haystack: pt.DataFrame[InferredSchema], check_anno: bool):
     if check_anno:
-        haystack = hackstack.drop(columns=["file"])
+        haystack = haystack.drop(columns=["file"])
     else:
-        haystack = hackstack.drop(columns=["file", "anno"])
+        haystack = haystack.drop(columns=["file", "anno"])
 
     common = pd.merge(left=needle, right=haystack, how="left", indicator="indic")
     success = (common["indic"] == "both").all()

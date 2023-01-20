@@ -59,6 +59,7 @@ def test_discussion_building(
             "file": ["x.py"] * len(stat_preds),
             "category": [TypeCollectionCategory.VARIABLE] * len(stat_preds),
             "qname": ["x"] * len(stat_preds),
+            "qname_ssa": ["x$1"] * len(stat_preds),
             "anno": stat_preds,
         }
     )
@@ -70,6 +71,7 @@ def test_discussion_building(
             "file": ["x.py"] * len(dyn_preds),
             "category": [TypeCollectionCategory.VARIABLE] * len(dyn_preds),
             "qname": ["x"] * len(dyn_preds),
+            "qname_ssa": ["x$1"] * len(dyn_preds),
             "anno": dyn_preds,
         }
     )
@@ -81,6 +83,7 @@ def test_discussion_building(
             "file": ["x.py"] * len(prob_preds),
             "category": [TypeCollectionCategory.VARIABLE] * len(prob_preds),
             "qname": ["x"] * len(prob_preds),
+            "qname_ssa": ["x$1"] * len(prob_preds),
             "anno": prob_preds,
         }
     )
