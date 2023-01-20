@@ -66,7 +66,7 @@ def process_py_src_file(src_file_path):
 
     except (ParseError, UnicodeDecodeError):
         print(f"Could not parse file {src_file_path}")
-        sys.exit(1)
+        # sys.exit(1)
 
 
 @no_type_check
@@ -87,8 +87,22 @@ def write_ext_funcs(ext_funcs: List[Function], src_file: str, output_dir: str):
         funcs.append((src_file, f.has_types()) + f.as_tuple())
 
     if len(funcs) == 0:
-        print("Stops inference, since no functions are extracted...")
-        sys.exit(1)
+        print("WARNING: no functions are extracted...")
+
+    if columns is None:
+        columns = [
+            "file",
+            "has_type",
+            "name",
+            "docstring",
+            "func_descr",
+            "arg_names",
+            "arg_types",
+            "arg_descrs",
+            "return_type",
+            "return_expr",
+            "return_descr",
+        ]
 
     funcs_df = pd.DataFrame(funcs, columns=columns)
     funcs_df["arg_names_len"] = funcs_df["arg_names"].apply(len)
@@ -287,6 +301,10 @@ class TypeWriter(PerFileInference):
             "params",
             id_trans_func_param,
         )
+        if dp_ids_params is False:
+            return pt.DataFrame[TypeCollectionSchema](
+                columns=TypeCollectionSchema.to_schema().columns
+            )
         dp_ids_ret = process_datapoints_TW(
             join(TEMP_DIR, "ext_funcs_ret.csv"), TEMP_DIR, "identifiers_", "ret", id_trans_func_ret
         )
@@ -419,17 +437,13 @@ class TypeWriter(PerFileInference):
             visitor = Typewriter2Annotations(arg_batch, ret_batch)
             metadata.MetadataWrapper(module).visit(visitor)
 
-            collections.append(
-                TypeCollection.from_annotations(
-                    file=relative, annotations=visitor.annotations, strict=True
-                ).df
+            annotations = visitor.annotations
+            collection = TypeCollection.from_annotations(
+                file=relative, annotations=annotations, strict=True
             )
+            collections.append(collection.df)
 
-        return (
-            pd.concat(collections, ignore_index=True)
-            .drop_duplicates(subset=["category", "qname", "anno"], keep="first")
-            .pipe(pt.DataFrame[TypeCollectionSchema])
-        )
+        return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[TypeCollectionSchema])
 
 
 class Typewriter2Annotations(cst.CSTVisitor):
