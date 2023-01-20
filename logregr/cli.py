@@ -6,7 +6,7 @@ import click
 from common.schemas import ContextSymbolSchema
 from common import output
 
-from symbols.cli import _collect
+from symbols.collector import build_type_collection
 
 
 @click.group(
@@ -31,7 +31,7 @@ def entrypoint():
     multiple=True,
 )
 def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
-    ground_truth_df = [_collect(ip)[1].df for ip, _ in inpath]
+    ground_truth_df = [build_type_collection(ip).df for ip, _ in inpath]
     gt_df = pd.concat(ground_truth_df)
 
     tool_annotated_dfs = [output.read_context(ip) for _, ip in inpath]
@@ -41,7 +41,7 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
         left=gt_df,
         right=ta_df,
         how="left",
-        on=[ContextSymbolSchema.file, ContextSymbolSchema.category, ContextSymbolSchema.qname],
+        on=[ContextSymbolSchema.file, ContextSymbolSchema.category, ContextSymbolSchema.qname_ssa],
         suffixes=("_gt", "_ta"),
     )
 
