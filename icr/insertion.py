@@ -146,24 +146,26 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
         self, node: cst.BaseAssignTargetExpression
     ) -> cst.BaseAssignTargetExpression | None:
         if m.matches(node, m.Name() | m.Attribute(value=m.Name("self"))):
-            s, name = self.current_scope(), _stringify(node)
+            s, name = ".".join(self.current_scope()), _stringify(node)
             assert name is not None
-            full_qname = f"{'.'.join(s)}.{name}" if len(s) else name
+            full_qname = f"{s}.{name}" if s else name
 
             cand_mask = (self.annotations[TypeCollectionSchema.qname] == full_qname) & (
                 self.annotations["consumed"] != 1
             )
             candidates = self.annotations.loc[cand_mask]
             assert not candidates.empty, f"Could not lookup {full_qname}; {self.annotations}"
-            qname_ssa = str(candidates[TypeCollectionSchema.qname_ssa].iloc[0])
-            self.annotations.at[0, "consumed"] = 1
 
-            if isinstance(node, cst.Name):
-                return node.with_changes(value=qname_ssa)
-            elif isinstance(node, cst.Attribute):
-                return node.with_changes(value=cst.Name(qname_ssa))
-            else:
-                assert RuntimeError(f"Unexpected assign target type: {type(node)}")
+            qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
+            qname_ssa = str(qname_ssa_ser.iloc[0])
+            if s:
+                qname_ssa = qname_ssa.removeprefix(s + ".")
+            self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
+
+            e = cst.parse_expression(qname_ssa)
+            assert isinstance(e, cst.BaseAssignTargetExpression)
+
+            return e
 
         return None
 
@@ -191,19 +193,20 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
         self, node: cst.BaseAssignTargetExpression
     ) -> cst.BaseAssignTargetExpression | None:
         if m.matches(node, m.Name() | m.Attribute(value=m.Name("self"))):
-            s, name = self.current_scope(), _stringify(node)
+            s, name = ".".join(self.current_scope()), _stringify(node)
             assert name is not None
-            full_qname = f"{'.'.join(s)}.{name}" if len(s) else name
+            full_qname_ssa = f"{s}.{name}" if s else name
 
-            cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname
+            cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
             candidates = self.annotations.loc[cand_mask]
-            qname_ssa = str(candidates[TypeCollectionSchema.qname].iloc[0])
 
-            if isinstance(node, cst.Name):
-                return node.with_changes(value=qname_ssa)
-            elif isinstance(node, cst.Attribute):
-                return node.with_changes(value=cst.Name(qname_ssa))
-            else:
-                assert RuntimeError(f"Unexpected assign target type: {type(node)}")
+            qname = str(candidates[TypeCollectionSchema.qname].iloc[0])
+            if s:
+                qname = qname.removeprefix(s + ".")
+
+            e = cst.parse_expression(qname)
+            assert isinstance(e, cst.BaseAssignTargetExpression)
+
+            return e
 
         return None
