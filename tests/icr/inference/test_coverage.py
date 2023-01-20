@@ -3,7 +3,7 @@ import pathlib
 from common.schemas import InferredSchema
 from tests.icr.helpers import dfassertions
 
-from icr.inference import HiTyper, PyreInfer, Type4Py, TypeWriter
+from icr.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
 import pytest
 
@@ -11,8 +11,9 @@ import pandera.typing as pt
 
 
 @pytest.fixture(
-    scope="class", params=[HiTyper, PyreInfer, Type4Py, TypeWriter], ids=lambda e: e.__qualname__
-    #scope="class", params=[TypeWriter], ids=lambda e: e.__qualname__
+    scope="class", params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
+    # scope="class", params=[Type4Py],
+    ids=lambda e: e.__qualname__,
 )
 def df(request) -> pt.DataFrame[InferredSchema]:
     inf = request.param(pathlib.Path.cwd() / "tests" / "resources" / "proj1")
@@ -52,7 +53,7 @@ class TestCoverage:
             df, f_qname="function_with_multiline_parameters", arg_name="c"
         )
 
-    def test_function_with_multiline_parameters_body(self, df: pt.DataFrame[InferredSchema]): 
+    def test_function_with_multiline_parameters_body(self, df: pt.DataFrame[InferredSchema]):
         # Body
         assert dfassertions.has_variable(df, var_qname="function_with_multiline_parameters.v")
 
@@ -67,7 +68,7 @@ class TestCoverage:
         # Params
         assert dfassertions.has_parameter(df, f_qname="Clazz.__init__", arg_name="a")
 
-    def test_Clazz_init_body(self, df: pt.DataFrame[InferredSchema]): 
+    def test_Clazz_init_body(self, df: pt.DataFrame[InferredSchema]):
         # Body
         assert dfassertions.has_variable(df, var_qname="Clazz.__init__.self.a")
 
@@ -102,7 +103,7 @@ class TestCoverage:
         assert dfassertions.has_parameter(df, f_qname="Clazz.function", arg_name="b")
         assert dfassertions.has_parameter(df, f_qname="Clazz.function", arg_name="c")
 
-    def test_Clazz_function_body(self, df: pt.DataFrame[InferredSchema]): 
+    def test_Clazz_function_body(self, df: pt.DataFrame[InferredSchema]):
         # Body
         assert dfassertions.has_variable(df, var_qname="Clazz.function.v")
 
@@ -116,7 +117,7 @@ class TestCoverage:
         # Params
         assert dfassertions.has_parameter(df, f_qname="outer.nested", arg_name="a")
 
-    def test_outer_nested_body(self, df: pt.DataFrame[InferredSchema]): 
+    def test_outer_nested_body(self, df: pt.DataFrame[InferredSchema]):
         # Body
         assert dfassertions.has_variable(df, var_qname="outer.nested.result")
 
@@ -130,7 +131,7 @@ class TestCoverage:
 
         # Params
 
-    def test_Outer_Inner_body(self, df: pt.DataFrame[InferredSchema]): 
+    def test_Outer_Inner_body(self, df: pt.DataFrame[InferredSchema]):
         # Body
         assert dfassertions.has_variable(df, var_qname="Outer.Inner.__init__.self.x")
 
