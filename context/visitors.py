@@ -15,7 +15,7 @@ from common.schemas import (
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
 )
-from common._helper import _stringify
+from common._helper import _stringify, generate_qname_ssas
 
 from context.features import RelevantFeatures
 
@@ -223,11 +223,8 @@ class ContextVectorVisitor(cst.CSTVisitor):
             ~variables, ContextSymbolSchema.qname
         ]
 
-        var_df = df[variables]
-        qname_ssa_ns = var_df.groupby(by=ContextSymbolSchema.qname).cumcount()
-
-        df.loc[variables, ContextSymbolSchema.qname_ssa] = (
-            df.loc[variables, ContextSymbolSchema.qname] + "$" + (qname_ssa_ns + 1).astype(str)
+        df.loc[variables, ContextSymbolSchema.qname_ssa] = generate_qname_ssas(
+            df.loc[variables, ContextSymbolSchema.qname]
         )
 
         return df.pipe(pt.DataFrame[ContextSymbolSchema])
