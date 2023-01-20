@@ -35,7 +35,7 @@ from typewriter.extraction import (
 from typewriter.model import load_data_tensors_TW, make_batch_prediction_TW
 from typewriter.prepocessing import filter_functions, gen_argument_df_TW, encode_aval_types_TW
 
-from libcst.codemod.visitors._apply_type_annotations import (
+from common._apply_type_annotations import (
     Annotations,
     FunctionAnnotation,
     FunctionKey,

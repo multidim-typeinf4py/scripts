@@ -9,7 +9,7 @@ from common.schemas import TypeCollectionSchema, TypeCollectionSchemaColumns
 from common.storage import TypeCollection
 from ._base import PerFileInference
 
-from libcst.codemod.visitors._apply_type_annotations import (
+from common._apply_type_annotations import (
     Annotations,
     FunctionKey,
     FunctionAnnotation,
@@ -99,7 +99,6 @@ class Type4Py(PerFileInference):
                 f"WARNING: {Type4Py.__qualname__} couldnt infer anything for {self.project / relative}"
             )
             return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
-
 
         src = (self.project / relative).open().read()
         module = cst.MetadataWrapper(cst.parse_module(src))
@@ -300,7 +299,11 @@ class Type4Py2Annotations(cst.CSTVisitor):
         return FunctionAnnotation(parameters=ps, returns=annoexpr)
 
     def _handle_assgn_in_method(
-        self, node: cst.BaseAssignTargetExpression, clazz_qname: str, method_qname: str, method_self: str
+        self,
+        node: cst.BaseAssignTargetExpression,
+        clazz_qname: str,
+        method_qname: str,
+        method_self: str,
     ) -> None:
         match node:
             case cst.Name(value=ident):
@@ -331,7 +334,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 f"{func.q_name}.{method_self}.{variable}"
                 if isinstance(node, cst.Attribute)
                 else f"{func.q_name}.{variable}"
-            ] = cst.Annotation(cst.parse_expression(hint))
+            ].append(cst.Annotation(cst.parse_expression(hint)))
             return None
 
     def _handle_assgn_in_function(
@@ -354,8 +357,8 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 continue
 
             (hint, _) = hints[0]
-            self.annotations.attributes[f"{func.q_name}.{variable}"] = cst.Annotation(
-                cst.parse_expression(hint)
+            self.annotations.attributes[f"{func.q_name}.{variable}"].append(
+                cst.Annotation(cst.parse_expression(hint))
             )
 
             return None
@@ -371,7 +374,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
             return None
 
         (hint, _) = hints[0]
-        self.annotations.attributes[node.value] = cst.Annotation(cst.parse_expression(hint))
+        self.annotations.attributes[node.value].append(cst.Annotation(cst.parse_expression(hint)))
 
         return None
 

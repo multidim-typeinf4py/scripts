@@ -26,7 +26,7 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
 
 
 # TODO: technically not accurate as this is a visitor, not a transformer
-# TODO: but there does not seem to be a nicer way to execute this visitor in parallel
+# TODO: but there does not seem to be a nicer way to get context auto-injected
 class TypeCollectorVistor(codemod.ContextAwareTransformer):
     collection: TypeCollection
 
@@ -55,7 +55,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
         )
         self.logger.info(f"Collecting from {file}")
 
-        from libcst.codemod.visitors._apply_type_annotations import (
+        from ..common._apply_type_annotations import (
             TypeCollector as LibCSTTypeCollector,
         )
         from libcst.codemod.visitors._gather_imports import (

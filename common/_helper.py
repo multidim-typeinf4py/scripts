@@ -25,7 +25,7 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
 
 def generate_var_qname_ssas(var_names: pd.Series) -> pd.Series:
     qname_ssa_suffix = var_names.groupby(var_names).cumcount()
-    return var_names + "$" + (qname_ssa_suffix + 1).astype(str)
+    return var_names + "λ" + (qname_ssa_suffix + 1).astype(str)
 
 def generate_qname_ssas_for_file(df: pd.DataFrame) -> pd.DataFrame:
     # Create qname_ssas
@@ -38,3 +38,6 @@ def generate_qname_ssas_for_file(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[variables, ContextSymbolSchema.qname]
     )
     return df
+
+def generate_qname_ssas_for_project(df: pd.DataFrame) -> pd.DataFrame:
+    return df.groupby(by=ContextSymbolSchema.file, sort=False, group_keys=True).apply(generate_qname_ssas_for_file)

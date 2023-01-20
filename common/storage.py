@@ -1,12 +1,11 @@
 from __future__ import annotations
-import collections
 
 import functools
 import itertools
 import pathlib
 import typing
 
-from libcst.codemod.visitors._apply_type_annotations import (
+from common._apply_type_annotations import (
     Annotations,
     FunctionKey,
     FunctionAnnotation,
@@ -19,7 +18,7 @@ import pandera as pa
 import pandera.typing as pt
 
 
-from ._helper import _stringify
+from ._helper import _stringify, generate_qname_ssas_for_project
 from .schemas import (
     TypeCollectionCategory,
     TypeCollectionSchema,
@@ -46,13 +45,6 @@ class TypeCollection:
     def from_annotations(
         file: pathlib.Path, annotations: Annotations, strict: bool
     ) -> TypeCollection:
-
-        c = collections.Counter()
-
-        def _generate_var_qname_ssa(counter: collections.Counter, qname: str) -> str:
-            counter.update([qname])
-            return f"{qname}${counter.get(qname)}"
-
         from pandas._libs import missing
 
         filename = str(file)
@@ -62,13 +54,12 @@ class TypeCollection:
             # NOTE: if fanno.returns is None, this is ACCURATE (for Python itself)!,
             # NOTE: However, in strict mode, we take this to be INACCURATE, as our primary objective
             # NOTE: is to denote missing coverage
-            qname_ssa = qname = fkey.name
+            qname = fkey.name
             contents.append(
                 (
                     filename,
                     TypeCollectionCategory.CALLABLE_RETURN,
                     qname,
-                    qname_ssa,
                     _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
             )
@@ -82,49 +73,49 @@ class TypeCollection:
                 fanno.parameters.params,
                 fanno.parameters.kwonly_params,
             ):
-                qname_ssa = qname = f"{fkey.name}.{param.name.value}"
+                qname = f"{fkey.name}.{param.name.value}"
                 contents.append(
                     (
                         filename,
                         TypeCollectionCategory.CALLABLE_PARAMETER,
                         qname,
-                        qname_ssa,
                         _stringify(param.annotation) or missing.NA,
                     )
                 )
 
-        for qname, anno in annotations.attributes.items():
+        for qname, annos in annotations.attributes.items():
             # NOTE: assignments to variables without an annotation are deemed INVALID
-            qname_ssa = _generate_var_qname_ssa(c, qname)
-            contents.append(
-                (
-                    filename,
-                    TypeCollectionCategory.VARIABLE,
-                    qname,
-                    qname_ssa,
-                    _stringify(anno) or missing.NA,
+            for anno in annos:
+                contents.append(
+                    (
+                        filename,
+                        TypeCollectionCategory.VARIABLE,
+                        qname,
+                        _stringify(anno) or missing.NA,
+                    )
                 )
-            )
 
         for cqname, cdef in annotations.class_definitions.items():
             for stmt in cdef.body.body:
                 # NOTE: No need to check for validity of `annassign.annotation`
                 # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
                 if isinstance(annassign := stmt.body[0], cst.AnnAssign):
-                    qname_ssa = qname = f"{cqname}.{_stringify(annassign.target)}"
+                    qname = f"{cqname}.{_stringify(annassign.target)}"
 
                     contents.append(
                         (
                             filename,
                             TypeCollectionCategory.CLASS_ATTR,
                             qname,
-                            qname_ssa,
                             _stringify(annassign.annotation),
                         )
                     )
 
-        df = pt.DataFrame[TypeCollectionSchema](contents, columns=TypeCollectionSchemaColumns)
-        return TypeCollection(df)
+        cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
+        df = pd.DataFrame(contents, columns=cs)
+
+        wqname_ssas = df.pipe(generate_qname_ssas_for_project)
+        return TypeCollection(wqname_ssas.pipe(pt.DataFrame[TypeCollectionSchema]))
 
     @staticmethod
     def to_annotations(
@@ -255,10 +246,8 @@ class TypeCollection:
 
     @pa.check_types
     def update(self, other: pt.DataFrame[TypeCollectionSchema]) -> None:
-        self.df = (
-            pd.concat([self.df, other], ignore_index=True)
-            .drop_duplicates(keep="last")
-            .pipe(pt.DataFrame[TypeCollectionSchema])
+        self.df = pd.concat([self.df, other], ignore_index=True).pipe(
+            pt.DataFrame[TypeCollectionSchema]
         )
 
     def merge_into(self, other: TypeCollection) -> None:

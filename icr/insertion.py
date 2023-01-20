@@ -103,7 +103,6 @@ class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
 class ScopeAwareTransformer(codemod.ContextAwareTransformer):
     def __init__(self, context: codemod.CodemodContext) -> None:
         super().__init__(context)
-
         self._scope: list[tuple[str, ...]] = []
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool | None:
@@ -131,9 +130,6 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
 
-    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
-        return self.visit_Module(tree)
-
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
             return updated_node.with_changes(target=qname_ssa)
@@ -154,21 +150,20 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
             assert name is not None
             full_qname = f"{'.'.join(s)}.{name}" if len(s) else name
 
-            candidates = self.annotations.loc[
-                (self.annotations[TypeCollectionSchema.qname] == full_qname)
-                & (self.annotations["consumed"] != 1)
-            ]
-            candidates["consumed"].iloc[0] = 1
+            cand_mask = (self.annotations[TypeCollectionSchema.qname] == full_qname) & (
+                self.annotations["consumed"] != 1
+            )
+            candidates = self.annotations.loc[cand_mask]
+            assert not candidates.empty, f"Could not lookup {full_qname}; {self.annotations}"
             qname_ssa = str(candidates[TypeCollectionSchema.qname_ssa].iloc[0])
+            self.annotations.at[0, "consumed"] = 1
 
             if isinstance(node, cst.Name):
-                node.value = qname_ssa
+                return node.with_changes(value=qname_ssa)
             elif isinstance(node, cst.Attribute):
-                node.value = cst.Name(qname_ssa)
+                return node.with_changes(value=cst.Name(qname_ssa))
             else:
                 assert RuntimeError(f"Unexpected assign target type: {type(node)}")
-
-            return node
 
         return None
 
@@ -180,9 +175,6 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
         super().__init__(context)
         self.annotations = annotations
 
-    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
-        return self.visit_Module(tree)
-
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
             return updated_node.with_changes(target=qname_ssa)
@@ -203,18 +195,15 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
             assert name is not None
             full_qname = f"{'.'.join(s)}.{name}" if len(s) else name
 
-            candidates = self.annotations.loc[
-                (self.annotations[TypeCollectionSchema.qname_ssa] == full_qname)
-            ]
-            qname = str(candidates[TypeCollectionSchema.qname].iloc[0])
+            cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname
+            candidates = self.annotations.loc[cand_mask]
+            qname_ssa = str(candidates[TypeCollectionSchema.qname].iloc[0])
 
             if isinstance(node, cst.Name):
-                node.value = qname
+                return node.with_changes(value=qname_ssa)
             elif isinstance(node, cst.Attribute):
-                node.value = cst.Name(qname)
+                return node.with_changes(value=cst.Name(qname_ssa))
             else:
                 assert RuntimeError(f"Unexpected assign target type: {type(node)}")
-
-            return node
 
         return None
