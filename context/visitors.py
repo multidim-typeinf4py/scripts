@@ -15,7 +15,7 @@ from common.schemas import (
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
 )
-from common._helper import _stringify, generate_qname_ssas
+from common._helper import _stringify, generate_qname_ssas_for_file
 
 from context.features import RelevantFeatures
 
@@ -217,14 +217,5 @@ class ContextVectorVisitor(cst.CSTVisitor):
         parameters = df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname])
         df.loc[parameters, ContextSymbolSchema.reassigned] = 1
 
-        # Create qname_ssas
-        variables = df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE
-        df.loc[~variables, ContextSymbolSchema.qname_ssa] = df.loc[
-            ~variables, ContextSymbolSchema.qname
-        ]
-
-        df.loc[variables, ContextSymbolSchema.qname_ssa] = generate_qname_ssas(
-            df.loc[variables, ContextSymbolSchema.qname]
-        )
-
+        df = generate_qname_ssas_for_file(df)
         return df.pipe(pt.DataFrame[ContextSymbolSchema])

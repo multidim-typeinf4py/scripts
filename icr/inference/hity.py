@@ -11,9 +11,12 @@ import hityper.__main__ as hityper
 import libcst as cst
 import libcst.metadata as metadata
 
+import pandas as pd
 from pandas._libs import missing
 import pandera.typing as pt
 import pydantic
+
+from common import _helper
 
 
 @dataclass
@@ -191,8 +194,11 @@ class HiTyper(PerFileInference):
                                     ty,
                                 )
                             )
+        wout_ssa = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
+        df = pd.DataFrame(df_updates, columns=wout_ssa)
 
-        return pt.DataFrame[TypeCollectionSchema](df_updates, columns=TypeCollectionSchemaColumns)
+        df = _helper.generate_qname_ssas_for_file(df)
+        return df.pipe(pt.DataFrame[TypeCollectionSchema])
 
 
 class HiTyperLocalDisambig(cst.CSTVisitor):

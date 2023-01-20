@@ -18,6 +18,7 @@ from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
 
+from common import _helper
 from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
@@ -30,7 +31,7 @@ class PyreQuery(PerFileInference):
         super().__init__(project)
 
         cmd_args = command_arguments.CommandArguments(source_directories=[str(project)])
-        config = configuration.create_configuration(
+        self.config = config = configuration.create_configuration(
             arguments=cmd_args,
             base_directory=project,
         )
@@ -41,7 +42,6 @@ class PyreQuery(PerFileInference):
                 command_argument=cmd_args, no_watchman=True
             ),
         )
-        weakref.finalize(self, lambda: stop.run(config))
 
         paths = cstcli.gather_files([str(self.project)])
         relpaths = [os.path.relpath(path, str(project)) for path in paths]
@@ -50,6 +50,13 @@ class PyreQuery(PerFileInference):
             paths=relpaths,
             providers=[metadata.TypeInferenceProvider],
         )
+
+    def infer(self) -> None:
+        super().infer()
+        stop.run(self.config)
+
+        if (dotdir := self.project / ".pyre").is_dir():
+            shutil.rmtree(str(dotdir))
 
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         fullpath = str(self.project / relative)
@@ -61,11 +68,17 @@ class PyreQuery(PerFileInference):
         visitor = _PyreQuery2Annotations(modpkg)
         module.visit(visitor)
 
-        return (
-            pd.DataFrame(visitor.annotations, columns=["category", "qname", "anno"])
-            .assign(file=str(relative))
-            .pipe(pt.DataFrame[TypeCollectionSchema])
-        )
+        df = pd.DataFrame(
+            visitor.annotations,
+            columns=[
+                TypeCollectionSchema.category,
+                TypeCollectionSchema.qname,
+                TypeCollectionSchema.anno,
+            ],
+        ).assign(file=str(relative))
+        df = _helper.generate_qname_ssas_for_file(df)
+
+        return df.pipe(pt.DataFrame[TypeCollectionSchema])
 
 
 class _PyreQuery2Annotations(cst.CSTVisitor):
