@@ -92,7 +92,7 @@ def test_discussion_building(
         static=static,
         dynamic=dynamic,
         probabilistic=prob,
-        metadata=Metadata(file="x.py", category=TypeCollectionCategory.VARIABLE, qname="x"),
+        metadata=Metadata(file="x.py", category=TypeCollectionCategory.VARIABLE, qname="x", qname_ssa="x$1"),
     )
 
     assert prediction is not None

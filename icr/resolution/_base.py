@@ -19,6 +19,7 @@ class Metadata:
     file: str
     category: TypeCollectionCategory
     qname: str
+    qname_ssa: str
 
 
 class ConflictResolution(abc.ABC):
@@ -140,21 +141,21 @@ class IterativeResolution(ConflictResolution):
 
         updates: list[pt.DataFrame[InferredSchema]] = []
 
-        for (file, category, qname) in self.reference.itertuples(index=False):
+        for (file, category, qname, qname_ssa) in self.reference.itertuples(index=False):
             _static = static[
-                (static["file"] == file)
-                & (static["category"] == category)
-                & (static["qname"] == qname)
+                (static[InferredSchema.file] == file)
+                & (static[InferredSchema.category] == category)
+                & (static[InferredSchema.qname_ssa] == qname_ssa)
             ]
             _dynamic = dynamic[
-                (dynamic["file"] == file)
-                & (dynamic["category"] == category)
-                & (dynamic["qname"] == qname)
+                (dynamic[InferredSchema.file] == file)
+                & (dynamic[InferredSchema.category] == category)
+                & (dynamic[InferredSchema.qname_ssa] == qname_ssa)
             ]
             _probabilistic = probabilistic[
-                (probabilistic["file"] == file)
-                & (probabilistic["category"] == category)
-                & (probabilistic["qname"] == qname)
+                (probabilistic[InferredSchema.file] == file)
+                & (probabilistic[InferredSchema.category] == category)
+                & (probabilistic[InferredSchema.qname_ssa] == qname_ssa)
             ]
             _metadata = Metadata(file=file, category=category, qname=qname)
 
@@ -183,7 +184,7 @@ class IterativeResolution(ConflictResolution):
                         "file": [_metadata.file],
                         "category": [_metadata.category],
                         "qname": [_metadata.qname],
-                        "anno": [_ConflictResolution.UNRESOLVED],
+                        "anno": [ConflictResolution.UNRESOLVED],
                     }
                 )
 

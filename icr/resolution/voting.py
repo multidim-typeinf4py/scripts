@@ -63,6 +63,7 @@ class SubtypeVoting(IterativeResolution):
                     "file": [metadata.file],
                     "category": [metadata.category],
                     "qname": [metadata.qname],
+                    "qname_ssa": [metadata.qname_ssa],
                     "anno": [correct_inferrences["anno"].iloc[0]],
                 }
             )
@@ -82,9 +83,7 @@ class SubtypeVoting(IterativeResolution):
         candidates: list[tuple[str, int]] = []
 
         for target, G_target in Gs.items():
-            collective_labelling = compute_collective_labelling(
-                G_target, profiles, target, SF
-            )
+            collective_labelling = compute_collective_labelling(G_target, profiles, target, SF)
             decision = compute_collective_decision(collective_labelling, target)
 
             if decision == const.IN:
@@ -112,6 +111,7 @@ class SubtypeVoting(IterativeResolution):
                 "file": [metadata.file],
                 "category": [metadata.category],
                 "qname": [metadata.qname],
+                "qname_ssa": [metadata.qname_ssa],
                 "anno": [anno],
             }
         )
@@ -142,7 +142,7 @@ def build_discussion_from_predictions(
 
     for target in unique_predictions:
         g = G.copy()
-        
+
         # if argument A is derived from argument B, then create defending edge from A -> B
         # as A can always be typed as B, but B cannot always be typed as A
 
@@ -189,7 +189,7 @@ def _subtyping(derived: str, base: str) -> bool:
 ## Argument labellings are put forward to demonstrate agent opinions
 def _agent_opinion(agent: pt.DataFrame[InferredSchema], pred: str) -> str:
     if any(_subtyping(v, pred) for v in agent["anno"].values):
-    # if pred in agent["anno"].values:
+        # if pred in agent["anno"].values:
         # print(f"{agent['method'].iloc[0]} believes in {pred}")
         return const.IN
 
