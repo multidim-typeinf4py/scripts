@@ -117,3 +117,6 @@ class Test_CustomAnnotator(AnnotationTesting):
                 ),
             ),
         )
+
+
+# TODO: Test behaviour mixed codebase, i.e. with unannotateds
