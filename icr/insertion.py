@@ -58,7 +58,9 @@ class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
             self.context.metadata_manager.root_path
         )
 
-        module_tycol = self.tycol[self.tycol["file"] == str(relative)]
+        module_tycol = self.tycol[self.tycol[TypeCollectionSchema.file] == str(relative)].pipe(
+            pt.DataFrame[TypeCollectionSchema]
+        )
         #        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
         #        if not req_mod_imports.empty:
         # viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
@@ -71,14 +73,14 @@ class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
         # AddImportsVisitor.add_needed_import(self.context, pkg)
 
         removed = tree.visit(_HintRemover())
-        annotations = TypeCollection.to_annotations(
-            module_tycol.pipe(pt.DataFrame[TypeCollectionSchema])
-        )
 
         with_ssa_qnames = FromQName2SSAQNameTransformer(
-            context=self.context, annotations=annotations
+            context=self.context, annotations=module_tycol
         ).transform_module(removed)
 
+        annotations = TypeCollection.to_annotations(module_tycol)
+
+        # Due to renaming, it it safe to use LibCST's implementation for this!
         hinted = ApplyTypeAnnotationsVisitor(
             context=self.context,
             annotations=annotations,
@@ -94,7 +96,7 @@ class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
         # ).transform_module(hinted)
 
         with_qnames = FromSSAQName2QnameTransformer(
-            context=self.context, annotations=annotations
+            context=self.context, annotations=module_tycol
         ).transform_module(hinted)
 
         return with_qnames
@@ -105,14 +107,14 @@ class ScopeAwareTransformer(codemod.ContextAwareTransformer):
         super().__init__(context)
         self._scope: list[tuple[str, ...]] = []
 
-    def visit_ClassDef(self, node: cst.ClassDef) -> bool | None:
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self._scope.append((*self.current_scope(), node.name.value))
 
     def leave_ClassDef(self, _: cst.ClassDef, updated: cst.ClassDef) -> cst.ClassDef:
         self._scope.pop()
         return updated
 
-    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self._scope.append((*self.current_scope(), node.name.value))
 
     def leave_FunctionDef(self, _: cst.FunctionDef, updated: cst.FunctionDef) -> cst.FunctionDef:
@@ -129,6 +131,14 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
+
+    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
+        unconsumed = self.annotations[self.annotations["consumed"] != 1]
+        assert (
+            unconsumed.empty
+        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname, TypeCollectionSchema.qname_ssa]].values()}"
+
+        return updated_node
 
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
@@ -175,7 +185,15 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
-        self.annotations = annotations
+        self.annotations = annotations.copy().assign(consumed=0)
+
+    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
+        unconsumed = self.annotations[self.annotations["consumed"] != 1]
+        assert (
+            unconsumed.empty
+        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname_ssa, TypeCollectionSchema.qname]].values()}"
+
+        return updated_node
 
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
@@ -200,10 +218,15 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
             cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
             candidates = self.annotations.loc[cand_mask]
 
-            qname = str(candidates[TypeCollectionSchema.qname].iloc[0])
+            qname_ser = candidates[TypeCollectionSchema.qname]
+            qname = qname_ser.iloc[0]
+            assert (
+                candidates["consumed"].iloc[0] == 0
+            ), f"Attempted to reapply {full_qname_ssa} -> {qname} more than once!"
+            self.annotations.at[qname_ser.index[0], "consumed"] = 1
+
             if s:
                 qname = qname.removeprefix(s + ".")
-
             e = cst.parse_expression(qname)
             assert isinstance(e, cst.BaseAssignTargetExpression)
 
