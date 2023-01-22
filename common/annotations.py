@@ -242,7 +242,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             # annotation_value = self._handle_Annotation(annotation=node.annotation)
             # assert False, f"Fork does not support {self.track_unannotated=}"
 
-            self.annotations.attributes[qual].append(None)
+            self.annotations.attributes[".".join(self.qualifier)].append(None)
 
     def leave_Assign(
         self,
