@@ -1,11 +1,15 @@
 from __future__ import annotations
+from collections import defaultdict
 
 import functools
 import itertools
 import pathlib
 import typing
 
-from common._apply_type_annotations import (
+from common.annotations import (
+    MultiVarAnnotations,
+)
+from libcst.codemod.visitors._apply_type_annotations import (
     Annotations,
     FunctionKey,
     FunctionAnnotation,
@@ -43,7 +47,7 @@ class TypeCollection:
 
     @staticmethod
     def from_annotations(
-        file: pathlib.Path, annotations: Annotations, strict: bool
+        file: pathlib.Path, annotations: MultiVarAnnotations, strict: bool
     ) -> TypeCollection:
         from pandas._libs import missing
 
@@ -85,13 +89,24 @@ class TypeCollection:
 
         for qname, annos in annotations.attributes.items():
             # NOTE: assignments to variables without an annotation are deemed INVALID
-            for anno in annos:
+            if annos:
+                for anno in annos:
+                    contents.append(
+                        (
+                            filename,
+                            TypeCollectionCategory.VARIABLE,
+                            qname,
+                            _stringify(anno) or missing.NA,
+                        )
+                    )
+
+            else:
                 contents.append(
                     (
                         filename,
                         TypeCollectionCategory.VARIABLE,
                         qname,
-                        _stringify(anno) or missing.NA,
+                        missing.NA,
                     )
                 )
 
@@ -101,26 +116,29 @@ class TypeCollection:
                 # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
                 if isinstance(annassign := stmt.body[0], cst.AnnAssign):
                     qname = f"{cqname}.{_stringify(annassign.target)}"
+                    assert (anno := _stringify(annassign.annotation)) is not None
 
                     contents.append(
                         (
                             filename,
                             TypeCollectionCategory.CLASS_ATTR,
                             qname,
-                            _stringify(annassign.annotation),
+                            anno,
                         )
                     )
 
         cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
         df = pd.DataFrame(contents, columns=cs)
 
-        wqname_ssas = df.pipe(generate_qname_ssas_for_project)
+        wqname_ssas: pd.DataFrame = df.pipe(generate_qname_ssas_for_project)
         return TypeCollection(wqname_ssas.pipe(pt.DataFrame[TypeCollectionSchema]))
 
     @staticmethod
-    def to_annotations(
+    def to_libcst_annotations(
         collection: TypeCollection | pt.DataFrame[TypeCollectionSchema],
     ) -> Annotations:
+        """Create a LibCST Annotations object from the provided DataFrame.
+        NOTE: The keys of this Annotations object are QNAME_SSAs, not QNAMEs!"""
         df = collection.df if isinstance(collection, TypeCollection) else collection
         dups = df.duplicated(
             subset=[
@@ -177,8 +195,8 @@ class TypeCollection:
 
             return fs
 
-        def variables() -> dict[str, cst.Annotation]:
-            vs: dict[str, cst.Annotation] = {}
+        def variables() -> dict[str, list[cst.Annotation]]:
+            vs: dict[str, list[cst.Annotation]] = {}
             var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
             for qname, anno in var_df[

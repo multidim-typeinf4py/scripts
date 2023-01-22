@@ -79,7 +79,7 @@ class MultiVarAnnotations:
     #   class_definitions field works.
 
     functions: Dict[FunctionKey, FunctionAnnotation]
-    attributes: collections.defaultdict[str, list[cst.Annotation]]
+    attributes: collections.defaultdict[str, list[cst.Annotation | None]]
     class_definitions: Dict[str, cst.ClassDef]
     typevars: Dict[str, cst.Assign]
     names: Set[str]
@@ -242,8 +242,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             # annotation_value = self._handle_Annotation(annotation=node.annotation)
             # assert False, f"Fork does not support {self.track_unannotated=}"
 
-            if (qual := ".".join(self.qualifier)) not in self.annotations.attributes:
-              self.annotations.attributes[qual] = list()
+            self.annotations.attributes[qual].append(None)
 
     def leave_Assign(
         self,
