@@ -4,6 +4,7 @@ import shutil
 import sys
 
 import click
+from common import output
 from common.schemas import TypeCollectionSchema
 from icr.insertion import TypeAnnotationApplierVisitor
 
@@ -114,12 +115,12 @@ def entrypoint(
         eng = engine(
             project=inpath, reference=baseline.drop(columns=[TypeCollectionSchema.anno], axis=1)
         )
-        inference = eng.resolve(
+        inference_df = eng.resolve(
             probabilistics[0].inferred, dynamic=None, probabilistic=probabilistics[1].inferred
         )
 
     else:
-        inference = next(infs()).inferred
+        inference_df = next(infs()).inferred
 
     if persist:
         outdir = _derive_output_folder(inpath, infs=list(infs()), engine=engine)
@@ -137,7 +138,7 @@ def entrypoint(
 
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=TypeAnnotationApplierVisitor(
-                context=codemod.CodemodContext(), tycol=inference.drop(columns=["method"])
+                context=codemod.CodemodContext(), tycol=inference_df.drop(columns=["method"])
             ),
             files=cstcli.gather_files([str(outdir)]),
             jobs=1,
@@ -155,11 +156,11 @@ def entrypoint(
         print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
         print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
 
-        output.write_icr(inference, outdir)
+        output.write_icr(inference_df, outdir)
         print(f"Inferred types have been stored at {outdir}; exiting...")
 
     else:
-        print(inference)
+        print(inference_df)
         print("Not persisting; exiting...")
 
 

@@ -9,8 +9,8 @@ from common.schemas import TypeCollectionSchema, TypeCollectionSchemaColumns
 from common.storage import TypeCollection
 from ._base import PerFileInference
 
-from common._apply_type_annotations import (
-    Annotations,
+from common.annotations import (
+    MultiVarAnnotations,
     FunctionKey,
     FunctionAnnotation,
 )
@@ -127,7 +127,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
 
     def __init__(self, answer: _Type4PyAnswer) -> None:
         super().__init__()
-        self.annotations = Annotations.empty()
+        self.annotations = MultiVarAnnotations.empty()
         self._answer = answer.copy(deep=True)
 
         # qualified callable name and the name of the class's this (None in functions)
@@ -183,8 +183,9 @@ class Type4Py2Annotations(cst.CSTVisitor):
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
         return self._handle_assign_target(node.target)
 
-    def _handle_assign_target(self, node: cst.BaseAssignTargetExpression) -> bool | None:
-        scope = self.get_metadata(metadata.ScopeProvider, node)
+    def _handle_assign_target(self, node: cst.BaseAssignTargetExpression) -> None:
+        if (scope := self.get_metadata(metadata.ScopeProvider, node)) is None:
+            return
 
         # Attempt to assign to variables and handle bug with identically named vars
         code = cst.Module([node]).code

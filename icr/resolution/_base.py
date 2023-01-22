@@ -27,7 +27,7 @@ class ConflictResolution(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def method() -> str:
+    def method(self) -> str:
         ...
 
     def __init__(self, project: pathlib.Path, reference: pt.DataFrame[SymbolSchema]) -> None:
@@ -68,15 +68,25 @@ class ConflictResolution(abc.ABC):
         how = "right"
         common_cols = [InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa]
 
-        static = pd.merge(left=static, right=self.reference, how=how, on=common_cols)
-        dynamic = pd.merge(left=dynamic, right=self.reference, how=how, on=common_cols)
-        probabilistic = pd.merge(left=probabilistic, right=self.reference, how=how, on=common_cols)
+        static_safe: pt.DataFrame[InferredSchema] = pd.merge(
+            left=static, right=self.reference, how=how, on=common_cols
+        ).pipe(pt.DataFrame[InferredSchema])
+        dynamic_safe: pt.DataFrame[InferredSchema] = pd.merge(
+            left=dynamic, right=self.reference, how=how, on=common_cols
+        ).pipe(pt.DataFrame[InferredSchema])
+        probabilistic_safe: pt.DataFrame[InferredSchema] = pd.merge(
+            left=probabilistic, right=self.reference, how=how, on=common_cols
+        ).pipe(pt.DataFrame[InferredSchema])
 
-        inferred = self._resolve(static, dynamic, probabilistic)
+        inferred = self._resolve(static_safe, dynamic_safe, probabilistic_safe)
 
         # Readd symbols with unresolved that were removed due to no
         # tool making a prediction
-        method_names = [inf[InferredSchema.method].iloc[0] for inf in [static, dynamic, probabilistic] if len(inf)]
+        method_names = [
+            inf[InferredSchema.method].iloc[0]
+            for inf in [static_safe, dynamic_safe, probabilistic_safe]
+            if len(inf)
+        ]
         readd = self.reference.assign(
             method="+".join(method_names), anno=BatchResolution.UNRESOLVED
         )
@@ -86,7 +96,6 @@ class ConflictResolution(abc.ABC):
             .drop_duplicates(subset=list(self.reference.columns), keep="first")
             .pipe(pt.DataFrame[InferredSchema])
         )
-
 
     @abc.abstractmethod
     def _resolve(
@@ -157,7 +166,7 @@ class IterativeResolution(ConflictResolution):
                 & (probabilistic[InferredSchema.category] == category)
                 & (probabilistic[InferredSchema.qname_ssa] == qname_ssa)
             ]
-            _metadata = Metadata(file=file, category=category, qname=qname)
+            _metadata = Metadata(file=file, category=category, qname=qname, qname_ssa=qname_ssa)
 
             update = self.forward(
                 static=_static,

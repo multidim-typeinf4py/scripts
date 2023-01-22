@@ -130,7 +130,7 @@ def build_discussion_from_predictions(
     agents = lambda: itertools.chain([static, dynamic, probabilistic])
 
     combined = pd.concat(list(agents()), ignore_index=True)
-    unique_predictions: list[str] = combined["anno"].unique().tolist()
+    unique_predictions: list[str] = combined["anno"].unique().tolist() # type: ignore
 
     G = nx.DiGraph()
     G.add_nodes_from(unique_predictions, label=const.UNDEC)

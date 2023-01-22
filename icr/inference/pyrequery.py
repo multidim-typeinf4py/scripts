@@ -136,8 +136,8 @@ class _PyreQuery2Annotations(cst.CSTVisitor):
         if not (qname := self.get_metadata(metadata.QualifiedNameProvider, node)):
             return None
 
-        qname = next(iter(qname)).name.replace(".<locals>.", ".")
-        return qname, anno.removeprefix(self.modpkg.name + ".")
+        qname_s = next(iter(qname)).name.replace(".<locals>.", ".")
+        return qname_s, anno.removeprefix(self.modpkg.name + ".")
 
     def _infer_rettype(self, node: cst.FunctionDef) -> tuple[str, str] | None:
         if (anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)) is None:
@@ -149,5 +149,5 @@ class _PyreQuery2Annotations(cst.CSTVisitor):
         assert len(functy) <= 1
         functy = functy[0] if functy else missing.NA
 
-        qname = next(iter(qname)).name.replace(".<locals>.", ".")
-        return qname, functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy
+        qname_s = next(iter(qname)).name.replace(".<locals>.", ".")
+        return qname_s, functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy

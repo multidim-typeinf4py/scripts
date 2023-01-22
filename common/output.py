@@ -20,7 +20,7 @@ def write_context(df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path) 
     cpath = context_path(project)
     cpath.parent.mkdir(parents=True, exist_ok=True)
 
-    df.to_csv(cpath, sep="\t", index=False, header=ContextSymbolSchema.to_schema().columns)
+    df.to_csv(cpath, sep="\t", index=False, header=list(ContextSymbolSchema.to_schema().columns))
 
 
 def read_context(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:

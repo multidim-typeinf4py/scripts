@@ -78,7 +78,7 @@ class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
             context=self.context, annotations=module_tycol
         ).transform_module(removed)
 
-        annotations = TypeCollection.to_annotations(module_tycol)
+        annotations = TypeCollection.to_libcst_annotations(module_tycol)
 
         # Due to renaming, it it safe to use LibCST's implementation for this!
         hinted = ApplyTypeAnnotationsVisitor(

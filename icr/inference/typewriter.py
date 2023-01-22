@@ -35,8 +35,8 @@ from typewriter.extraction import (
 from typewriter.model import load_data_tensors_TW, make_batch_prediction_TW
 from typewriter.prepocessing import filter_functions, gen_argument_df_TW, encode_aval_types_TW
 
-from common._apply_type_annotations import (
-    Annotations,
+from common.annotations import (
+    MultiVarAnnotations,
     FunctionAnnotation,
     FunctionKey,
 )
@@ -396,7 +396,7 @@ class TypeWriter(PerFileInference):
             )
         TD.cleanup()
 
-        collections: list[TypeCollection] = list()
+        collections: list[pd.DataFrame] = list()
         module = cst.parse_module((self.project / relative).open().read())
 
         # param_by_top_n = [
@@ -461,7 +461,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
             (k, list(g)) for k, g in itertools.groupby(parameters, key=operator.itemgetter(0))
         ]
         self.returns = returns
-        self.annotations = Annotations.empty()
+        self.annotations = MultiVarAnnotations.empty()
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
         is_fn = None

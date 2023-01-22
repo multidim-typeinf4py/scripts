@@ -140,7 +140,7 @@ class HiTyper(PerFileInference):
     def _predictions2df(
         self, predictions: _HiTyperPredictions, file: pathlib.Path
     ) -> pt.DataFrame[TypeCollectionSchema]:
-        df_updates: list[tuple(str, TypeCollectionCategory, str, str)] = []
+        df_updates: list[tuple[str, TypeCollectionCategory, str, str]] = []
 
         scopes = predictions.__root__[self.project / file]
 
