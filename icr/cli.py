@@ -6,7 +6,7 @@ import sys
 import click
 from common import output
 from common.schemas import TypeCollectionSchema
-from icr.insertion import TypeAnnotationApplierVisitor
+from icr.insertion import TypeAnnotationApplierTransformer
 
 from symbols.collector import build_type_collection
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
@@ -137,7 +137,7 @@ def entrypoint(
         print("Applying annotations to code")
 
         result = codemod.parallel_exec_transform_with_prettyprint(
-            transform=TypeAnnotationApplierVisitor(
+            transform=TypeAnnotationApplierTransformer(
                 context=codemod.CodemodContext(), tycol=inference_df.drop(columns=["method"])
             ),
             files=cstcli.gather_files([str(outdir)]),

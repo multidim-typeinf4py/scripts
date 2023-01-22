@@ -41,7 +41,7 @@ class _HintRemover(_AssignHintRemover, _ParameterHintRemover, _ReturnHintRemover
     pass
 
 
-class TypeAnnotationApplierVisitor(codemod.ContextAwareTransformer):
+class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
     def __init__(
         self,
         context: codemod.CodemodContext,

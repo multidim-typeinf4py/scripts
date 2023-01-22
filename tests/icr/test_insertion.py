@@ -9,7 +9,7 @@ from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 from icr.insertion import (
     FromQName2SSAQNameTransformer,
     FromSSAQName2QnameTransformer,
-    TypeAnnotationApplierVisitor,
+    TypeAnnotationApplierTransformer,
 )
 
 import pandas as pd
@@ -99,7 +99,7 @@ class Test_QNameSSA2QName(AnnotationTesting):
 
 
 class Test_CustomAnnotator(AnnotationTesting):
-    TRANSFORM = TypeAnnotationApplierVisitor
+    TRANSFORM = TypeAnnotationApplierTransformer
 
     def test_correct_annotations_applied(self):
         filename = AnnotationTesting.ANNOS[TypeCollectionSchema.file].iloc[0]
@@ -120,3 +120,5 @@ class Test_CustomAnnotator(AnnotationTesting):
 
 
 # TODO: Test behaviour mixed codebase, i.e. with unannotateds
+class Test_SkipUnannotated(codemod.CodemodTest):
+    TRANSFORM = TypeAnnotationApplierTransformer

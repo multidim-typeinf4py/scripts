@@ -7,7 +7,7 @@ from common.storage import TypeCollection
 import libcst.codemod as codemod
 import libcst.codemod._cli as cstcli
 
-from icr.insertion import TypeAnnotationApplierVisitor
+from icr.insertion import TypeAnnotationApplierTransformer
 
 import pytest
 
@@ -18,7 +18,7 @@ def test_into_annotations():
 
     pyre_df = TypeCollection.load("tests/resources/proj1@(HiTyper)/.icr.csv")
     result = codemod.parallel_exec_transform_with_prettyprint(
-        transform=TypeAnnotationApplierVisitor(context=codemod.CodemodContext(), tycol=pyre_df),
+        transform=TypeAnnotationApplierTransformer(context=codemod.CodemodContext(), tycol=pyre_df),
         files=cstcli.gather_files(["tests/resources/proj1@(HiTyper)"]),
         jobs=1,
         repo_root="tests/resources/proj1@(HiTyper)",
