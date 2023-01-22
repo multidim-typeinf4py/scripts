@@ -51,6 +51,14 @@ class Purpose(str, enum.Enum):
     help="1 iff annotatable is in a nested scope else 0",
 )
 @click.option(
+    "-f",
+    "--flow",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="1 iff annotatable is in a branch (if-else) else 9",
+)
+@click.option(
     "-u",
     "--user-defined",
     is_flag=True,
@@ -63,17 +71,24 @@ def entrypoint(
     loop: bool,
     reassigned: bool,
     nested: bool,
+    flow: bool,
     user_defined: bool,
 ) -> None:
     features = RelevantFeatures(
-        loop=loop, reassigned=reassigned, nested=nested, user_defined=user_defined  # , scope=scope
+        loop=loop,
+        reassigned=reassigned,
+        nested=nested,
+        user_defined=user_defined,
+        branching=flow,
     )
 
     rs = [
         generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file))
         for file in codemod.gather_files([str(inpath)])
     ]
-    df = pd.concat(list(filter(lambda d: d is not None, rs)), ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+    df = pd.concat(list(filter(lambda d: d is not None, rs)), ignore_index=True).pipe(
+        pt.DataFrame[ContextSymbolSchema]
+    )
     output.write_context(df, inpath)
 
 

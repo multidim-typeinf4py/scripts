@@ -6,4 +6,5 @@ class RelevantFeatures:
     reassigned: bool
     nested: bool
     user_defined: bool
+    branching: bool
 #    scope: bool    

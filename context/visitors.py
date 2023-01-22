@@ -39,10 +39,12 @@ class ContextVectorVisitor(cst.CSTVisitor):
         self.features: RelevantFeatures = features
 
         self.scope_stack: list[tuple[str, ...]] = []
+        self.branch_stack: list[cst.CSTNode] = []
+
         self.filepath = filepath
         self.loop_stack: list[cst.CSTNode] = []
 
-        self.dfrs: list[tuple[str, str, str, int, int, int, int, int]] = []
+        self.dfrs: list[tuple[str, str, str, int, int, int, int, int, int]] = []
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
         self._handle_annotatable(
@@ -70,6 +72,18 @@ class ContextVectorVisitor(cst.CSTVisitor):
 
     def leave_ClassDef(self, _: cst.ClassDef) -> None:
         self._leave_scope()
+
+    def visit_If(self, node: cst.If) -> None:
+        self._enter_branch(node)
+
+    def leave_If(self, _: cst.If) -> None:
+        self._leave_branch()
+
+    def visit_Else(self, node: cst.Else) -> None:
+        self._enter_branch(node)
+
+    def leave_Else(self, _: cst.Else) -> None:
+        self._leave_branch()
 
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
         ident = _stringify(node.target)
@@ -102,6 +116,12 @@ class ContextVectorVisitor(cst.CSTVisitor):
     def _leave_scope(self) -> None:
         self.scope_stack.pop()
 
+    def _enter_branch(self, node: cst.If | cst.Else) -> None:
+        self.branch_stack.append(node)
+
+    def _leave_branch(self) -> None:
+        self.branch_stack.pop()
+
     def scope(self) -> tuple[str, ...]:
         return self.scope_stack[-1] if self.scope_stack else tuple()
 
@@ -133,6 +153,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
         reassignedf = int(self.features.reassigned and self._is_reassigned(annotatable))
         nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
         user_definedf = int(self.features.user_defined and self._is_userdefined(annotation))
+        branching = int(self.features.branching and self._is_in_branch())
 
         categoryf = self._ctxt_category(annotatable, category)
 
@@ -146,6 +167,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
                 reassignedf,
                 nestedf,
                 user_definedf,
+                branching,
                 categoryf,
             )
         )
@@ -170,6 +192,9 @@ class ContextVectorVisitor(cst.CSTVisitor):
         fncount = counted.get(metadata.FunctionScope, 0) + isinstance(node, cst.FunctionDef)
         czcount = counted.get(metadata.ClassScope, 0) + isinstance(node, metadata.ClassScope)
         return fncount >= 2 or czcount >= 2
+
+    def _is_in_branch(self) -> bool:
+        return bool(self.branch_stack)
 
     def _is_userdefined(self, annotation: cst.Annotation | None) -> bool:
         if annotation is None:
