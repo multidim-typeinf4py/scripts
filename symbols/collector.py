@@ -55,9 +55,8 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
         )
         self.logger.info(f"Collecting from {file}")
 
-        from ..common._apply_type_annotations import (
-            TypeCollector as LibCSTTypeCollector,
-        )
+        from common.annotations import MultiVarTypeCollector
+        
         from libcst.codemod.visitors._gather_imports import (
             GatherImportsVisitor,
         )
@@ -69,7 +68,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
 
         existing_imports = set(item.module for item in imports_visitor.symbol_mapping.values())
 
-        type_collector = LibCSTTypeCollector(
+        type_collector = MultiVarTypeCollector(
             existing_imports=existing_imports,
             module_imports=imports_visitor.symbol_mapping,
             context=self.context,
