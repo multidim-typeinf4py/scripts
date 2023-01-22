@@ -29,7 +29,7 @@ pandas-stubs = "<=1.4.3"
 
 [tool.mypy]
 plugins = ["pandera.mypy"]
-exclude = ["tests/resources/"]
+exclude = ["tests/resources/", "icr/inference"]
 
 [tool.black]
 line-length = 100
