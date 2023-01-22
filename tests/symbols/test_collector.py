@@ -97,16 +97,16 @@ def code_path() -> typing.Iterator[pathlib.Path]:
         (
             TypeCollectionCategory.VARIABLE,
             [
-                ("function.v", "function.v$1", missing.NA),
+                ("function.v", "function.vλ1", missing.NA),
                 (
                     "function_with_multiline_parameters.v",
-                    "function_with_multiline_parameters.v$1",
+                    "function_with_multiline_parameters.vλ1",
                     missing.NA,
                 ),
-                ("Clazz.__init__.self.a", "Clazz.__init__.self.a$1", "int"),
-                ("Clazz.function.v", "Clazz.function.v$1", missing.NA),
-                ("a", "a$1", "int"),
-                ("outer.nested.result", "outer.nested.result$1", "str"),
+                ("Clazz.__init__.self.a", "Clazz.__init__.self.aλ1", "int"),
+                ("Clazz.function.v", "Clazz.function.vλ1", missing.NA),
+                ("a", "aλ1", "int"),
+                ("outer.nested.result", "outer.nested.resultλ1", "str"),
             ],
         ),
         (
@@ -140,16 +140,15 @@ def test_hints_found(
 
     common = pd.merge(collection.df, hints_df, on=TypeCollectionSchemaColumns)
     diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
-    print("Diff:", diff, sep="\n")
 
-    assert diff.empty
+    assert diff.empty, f"Diff:\n{diff}\n"
 
 
 def test_loadable(code_path: pathlib.Path) -> None:
     import tempfile
 
     collection = build_type_collection(code_path)
-    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
+    with tempfile.NamedTemporaryFile(mode="w+") as tmpfile:
         collection.write(tmpfile.name)
         reloaded = TypeCollection.load(tmpfile.name)
 
