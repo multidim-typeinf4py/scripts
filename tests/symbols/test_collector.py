@@ -1,6 +1,12 @@
 import pathlib
+import textwrap
 import typing
 
+import libcst
+from libcst import codemod
+from libcst import metadata
+
+from common._helper import generate_qname_ssas_for_file
 from common.schemas import (
     TypeCollectionSchema,
     TypeCollectionSchemaColumns,
@@ -9,7 +15,7 @@ from common.schemas import (
 from common.storage import TypeCollection
 
 
-from symbols.collector import build_type_collection
+from symbols.collector import TypeCollectorVistor, build_type_collection
 
 from pandas._libs import missing
 
@@ -155,3 +161,54 @@ def test_loadable(code_path: pathlib.Path) -> None:
         diff = pd.concat([collection.df, reloaded.df]).drop_duplicates(keep=False)
         print("Diff between in-memory and serde'd", diff, sep="\n")
         assert diff.empty
+
+
+class Test_TrackUnannotated(codemod.CodemodTest):
+    def test_unannotated_present(self):
+        code = textwrap.dedent(
+            """
+        from __future__ import annotations
+
+        a = 10
+        a: str = "Hello World"
+
+        def f(a, b, c): ...
+        
+        class C:
+            def __init__(self):
+                self.x: int = 0
+                default: str = self.x or "10"
+                self.x = default"""
+        )
+        module = libcst.parse_module(code)
+
+        expected_df = (
+            pd.DataFrame(
+                {
+                    "file": ["x.py"] * 5,
+                    "category": [TypeCollectionCategory.VARIABLE] * 5,
+                    "qname": ["a"] * 2
+                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
+                    "anno": [missing.NA, "str", "int", "str", missing.NA],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        visitor = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            ),
+        )
+        visitor.transform_module(module)
+
+        df = visitor.collection.df
+
+        common = pd.merge(expected_df, df)
+        diff = pd.concat([common, expected_df]).drop_duplicates(keep=False)
+
+        assert diff.empty, f"Diff:\n{diff}\n"
