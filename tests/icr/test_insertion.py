@@ -1,5 +1,3 @@
-import pathlib
-import tempfile
 import textwrap
 
 
@@ -13,10 +11,8 @@ from icr.insertion import (
     FromSSAQName2QnameTransformer,
     TypeAnnotationApplierVisitor,
 )
-from symbols.collector import build_type_collection
 
 import pandas as pd
-import pandas._libs.missing as missing
 import pandera.typing as pt
 
 
