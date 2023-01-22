@@ -13,6 +13,7 @@ from icr.insertion import (
 )
 
 import pandas as pd
+from pandas._libs import missing
 import pandera.typing as pt
 
 
@@ -118,7 +119,48 @@ class Test_CustomAnnotator(AnnotationTesting):
             ),
         )
 
+    def test_skip_unannotateds(self):
+        filename = AnnotationTesting.ANNOS[TypeCollectionSchema.file].iloc[0]
 
-# TODO: Test behaviour mixed codebase, i.e. with unannotateds
-class Test_SkipUnannotated(codemod.CodemodTest):
-    TRANSFORM = TypeAnnotationApplierTransformer
+        after = textwrap.dedent(
+            """
+        from __future__ import annotations
+
+        a = 10
+        a: str = "Hello World"
+
+        def f(a, b, c): ...
+        
+        class C:
+            def __init__(self):
+                self.x: int = 0
+                default: str = self.x or "10"
+                self.x = default
+        """
+        )
+
+        skip_df = (
+            pd.DataFrame(
+                {
+                    "file": ["x.py"] * 5,
+                    "category": [TypeCollectionCategory.VARIABLE] * 5,
+                    "qname": ["a"] * 2
+                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
+                    "anno": [missing.NA, "str", "int", "str", missing.NA],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        self.assertCodemod(
+            AnnotationTesting.HINTLESS,
+            after,
+            tycol=skip_df,
+            context_override=codemod.CodemodContext(
+                filename=filename,
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=[filename], providers=[]
+                ),
+            ),
+        )
