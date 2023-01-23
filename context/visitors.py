@@ -156,12 +156,13 @@ class ContextVectorVisitor(cst.CSTVisitor):
         branching = int(self.features.branching and self._is_in_branch())
 
         categoryf = self._ctxt_category(annotatable, category)
+        qname = self.qname_within_scope(identifier)
 
         self.dfrs.append(
             (
                 self.filepath,
                 category,
-                self.qname_within_scope(identifier),
+                qname,
                 _stringify(annotation) or missing.NA,
                 loopf,
                 reassignedf,
@@ -231,7 +232,11 @@ class ContextVectorVisitor(cst.CSTVisitor):
             return None
 
         wout_qname_ssa = [c for c in ContextSymbolSchemaColumns if c != "qname_ssa"]
-        df = pd.DataFrame(self.dfrs, columns=wout_qname_ssa).assign(qname_ssa=missing.NA)
+        df = (
+            pd.DataFrame(self.dfrs, columns=wout_qname_ssa)
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[ContextSymbolSchema])
+        )
 
         # Reassigned variables also mean redefined parameters
         reass_variables = df[
@@ -242,5 +247,14 @@ class ContextVectorVisitor(cst.CSTVisitor):
         parameters = df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname])
         df.loc[parameters, ContextSymbolSchema.reassigned] = 1
 
-        df = generate_qname_ssas_for_file(df)
-        return df.pipe(pt.DataFrame[ContextSymbolSchema])
+        # Annotatables in flow control do not have to be marked as "reassigned" as long as there are no
+        # occurrences of the same annotatable beforehand
+        questionable_branching = df[
+            (df[ContextSymbolSchema.branching] == 1) & (df[ContextSymbolSchema.reassigned] == 1)
+        ]
+        questionable_qnames = df.loc[questionable_branching, ContextSymbolSchema.qname]
+
+        false_reassigned = ...
+
+
+        return df

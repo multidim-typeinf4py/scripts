@@ -58,6 +58,19 @@ def g():
 def parammed(p: int | None):
     p: int = p or 10
 
+def branching():
+    # This x is outside of the branching, ignore
+    x = 10
+
+    if x < 10:
+        b = True
+    else:
+        b = False
+
+    for e in range(10):
+        a = e
+    else:
+        a = 20
 
 if __name__ == "__main__":
     local_reassign()

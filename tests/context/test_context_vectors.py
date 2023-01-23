@@ -14,7 +14,9 @@ import pytest
 def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "context"
     cvs = generate_context_vectors_for_file(
-        features=RelevantFeatures(loop=True, reassigned=True, nested=True, user_defined=True),
+        features=RelevantFeatures(
+            loop=True, reassigned=True, nested=True, user_defined=True, branching=True
+        ),
         repo=repo,
         path=repo / "resource.py",
     )
@@ -26,7 +28,7 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     argnames=("qnames", "feature"),
     argvalues=(
         # 1. loopage i.e. the annotatable is in some kind of loop
-        (["looping.x", "looping.a"], ContextSymbolSchema.loop),
+        (["looping.x", "looping.a", "branching.a"], ContextSymbolSchema.loop),
         # 2. nestage i.e. the annotatble is in some nested scope (class in class, function in function)
         (["f.g", "f.g.a"], ContextSymbolSchema.nested),
         # 3. user-deffed i.e. the attached annotation is not a builtin type
@@ -36,6 +38,7 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
             ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
             ContextSymbolSchema.reassigned,
         ),
+        (["branching.b", "branching.a"], ContextSymbolSchema.branching),
     ),
     ids=str,
 )
