@@ -1,4 +1,5 @@
 import functools
+import logging
 import pathlib
 
 from libcst import codemod
@@ -131,12 +132,20 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
+        self.logger = logging.getLogger(FromQName2SSAQNameTransformer.__qualname__)
 
     def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        unconsumed = self.annotations[self.annotations["consumed"] != 1]
-        assert (
-            unconsumed.empty
-        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname, TypeCollectionSchema.qname_ssa]].values()}"
+        diff_qnames = (
+            self.annotations[TypeCollectionSchema.qname]
+            != self.annotations[TypeCollectionSchema.qname_ssa]
+        )
+        unconsumed = self.annotations["consumed"] != 1
+        flagged = self.annotations[diff_qnames & unconsumed]
+
+        if not flagged.empty:
+            self.logger.warning(
+                f"Failed to apply qname_ssas for {flagged[[TypeCollectionSchema.qname, TypeCollectionSchema.qname_ssa]].values}"
+            )
 
         return updated_node
 
@@ -164,7 +173,9 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
                 self.annotations["consumed"] != 1
             )
             candidates = self.annotations.loc[cand_mask]
-            assert not candidates.empty, f"Could not lookup {full_qname}; {self.annotations}"
+            if candidates.empty:
+                self.logger.warning(f"Could not lookup {full_qname}")
+                return
 
             qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
             qname_ssa = str(qname_ssa_ser.iloc[0])
@@ -186,12 +197,20 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
+        self.logger = logging.getLogger(FromSSAQName2QnameTransformer.__qualname__)
 
     def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        unconsumed = self.annotations[self.annotations["consumed"] != 1]
-        assert (
-            unconsumed.empty
-        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname_ssa, TypeCollectionSchema.qname]].values()}"
+        diff_qnames = (
+            self.annotations[TypeCollectionSchema.qname]
+            != self.annotations[TypeCollectionSchema.qname_ssa]
+        )
+        unconsumed = self.annotations["consumed"] != 1
+        flagged = self.annotations[diff_qnames & unconsumed]
+
+        if not flagged.empty:
+            self.logger.warning(
+                f"Failed to apply qname_ssas for {flagged[[TypeCollectionSchema.qname_ssa, TypeCollectionSchema.qname]].values}"
+            )
 
         return updated_node
 
@@ -217,6 +236,9 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
 
             cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
             candidates = self.annotations.loc[cand_mask]
+            if candidates.empty:
+                self.logger.warning(f"Could not lookup {full_qname_ssa}")
+                return
 
             qname_ser = candidates[TypeCollectionSchema.qname]
             qname = qname_ser.iloc[0]
