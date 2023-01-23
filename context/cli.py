@@ -73,7 +73,9 @@ def entrypoint(
         generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file))
         for file in codemod.gather_files([str(inpath)])
     ]
-    df = pd.concat(list(filter(lambda d: d is not None, rs)), ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+    df = pd.concat(rs, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+
+    print(f"Feature set size: {df.shape}")
     output.write_context_vectors(df, inpath)
 
 
