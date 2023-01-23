@@ -295,7 +295,14 @@ class MergedAnnotations:
 
         df: pd.DataFrame = functools.reduce(
             lambda acc, curr: pd.merge(
-                left=acc, right=curr, how="outer", on=["file", "category", "qname"]
+                left=acc,
+                right=curr,
+                how="outer",
+                on=[
+                    TypeCollectionSchema.file,
+                    TypeCollectionSchema.category,
+                    TypeCollectionSchema.qname_ssa,
+                ],
             ),
             dfs,
         ).fillna(missing.NA)

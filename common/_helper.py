@@ -47,6 +47,9 @@ def generate_qname_ssas_for_file(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_qname_ssas_for_project(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        df[SymbolSchema.qname_ssa] = pd.Series(dtype="str")
+        return df
     return df.groupby(by=SymbolSchema.file, sort=False, group_keys=True).apply(
         generate_qname_ssas_for_file
     )
