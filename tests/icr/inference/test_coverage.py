@@ -14,7 +14,7 @@ import pandera.typing as pt
 @pytest.fixture(
     scope="class",
     # params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
-    params=[TypeWriter],
+    params=[HiTyper],
     ids=lambda e: e.__qualname__,
 )
 def methoddf(request) -> tuple[str, pt.DataFrame[InferredSchema]]:

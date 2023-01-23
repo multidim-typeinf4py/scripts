@@ -249,7 +249,7 @@ class TypeCollection:
         return TypeCollection(
             df=pd.read_csv(
                 path,
-                sep="\t",
+                
                 converters={"category": lambda c: TypeCollectionCategory[c]},
             ).pipe(pt.DataFrame[TypeCollectionSchema])
         )
@@ -257,7 +257,7 @@ class TypeCollection:
     def write(self, path: str | pathlib.Path) -> None:
         self.df.to_csv(
             path,
-            sep="\t",
+            
             index=False,
             header=TypeCollectionSchemaColumns,
         )
@@ -314,7 +314,7 @@ class MergedAnnotations:
         return MergedAnnotations(
             df=pd.read_csv(
                 path,
-                sep="\t",
+                
                 converters={"category": lambda c: TypeCollectionCategory[c]},
             ).pipe(pt.DataFrame[MergedAnnotationSchema])
         )
@@ -322,7 +322,7 @@ class MergedAnnotations:
     def write(self, path: str | pathlib.Path) -> None:
         self.df.to_csv(
             path,
-            sep="\t",
+            
             index=False,
         )
 

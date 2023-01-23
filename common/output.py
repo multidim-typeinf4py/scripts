@@ -20,14 +20,13 @@ def write_context_vectors(df: pt.DataFrame[ContextSymbolSchema], project: pathli
     cpath = context_vector_path(project)
     cpath.parent.mkdir(parents=True, exist_ok=True)
 
-    df.to_csv(cpath, sep="\t", index=False, header=list(ContextSymbolSchema.to_schema().columns))
+    df.to_csv(cpath, index=False, header=list(ContextSymbolSchema.to_schema().columns))
 
 
 def read_context_vectors(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
     cpath = context_vector_path(project)
     df = pd.read_csv(
         cpath,
-        sep="\t",
         converters={
             "category": lambda c: operator.getitem(TypeCollectionCategory, c),
             # "ctxt_category": lambda c: operator.getitem(ContextCategory, c),
@@ -45,7 +44,6 @@ def write_icr(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
     ipath = icr_path(project)
     df.to_csv(
         ipath,
-        sep="\t",
         index=False,
         header=InferredSchema.to_schema().columns,
     )
@@ -53,6 +51,6 @@ def write_icr(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
 
 def read_icr(project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
     ipath = icr_path(project)
-    df = pd.read_csv(ipath, sep="\t", converters={"category": lambda c: TypeCollectionCategory[c]})
+    df = pd.read_csv(ipath, converters={"category": lambda c: TypeCollectionCategory[c]})
 
     return df.pipe(pt.DataFrame[InferredSchema])

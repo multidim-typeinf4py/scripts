@@ -136,9 +136,10 @@ def entrypoint(
         shutil.copytree(inpath, outdir, symlinks=True)
         print("Applying annotations to code")
 
+        # TODO: If topn >= 2, then annotation application fails? check this out
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=TypeAnnotationApplierTransformer(
-                context=codemod.CodemodContext(), tycol=inference_df.drop(columns=["method"])
+                context=codemod.CodemodContext(), tycol=inference_df
             ),
             files=cstcli.gather_files([str(outdir)]),
             jobs=1,
