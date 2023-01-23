@@ -32,6 +32,7 @@ TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys
 
 class InferredSchema(TypeCollectionSchema):
     method: pt.Series[str] = pa.Field()
+    topn: pt.Series[int] = pa.Field(ge=0)
 
 
 InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())

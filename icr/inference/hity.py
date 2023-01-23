@@ -5,7 +5,13 @@ import pathlib
 import shutil
 
 from ._base import PerFileInference
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import (
+    InferredSchema,
+    InferredSchemaColumns,
+    TypeCollectionCategory,
+    TypeCollectionSchema,
+    TypeCollectionSchemaColumns,
+)
 
 import hityper.__main__ as hityper
 import libcst as cst
@@ -96,7 +102,7 @@ class HiTyper(PerFileInference):
         if self.output_dir.is_dir():
             shutil.rmtree(path=str(self.output_dir))
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         if not hasattr(self, "predictions"):
             if not self.output_dir.is_dir():
                 self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -139,8 +145,8 @@ class HiTyper(PerFileInference):
 
     def _predictions2df(
         self, predictions: _HiTyperPredictions, file: pathlib.Path
-    ) -> pt.DataFrame[TypeCollectionSchema]:
-        df_updates: list[tuple[str, TypeCollectionCategory, str, str]] = []
+    ) -> pt.DataFrame[InferredSchema]:
+        df_updates: list[tuple[str, TypeCollectionCategory, str, str, int]] = []
 
         scopes = predictions.__root__[self.project / file]
 
@@ -154,7 +160,7 @@ class HiTyper(PerFileInference):
             qname_prefix = scope
 
             for scope_pred in scope_predictions:
-                for ty in scope_pred.type[: self.topn] or [None]:
+                for n, ty in enumerate(scope_pred.type[: self.topn] or [None]):
                     ty = ty or missing.NA
 
                     match scope_pred.category:
@@ -166,6 +172,7 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.CALLABLE_PARAMETER,
                                     f"{qname_prefix}.{scope_pred.name}",
                                     ty,
+                                    n,
                                 )
                             )
 
@@ -177,6 +184,7 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.CALLABLE_RETURN,
                                     qname_prefix,
                                     ty,
+                                    n,
                                 )
                             )
 
@@ -192,13 +200,25 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.VARIABLE,
                                     qname,
                                     ty,
+                                    n,
                                 )
                             )
-        wout_ssa = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
-        df = pd.DataFrame(df_updates, columns=wout_ssa)
 
-        df = _helper.generate_qname_ssas_for_file(df)
-        return df.pipe(pt.DataFrame[TypeCollectionSchema])
+        if not df_updates:
+            return InferredSchema.to_schema().example(size=0) 
+
+        wout_ssa = [
+            c
+            for c in InferredSchemaColumns
+            if c not in (InferredSchema.qname_ssa, InferredSchema.method)
+        ]
+        df = pd.DataFrame(df_updates, columns=wout_ssa)        
+
+        return (
+            df.assign(method=self.method)
+            .pipe(_helper.generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[InferredSchema])
+        )
 
 
 class HiTyperLocalDisambig(cst.CSTVisitor):

@@ -52,7 +52,7 @@ class Inference(abc.ABC):
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__()
         self.project = project.resolve()
-        self.inferred = pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
+        self.inferred = InferredSchema.to_schema().example(size=0)
 
     @abc.abstractmethod
     def infer(self) -> None:
@@ -75,7 +75,7 @@ class ProjectWideInference(Inference):
             )
 
     @abc.abstractmethod
-    def _infer_project(self) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
         pass
 
 
@@ -85,11 +85,7 @@ class PerFileInference(Inference):
         for subfile in self.project.rglob("*.py"):
             relative = subfile.relative_to(self.project)
             if str(relative) not in self.inferred["file"]:
-                reldf: pt.DataFrame[InferredSchema] = (
-                    self._infer_file(relative)
-                    .assign(method=self.method)
-                    .pipe(pt.DataFrame[InferredSchema])
-                )
+                reldf: pt.DataFrame[InferredSchema] = self._infer_file(relative)
                 updates.append(reldf)
         if updates:
             self.inferred = (

@@ -125,6 +125,7 @@ class BatchResolution(ConflictResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
     ) -> pt.DataFrame[InferredSchema]:
+        # TODO: Make this a ResolvedSchema, as TopN does not apply anymore
         ...
 
 

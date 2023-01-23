@@ -5,7 +5,7 @@ import pathlib
 import typing
 import requests
 
-from common.schemas import TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import InferredSchema, TypeCollectionSchema, TypeCollectionSchemaColumns
 from common.storage import TypeCollection
 from ._base import PerFileInference
 
@@ -80,7 +80,7 @@ class _Type4PyAnswer(pydantic.BaseModel):
 class Type4Py(PerFileInference):
     method = "type4py"
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         with (self.project / relative).open() as f:
             r = requests.post("http://localhost:5001/api/predict?tc=0", f.read())
             # print(r.text)
@@ -92,13 +92,13 @@ class Type4Py(PerFileInference):
             print(
                 f"WARNING: {Type4Py.__qualname__} failed for {self.project / relative} - {answer.error}"
             )
-            return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+            return InferredSchema.to_schema().example(size=0)
 
         if answer.response is None:
             print(
                 f"WARNING: {Type4Py.__qualname__} couldnt infer anything for {self.project / relative}"
             )
-            return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+            return InferredSchema.to_schema().example(size=0)
 
         src = (self.project / relative).open().read()
         module = cst.MetadataWrapper(cst.parse_module(src))
@@ -112,7 +112,7 @@ class Type4Py(PerFileInference):
         collection = TypeCollection.from_annotations(
             file=relative, annotations=annotations, strict=True
         )
-        return collection.df
+        return collection.df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
 
 
 class Type4Py2Annotations(cst.CSTVisitor):

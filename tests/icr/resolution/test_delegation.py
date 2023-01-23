@@ -19,6 +19,7 @@ agent1 = pt.DataFrame[InferredSchema](
         "qname": [f"function.{name}" for name in "abc"],
         "qname_ssa": [f"function.{name}" for name in "abc"],
         "anno": [missing.NA, "int", missing.NA],
+        "topn": [0] * 3
     }
 )
 
@@ -30,6 +31,7 @@ agent2 = pt.DataFrame[InferredSchema](
         "qname": [f"function.{name}" for name in "abcc"],
         "qname_ssa": [f"function.{name}" for name in "abcc"],
         "anno": [missing.NA, "bool", "str", "bytes"],
+        "topn": [0] * 3 + [1]
     }
 )
 

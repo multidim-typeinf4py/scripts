@@ -19,7 +19,7 @@ from pyre_check.client import configuration, command_arguments
 import pandas as pd
 
 from common import _helper
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from common.schemas import InferredSchema, TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
 
@@ -58,7 +58,7 @@ class PyreQuery(PerFileInference):
         if (dotdir := self.project / ".pyre").is_dir():
             shutil.rmtree(str(dotdir))
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         fullpath = str(self.project / relative)
         module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
 
@@ -78,7 +78,7 @@ class PyreQuery(PerFileInference):
         ).assign(file=str(relative))
         df = _helper.generate_qname_ssas_for_file(df)
 
-        return df.pipe(pt.DataFrame[TypeCollectionSchema])
+        return df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
 
 
 class _PyreQuery2Annotations(cst.CSTVisitor):

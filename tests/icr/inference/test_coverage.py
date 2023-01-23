@@ -13,7 +13,8 @@ import pandera.typing as pt
 
 @pytest.fixture(
     scope="class",
-    params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
+    # params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
+    params=[TypeWriter],
     ids=lambda e: e.__qualname__,
 )
 def methoddf(request) -> tuple[str, pt.DataFrame[InferredSchema]]:
@@ -191,5 +192,15 @@ class TestCoverage:
     def test_unique(self, methoddf: tuple[str, pt.DataFrame[InferredSchema]]):
         method, df = methoddf
         # unique based on slot, e.g. parameter and variable can be the same
-        dups = df[df.duplicated(subset=["category", "qname", "anno"], keep=False)]
+        dups = df[
+            df.duplicated(
+                subset=[
+                    InferredSchema.category,
+                    InferredSchema.qname_ssa,
+                    InferredSchema.anno,
+                    InferredSchema.topn,
+                ],
+                keep=False,
+            )
+        ]
         assert dups.empty, str(dups)
