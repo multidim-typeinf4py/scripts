@@ -12,19 +12,19 @@ from common.schemas import (
 )
 
 
-def context_path(project: pathlib.Path) -> pathlib.Path:
-    return project / ".context.csv"
+def context_vector_path(project: pathlib.Path) -> pathlib.Path:
+    return project / ".context-vectors.csv"
 
 
-def write_context(df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path) -> None:
-    cpath = context_path(project)
+def write_context_vectors(df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path) -> None:
+    cpath = context_vector_path(project)
     cpath.parent.mkdir(parents=True, exist_ok=True)
 
     df.to_csv(cpath, sep="\t", index=False, header=list(ContextSymbolSchema.to_schema().columns))
 
 
-def read_context(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
-    cpath = context_path(project)
+def read_context_vectors(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
+    cpath = context_vector_path(project)
     df = pd.read_csv(
         cpath,
         sep="\t",

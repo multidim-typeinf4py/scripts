@@ -34,7 +34,7 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
     ground_truth_df = [build_type_collection(ip).df for ip, _ in inpath]
     gt_df = pd.concat(ground_truth_df)
 
-    tool_annotated_dfs = [output.read_context(ip) for _, ip in inpath]
+    tool_annotated_dfs = [output.read_context_vectors(ip) for _, ip in inpath]
     ta_df = pd.concat(tool_annotated_dfs)
 
     features_on_symbols = pd.merge(
