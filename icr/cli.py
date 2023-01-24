@@ -5,7 +5,7 @@ import sys
 
 import click
 from common import output
-from common.schemas import TypeCollectionSchema
+from common.schemas import InferredSchema, TypeCollectionSchema
 from icr.insertion import TypeAnnotationApplierTransformer
 
 from symbols.collector import build_type_collection
@@ -122,6 +122,13 @@ def entrypoint(
     else:
         inference_df = next(infs()).inferred
 
+        inference_df = inference_df.loc[
+            inference_df.groupby(
+                by=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
+                sort=False,
+            )[InferredSchema.topn].idxmin()
+        ]
+
     if persist:
         outdir = _derive_output_folder(inpath, infs=list(infs()), engine=engine)
         if outdir.is_dir() and not overwrite:
@@ -136,7 +143,7 @@ def entrypoint(
         shutil.copytree(inpath, outdir, symlinks=True)
         print("Applying annotations to code")
 
-        # TODO: If topn >= 2, then annotation application fails? check this out
+        # Retain top1 for annotating
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=TypeAnnotationApplierTransformer(
                 context=codemod.CodemodContext(), tycol=inference_df
