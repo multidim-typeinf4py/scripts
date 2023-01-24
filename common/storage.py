@@ -153,7 +153,6 @@ class TypeCollection:
             on=[
                 TypeCollectionSchema.file,
                 TypeCollectionSchema.category,
-                TypeCollectionSchema.qname,
                 TypeCollectionSchema.qname_ssa,
             ],
             sort=False,
@@ -165,7 +164,6 @@ class TypeCollection:
             subset=[
                 TypeCollectionSchema.file,
                 TypeCollectionSchema.category,
-                TypeCollectionSchema.qname,
                 TypeCollectionSchema.qname_ssa,
             ],
             keep="first",
@@ -175,7 +173,6 @@ class TypeCollection:
             subset=[
                 TypeCollectionSchema.file,
                 TypeCollectionSchema.category,
-                TypeCollectionSchema.qname,
                 TypeCollectionSchema.qname_ssa,
             ],
             keep=False,
