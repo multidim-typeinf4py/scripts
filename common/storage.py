@@ -16,6 +16,8 @@ from libcst.codemod.visitors._apply_type_annotations import (
 )
 import libcst as cst
 
+import numpy as np
+
 from pandas._libs import missing
 import pandas as pd
 import pandera as pa
@@ -143,17 +145,30 @@ class TypeCollection:
 
         df = collection.df if isinstance(collection, TypeCollection) else collection
 
-        # Add missing symbols
-        df = pd.merge(
+        # Add missing symbols and order by baseline
+        ordered = pd.merge(
             left=df,
             right=baseline.drop(columns=["anno"]),
-            how="outer",
+            how="right",
             on=[
                 TypeCollectionSchema.file,
                 TypeCollectionSchema.category,
                 TypeCollectionSchema.qname,
                 TypeCollectionSchema.qname_ssa,
             ],
+            sort=False,
+        )
+
+        # Make sure symbols that are not in the baseline, but could be inferred
+        # Example: CLASS_ATTRs, which are dropped during HintRemoval
+        df = pd.concat([ordered, df], ignore_index=True).drop_duplicates(
+            subset=[
+                TypeCollectionSchema.file,
+                TypeCollectionSchema.category,
+                TypeCollectionSchema.qname,
+                TypeCollectionSchema.qname_ssa,
+            ],
+            keep="first",
         )
 
         dups = df.duplicated(
