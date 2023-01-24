@@ -136,16 +136,32 @@ class TypeCollection:
     @staticmethod
     def to_libcst_annotations(
         collection: TypeCollection | pt.DataFrame[TypeCollectionSchema],
+        baseline: pt.DataFrame[TypeCollectionSchema],
     ) -> Annotations:
         """Create a LibCST Annotations object from the provided DataFrame.
         NOTE: The keys of this Annotations object are QNAME_SSAs, not QNAMEs!"""
+
         df = collection.df if isinstance(collection, TypeCollection) else collection
+
+        # Add missing symbols
+        df = pd.merge(
+            left=df,
+            right=baseline.drop(columns=["anno"]),
+            how="outer",
+            on=[
+                TypeCollectionSchema.file,
+                TypeCollectionSchema.category,
+                TypeCollectionSchema.qname,
+                TypeCollectionSchema.qname_ssa,
+            ],
+        )
+
         dups = df.duplicated(
             subset=[
                 TypeCollectionSchema.file,
                 TypeCollectionSchema.category,
+                TypeCollectionSchema.qname,
                 TypeCollectionSchema.qname_ssa,
-                TypeCollectionSchema.anno,
             ],
             keep=False,
         )
@@ -163,15 +179,23 @@ class TypeCollection:
             ]
 
             sep_df = param_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
+
             if sep_df.empty:
-                return fs
-            sep_df = sep_df.set_axis(["fname", "argname"], axis=1)
+                sep_df = pd.DataFrame(columns=["fname", "argname"])
+            else:
+                sep_df = sep_df.set_axis(["fname", "argname"], axis=1)
             param_df = pd.merge(param_df, sep_df, left_index=True, right_index=True)
 
-            for fname, rettype in fs_df[
-                [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.anno]
-            ].itertuples(index=False):
+            # Combine both fs_df and param_df so that if at least one prediction is
+            # made in either, a FunctionAnnotation is produced
+            fnames = pd.concat(
+                [fs_df[TypeCollectionSchema.qname_ssa], param_df["fname"]], ignore_index=True
+            ).unique()
+
+            for fname in fnames:
                 select_params = param_df[param_df["fname"] == fname]
+                rettype = fs_df[fs_df[TypeCollectionSchema.qname_ssa] == fname]
+                rettype_anno = rettype[TypeCollectionSchema.anno].iloc[0]
                 params = [
                     cst.Param(
                         name=cst.Name(value),
@@ -185,11 +209,16 @@ class TypeCollection:
                 ]
 
                 key = FunctionKey.make(name=fname, params=cst.Parameters(params))
+
+                fa_params = cst.Parameters(params)
+                fa_returns = (
+                    cst.Annotation(cst.parse_expression(rettype_anno))
+                    if pd.notna(rettype_anno)
+                    else None
+                )
                 anno = FunctionAnnotation(
-                    parameters=cst.Parameters(params),
-                    returns=cst.Annotation(cst.parse_expression(rettype))
-                    if pd.notna(rettype)
-                    else None,
+                    parameters=fa_params,
+                    returns=fa_returns,
                 )
                 fs[key] = anno
 
@@ -236,20 +265,20 @@ class TypeCollection:
 
             return attrs
 
-        return Annotations(
+        annos = Annotations(
             functions=functions(),
             attributes=variables(),
             class_definitions=attributes(),
             typevars=dict(),
             names=set(),
         )
+        return annos
 
     @staticmethod
     def load(path: str | pathlib.Path) -> TypeCollection:
         return TypeCollection(
             df=pd.read_csv(
                 path,
-                
                 converters={"category": lambda c: TypeCollectionCategory[c]},
             ).pipe(pt.DataFrame[TypeCollectionSchema])
         )
@@ -257,7 +286,6 @@ class TypeCollection:
     def write(self, path: str | pathlib.Path) -> None:
         self.df.to_csv(
             path,
-            
             index=False,
             header=TypeCollectionSchemaColumns,
         )
@@ -314,7 +342,6 @@ class MergedAnnotations:
         return MergedAnnotations(
             df=pd.read_csv(
                 path,
-                
                 converters={"category": lambda c: TypeCollectionCategory[c]},
             ).pipe(pt.DataFrame[MergedAnnotationSchema])
         )
@@ -322,7 +349,6 @@ class MergedAnnotations:
     def write(self, path: str | pathlib.Path) -> None:
         self.df.to_csv(
             path,
-            
             index=False,
         )
 

@@ -14,6 +14,7 @@ import pandera.typing as pt
 from common._helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
+from symbols.collector import TypeCollectorVistor, build_type_collection
 
 
 class _ParameterHintRemover(cst.CSTTransformer):
@@ -62,6 +63,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         module_tycol = self.tycol[self.tycol[TypeCollectionSchema.file] == str(relative)].pipe(
             pt.DataFrame[TypeCollectionSchema]
         )
+
         #        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
         #        if not req_mod_imports.empty:
         # viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
@@ -75,11 +77,16 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
 
         removed = tree.visit(_HintRemover())
 
-        with_ssa_qnames = FromQName2SSAQNameTransformer(
+        symbol_collector = TypeCollectorVistor.strict(context=self.context)
+        removed = symbol_collector.transform_module(removed)
+
+        with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(removed)
 
-        annotations = TypeCollection.to_libcst_annotations(module_tycol)
+        annotations = TypeCollection.to_libcst_annotations(
+            module_tycol, symbol_collector.collection.df
+        )
 
         # Due to renaming, it it safe to use LibCST's implementation for this!
         hinted = ApplyTypeAnnotationsVisitor(
@@ -96,7 +103,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         #    context=self.context, overwrite_existing_annotations=False
         # ).transform_module(hinted)
 
-        with_qnames = FromSSAQName2QnameTransformer(
+        with_qnames = SSA2QNameTransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(hinted)
 
@@ -126,13 +133,13 @@ class ScopeAwareTransformer(codemod.ContextAwareTransformer):
         return self._scope[-1] if self._scope else tuple()
 
 
-class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
+class QName2SSATransformer(ScopeAwareTransformer):
     def __init__(
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
-        self.logger = logging.getLogger(FromQName2SSAQNameTransformer.__qualname__)
+        self.logger = logging.getLogger(QName2SSATransformer.__qualname__)
 
     def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
         diff_qnames = (
@@ -191,13 +198,13 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
         return None
 
 
-class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
+class SSA2QNameTransformer(ScopeAwareTransformer):
     def __init__(
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
-        self.logger = logging.getLogger(FromSSAQName2QnameTransformer.__qualname__)
+        self.logger = logging.getLogger(SSA2QNameTransformer.__qualname__)
 
     def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
         diff_qnames = (

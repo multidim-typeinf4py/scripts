@@ -13,11 +13,16 @@ from common import TypeCollection
 
 def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollection:
     repo_root = str(root.parent if root.is_file() else root)
+    files = (
+        [str(root)]
+        if root.is_file()
+        else codemod.gather_files([str(root)], include_stubs=allow_stubs)
+    )
 
     visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
     _ = codemod.parallel_exec_transform_with_prettyprint(
         transform=visitor,
-        files=codemod.gather_files([str(root)], include_stubs=allow_stubs),
+        files=files,
         jobs=1,
         repo_root=repo_root,
     )
@@ -56,7 +61,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
         self.logger.info(f"Collecting from {file}")
 
         from common.annotations import MultiVarTypeCollector
-        
+
         from libcst.codemod.visitors._gather_imports import (
             GatherImportsVisitor,
         )
