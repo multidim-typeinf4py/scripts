@@ -97,7 +97,7 @@ class HiTyper(PerFileInference):
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__(project)
         self.output_dir = self.project / ".hityper"
-        self.topn = 1
+        self.topn = 3
 
         if self.output_dir.is_dir():
             shutil.rmtree(path=str(self.output_dir))
@@ -254,6 +254,7 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
                 if pred.category != _HiTyperPredictionCategory.LOCAL
             ),
         ) """
+        ...
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         return self._handle_assn_tgt(node.target)

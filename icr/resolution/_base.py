@@ -59,12 +59,6 @@ class ConflictResolution(abc.ABC):
         )
 
         # Discover common symbols
-        ## TODO: The below is caused by using stub files, consider dismissal of the below
-
-        # TODO: This does not quite work, as class attributes are added to classes
-        # TODO: that are likely not present in the source file
-
-        # TODO: So how do we determine a fitting baseline?
         how = "right"
         common_cols = [InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa]
 
