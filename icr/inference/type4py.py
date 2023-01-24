@@ -331,11 +331,16 @@ class Type4Py2Annotations(cst.CSTVisitor):
 
             (hint, _) = hints[0]
 
-            self.annotations.attributes[
+            attr_name = (
                 f"{func.q_name}.{method_self}.{variable}"
                 if isinstance(node, cst.Attribute)
                 else f"{func.q_name}.{variable}"
-            ].append(cst.Annotation(cst.parse_expression(hint)))
+            )
+            attr_name = attr_name.replace(".<locals>.", ".")
+
+            self.annotations.attributes[attr_name].append(
+                cst.Annotation(cst.parse_expression(hint))
+            )
             return None
 
     def _handle_assgn_in_function(
@@ -358,7 +363,8 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 continue
 
             (hint, _) = hints[0]
-            self.annotations.attributes[f"{func.q_name}.{variable}"].append(
+            qual_scope = f"{func.q_name}.{variable}".replace(".<locals>.", ".")
+            self.annotations.attributes[qual_scope].append(
                 cst.Annotation(cst.parse_expression(hint))
             )
 
