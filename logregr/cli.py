@@ -1,12 +1,17 @@
 import pathlib
 
 import pandas as pd
+import pandera.typing as pt
+
 import click
 
-from common.schemas import ContextSymbolSchema
+from common.schemas import ContextSymbolSchema, ContextDatasetSchema, TypeCollectionCategory
 from common import output
 
 from symbols.collector import build_type_collection
+
+
+from icr.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
 
 @click.group(
@@ -17,7 +22,25 @@ def entrypoint():
     ...
 
 
+SUPPORTED = dict(
+    (method, method_id)
+    for method_id, method in enumerate(
+        [HiTyper.method, PyreInfer.method, PyreQuery.method, Type4Py.method, TypeWriter.method]
+    )
+)
+
+
 @entrypoint.command(name="train", help="Train logistic regression model")
+@click.option(
+    "-i",
+    "--inpath",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path),
+)
+def train(inpath: pathlib.Path) -> None:
+    ...
+
+
+@entrypoint.command(name="dataset", help="Create dataset for model")
 @click.option(
     "-i",
     "--inpath",
@@ -25,13 +48,22 @@ def entrypoint():
         (
             click.Path(exists=True, dir_okay=True, path_type=pathlib.Path),
             click.Path(exists=True, dir_okay=True, path_type=pathlib.Path),
-            str,
+            click.Choice(choices=list(SUPPORTED.keys())),
         )
     ),
     help="Projects to use as data; tuples of (ground-truth, tool-annotated, method)",
     multiple=True,
 )
-def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
+@click.option(
+    "-a",
+    "--append-to",
+    type=click.Path(path_type=pathlib.Path),
+    help="Append newly context vector dataset to existing dataset",
+    required=False,
+)
+def dataset(
+    inpath: list[tuple[pathlib.Path, pathlib.Path, str]], append_to: pathlib.Path | None
+) -> None:
     ground_truth_df = [build_type_collection(ip).df for ip, _, _ in inpath]
 
     # Remove all NAs from the ground truth, if there are any, as we cannot use them for training
@@ -45,7 +77,7 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
     features_on_symbols = pd.merge(
         left=gt_df,
         right=ta_df,
-        how="left",
+        how="right",
         on=[
             ContextSymbolSchema.file,
             ContextSymbolSchema.category,
@@ -64,22 +96,44 @@ def train(inpath: list[tuple[pathlib.Path, pathlib.Path]]) -> None:
         == features_on_symbols.loc[~missing_annos, "anno_ta"]
     )
     features_on_symbols.loc[missing_annos, "score"] = -1
-    print(features_on_symbols[[ContextSymbolSchema.qname_ssa, "anno_gt", "anno_ta", "score"]])
-
     features_on_symbols.loc[matching_annos & ~missing_annos, "score"] = 1
 
     # Do not reward not matching ground truth
     features_on_symbols.loc[~matching_annos & ~missing_annos, "score"] = 0
-    
-    # print(features_on_symbols)
+    features_on_symbols["score"] = features_on_symbols["score"].astype(int)
 
-    features_on_symbols = ta_df[
+    dataset = features_on_symbols[
         [
+            "method",
+            ContextSymbolSchema.file,
+            ContextSymbolSchema.qname_ssa,
+            "anno_gt",
+            "anno_ta",
+            "score",
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
             ContextSymbolSchema.nested,
             ContextSymbolSchema.user_defined,
             ContextSymbolSchema.ctxt_category,
         ]
-    ]
-    print(features_on_symbols.dtypes)
+    ].pipe(pt.DataFrame[ContextDatasetSchema])
+
+    if append_to is None:
+        print("--append-to was not given; exiting...")
+        return
+
+    if not append_to.is_file():
+        print(f"Creating dataset at {append_to}")
+        append_to.parent.mkdir(parents=True, exist_ok=True)
+        append_to.touch(exist_ok=True)
+        df = ContextDatasetSchema.to_schema().example(size=0)
+
+    else:
+        df = pd.read_csv(
+            append_to, converters={"category": lambda c: TypeCollectionCategory[c]}
+        ).pipe(pt.DataFrame[ContextDatasetSchema])
+
+    df = pd.concat([df, dataset], ignore_index=True)
+
+    print(f"New dataset size: {df.shape}; writing to {append_to}")
+    df.to_csv(append_to, index=False, header=ContextDatasetSchema.to_schema().columns)

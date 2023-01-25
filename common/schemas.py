@@ -70,4 +70,21 @@ class ContextSymbolSchema(SymbolSchema):
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 
 
+
+class ContextDatasetSchema(pa.SchemaModel):
+    method: pt.Series[str] = pa.Field()
+    file: pt.Series[str] = pa.Field()
+    qname_ssa: pt.Series[str] = pa.Field()
+    anno_gt: pt.Series[str] = pa.Field(nullable=True)
+    anno_ta: pt.Series[str] = pa.Field(nullable=True)
+    score: pt.Series[int] = pa.Field(ge=-1.0, le=1.0)
+
+    loop: pt.Series[int] = pa.Field()
+    reassigned: pt.Series[int] = pa.Field()
+    nested: pt.Series[int] = pa.Field()
+    user_defined: pt.Series[int] = pa.Field()
+    ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
+
 ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())
+
+

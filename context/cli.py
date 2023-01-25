@@ -75,7 +75,7 @@ def entrypoint(
     ]
     df = pd.concat(rs, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
 
-    print(f"Feature set size: {df.shape}")
+    print(f"Feature set size: {df.shape}; writing to {output.context_vector_path(inpath)}")
     output.write_context_vectors(df, inpath)
 
 
