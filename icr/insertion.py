@@ -73,7 +73,8 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         # pkgs = viable_imports["pkg"].values
         #
         # for pkg in pkgs:
-        # AddImportsVisitor.add_needed_import(self.context, pkg)
+        AddImportsVisitor.add_needed_import(self.context, "typing")
+        AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
         removed = tree.visit(_HintRemover())
 

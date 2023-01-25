@@ -16,7 +16,6 @@ import pandas as pd
 from pandas._libs import missing
 import pandera.typing as pt
 
-
 class AnnotationTesting(codemod.CodemodTest):
     HINTLESS = textwrap.dedent(
         """
@@ -107,7 +106,7 @@ class Test_CustomAnnotator(AnnotationTesting):
     def test_attributes(self):
         filename = AnnotationTesting.ANNOS[TypeCollectionSchema.file].iloc[0]
 
-        with_future_import = f"from __future__ import annotations\n{AnnotationTesting.HINTED}"
+        with_future_import = f"from __future__ import annotations\nimport typing\nfrom typing import *\n{AnnotationTesting.HINTED}"
 
         self.assertCodemod(
             AnnotationTesting.HINTLESS,
@@ -123,9 +122,11 @@ class Test_CustomAnnotator(AnnotationTesting):
 
     def test_skip_unannotated_variables(self):
         after = textwrap.dedent(
-            """
+            f"""
         from __future__ import annotations
-
+        import typing
+        from typing import *
+    
         a = 10
         a: str = "Hello World"
 
@@ -167,9 +168,11 @@ class Test_CustomAnnotator(AnnotationTesting):
 
     def test_parameters(self):
         after = textwrap.dedent(
-            """
+            f"""
         from __future__ import annotations
-
+        import typing
+        from typing import *
+        
         a = 10
         a = "Hello World"
 
@@ -210,8 +213,10 @@ class Test_CustomAnnotator(AnnotationTesting):
 
     def test_rettype(self):
         after = textwrap.dedent(
-            """
+            f"""
         from __future__ import annotations
+        import typing
+        from typing import *
 
         a = 10
         a = "Hello World"
@@ -253,8 +258,10 @@ class Test_CustomAnnotator(AnnotationTesting):
 
     def test_class_attribute(self):
         after = textwrap.dedent(
-            """
+            f"""
         from __future__ import annotations
+        import typing
+        from typing import *
 
         a = 10
         a = "Hello World"
