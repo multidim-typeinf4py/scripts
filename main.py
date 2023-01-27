@@ -7,10 +7,8 @@ import srcdiff
 import hintdiff
 import symbols
 
-import logging518.config
-
 if __name__ == "__main__":
-    logging518.config.fileConfig("pyproject.toml")
+    # logging518.config.fileConfig("pyproject.toml")
 
     main = click.Group(
         commands=[

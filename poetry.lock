@@ -1325,21 +1325,6 @@ reference = "HEAD"
 resolved_reference = "29bcb5054fdaa7ea9d73d93b6ed397fdcb06ebdf"
 
 [[package]]
-name = "logging518"
-version = "1.0.0"
-description = "Configure Python's native logging module using pyproject.toml"
-category = "main"
-optional = false
-python-versions = ">=3.7,<4.0"
-files = [
-    {file = "logging518-1.0.0-py3-none-any.whl", hash = "sha256:048956ee2f5bf3c24f00a8d3f0c567b3836fb79529d6ddb2fa726cefef961be1"},
-    {file = "logging518-1.0.0.tar.gz", hash = "sha256:df349043647e394962ab6eaaa11c07d60496ac0efe4992d7a54b8f8e05b6d698"},
-]
-
-[package.dependencies]
-tomli = {version = ">=2.0.1,<3.0.0", markers = "python_version < \"3.11\""}
-
-[[package]]
 name = "Markdown"
 version = "3.4.1"
 description = "Python implementation of Markdown."
@@ -3537,4 +3522,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "f9508fedc3f8a3f6d41d0db8f152e754ce742f878158d3c3adb56930405df323"
+content-hash = "2ae376307d0be9418803754904ff00bc1f4f168ec36818d0aedeaf406f1a0af1"
