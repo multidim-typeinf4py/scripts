@@ -6,7 +6,7 @@ import sys
 import click
 from common import output
 from common.schemas import InferredSchema, TypeCollectionSchema
-from icr.insertion import TypeAnnotationApplierTransformer
+from icr.insertion import TypeAnnotationApplierTransformer, HintRemover
 
 from symbols.collector import build_type_collection
 from .resolution import ConflictResolution, SubtypeVoting, Delegation
@@ -80,6 +80,9 @@ from libcst.codemod import _cli as cstcli
     default=False,
     help="Overwrite the target folder. Has no effect if --output was not given",
 )
+@click.option(
+    "-r", "--remove-annos", is_flag=True, help="Remove all annotations in the codebase before inferring"
+)
 def entrypoint(
     static: list[type[Inference]],
     prob: list[type[Inference]],
@@ -87,7 +90,9 @@ def entrypoint(
     inpath: pathlib.Path,
     persist: bool,
     overwrite: bool,
+    remove_annos: bool,
 ) -> None:
+    original = inpath
     inf_count = len(static) + len(prob)
     assert inf_count != 0, "At least one inference method must be specified!"
 
@@ -95,6 +100,19 @@ def entrypoint(
         assert (
             engine is not None
         ), "When specifiying multiple inference methods, an engine must be specified!"
+
+    if remove_annos:
+        inpath = inpath.parent / f"{inpath.name} - cleaned"
+        shutil.copytree(original, inpath)
+
+        print(f"Removing annotations on '{inpath}'")
+
+        codemod.parallel_exec_transform_with_prettyprint(
+            transform=HintRemover(codemod.CodemodContext()),
+            files=cstcli.gather_files([str(inpath)]),
+            jobs=1,
+            repo_root=str(inpath),
+        )
 
     statics = list(map(lambda ctor: ctor(inpath), static))
     probabilistics = list(map(lambda ctor: ctor(inpath), prob))
@@ -130,7 +148,7 @@ def entrypoint(
         ]
 
     if persist:
-        outdir = _derive_output_folder(inpath, infs=list(infs()), engine=engine)
+        outdir = _derive_output_folder(original, infs=list(infs()), engine=engine)
         if outdir.is_dir() and not overwrite:
             raise RuntimeError(
                 f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
@@ -170,6 +188,9 @@ def entrypoint(
     else:
         print(inference_df)
         print("Not persisting; exiting...")
+
+    if remove_annos:
+        shutil.rmtree(inpath)
 
 
 def _derive_output_folder(

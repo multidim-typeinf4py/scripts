@@ -1,11 +1,9 @@
-import functools
 import itertools
 import operator
 import pathlib
-import typing
 import requests
 
-from common.schemas import InferredSchema, TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import InferredSchema
 from common.storage import TypeCollection
 from ._base import PerFileInference
 
@@ -15,9 +13,7 @@ from common.annotations import (
     FunctionAnnotation,
 )
 import libcst as cst
-import libcst.matchers as m
 import libcst.metadata as metadata
-from libcst.metadata.scope_provider import LocalScope
 
 import pandera.typing as pt
 import pydantic

@@ -1,4 +1,3 @@
-import functools
 import logging
 import pathlib
 
@@ -6,7 +5,6 @@ from libcst import codemod
 import libcst as cst
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
-from libcst import codemod
 import libcst.matchers as m
 
 import pandera.typing as pt
@@ -14,22 +12,18 @@ import pandera.typing as pt
 from common._helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
-from symbols.collector import TypeCollectorVistor, build_type_collection
+from symbols.collector import TypeCollectorVistor
 
 
-class _ParameterHintRemover(cst.CSTTransformer):
+class HintRemover(codemod.ContextAwareTransformer):
     def leave_Param(self, _: cst.Param, updated_node: cst.Param) -> cst.Param:
         return updated_node.with_changes(annotation=None)
 
-
-class _ReturnHintRemover(cst.CSTTransformer):
     def leave_FunctionDef(
         self, _: cst.FunctionDef, updated_node: cst.FunctionDef
     ) -> cst.FunctionDef:
         return updated_node.with_changes(returns=None)
 
-
-class _AssignHintRemover(cst.CSTTransformer):
     def leave_AnnAssign(
         self, _: cst.AnnAssign, updated_node: cst.AnnAssign
     ) -> cst.BaseSmallStatement | cst.RemovalSentinel:
@@ -37,10 +31,6 @@ class _AssignHintRemover(cst.CSTTransformer):
             return cst.RemoveFromParent()
 
         return cst.Assign(targets=[cst.AssignTarget(updated_node.target)], value=updated_node.value)
-
-
-class _HintRemover(_AssignHintRemover, _ParameterHintRemover, _ReturnHintRemover):
-    pass
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
@@ -76,7 +66,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         AddImportsVisitor.add_needed_import(self.context, "typing")
         AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
-        removed = tree.visit(_HintRemover())
+        removed = tree.visit(HintRemover(self.context))
 
         symbol_collector = TypeCollectorVistor.strict(context=self.context)
         removed = symbol_collector.transform_module(removed)
