@@ -99,8 +99,8 @@ class HiTyper(PerFileInference):
         self.output_dir = self.project / ".hityper"
         self.topn = 3
 
-        if self.output_dir.is_dir():
-            shutil.rmtree(path=str(self.output_dir))
+        # if self.output_dir.is_dir():
+        #     shutil.rmtree(path=str(self.output_dir))
 
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         if not hasattr(self, "predictions"):
@@ -108,13 +108,13 @@ class HiTyper(PerFileInference):
                 self.output_dir.mkdir(parents=True, exist_ok=True)
                 self._predict()
 
-                inferred_types_path = (
-                    str(self.output_dir)
-                    + "/"
-                    + str(self.project).replace("/", "_")
-                    + "_INFERREDTYPES.json"
-                )
-                self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
+            inferred_types_path = (
+                str(self.output_dir)
+                + "/"
+                + str(self.project).replace("/", "_")
+                + "_INFERREDTYPES.json"
+            )
+            self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
 
         return self._predictions2df(self.predictions, relative)
 
@@ -148,7 +148,9 @@ class HiTyper(PerFileInference):
     ) -> pt.DataFrame[InferredSchema]:
         df_updates: list[tuple[str, TypeCollectionCategory, str, str, int]] = []
 
-        scopes = predictions.__root__[self.project / file]
+        scopes = predictions.__root__.get(self.project / file, None)
+        if scopes is None:
+            return InferredSchema.example(size=0)
 
         src = cst.parse_module(open(self.project / file).read())
         module = metadata.MetadataWrapper(src)
@@ -205,7 +207,7 @@ class HiTyper(PerFileInference):
                             )
 
         if not df_updates:
-            return InferredSchema.to_schema().example(size=0) 
+            return InferredSchema.example(size=0) 
 
         wout_ssa = [
             c

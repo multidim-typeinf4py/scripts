@@ -103,16 +103,17 @@ def entrypoint(
 
     if remove_annos:
         inpath = inpath.parent / f"{inpath.name} - cleaned"
-        shutil.copytree(original, inpath)
+        if not inpath.is_dir():
+            shutil.copytree(original, inpath)
 
-        print(f"Removing annotations on '{inpath}'")
+            print(f"Removing annotations on '{inpath}'")
 
-        codemod.parallel_exec_transform_with_prettyprint(
-            transform=HintRemover(codemod.CodemodContext()),
-            files=cstcli.gather_files([str(inpath)]),
-            jobs=1,
-            repo_root=str(inpath),
-        )
+            codemod.parallel_exec_transform_with_prettyprint(
+                transform=HintRemover(codemod.CodemodContext()),
+                files=cstcli.gather_files([str(inpath)]),
+                jobs=1,
+                repo_root=str(inpath),
+            )
 
     statics = list(map(lambda ctor: ctor(inpath), static))
     probabilistics = list(map(lambda ctor: ctor(inpath), prob))
