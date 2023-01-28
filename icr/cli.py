@@ -1,12 +1,16 @@
-""" import pathlib
+import itertools
+import pathlib
 import click
 
-from common import factory
+from common import factory, output
+from common.schemas import TypeCollectionSchema
 from infer.inference.hity import HiTyper
 
+from icr.resolution import ConflictResolution
 from infer.inference import MyPy, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
 from icr.resolution import SubtypeVoting, Delegation
+from symbols.collector import build_type_collection
 
 
 @click.command(
@@ -20,7 +24,6 @@ from icr.resolution import SubtypeVoting, Delegation
         choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower(), PyreQuery.__name__.lower()],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: [factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
     help="Static inference methods",
@@ -32,7 +35,6 @@ from icr.resolution import SubtypeVoting, Delegation
         choices=[HiTyper.__name__.lower(), TypeWriter.__name__.lower(), Type4Py.__name__.lower()],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: [factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
     help="Probabilistic inference methods",
@@ -56,7 +58,7 @@ from icr.resolution import SubtypeVoting, Delegation
     "--inpath",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
-    help="Project to intelligently infer over",
+    help="(Original) Project to intelligently infer over",
 )
 @click.option(
     "-o",
@@ -79,8 +81,8 @@ from icr.resolution import SubtypeVoting, Delegation
     help="Remove all annotations in the codebase before inferring",
 )
 def cli_entrypoint(
-    tool: type[Inference],
-    prob: list[type[Inference]],
+    static: list[str],
+    prob: list[str],
     engine: type[ConflictResolution] | None,
     inpath: pathlib.Path,
     persist: bool,
@@ -96,32 +98,11 @@ def cli_entrypoint(
             engine is not None
         ), "When specifiying multiple inference methods, an engine must be specified!"
 
-    if remove_annos:
-        inpath = inpath.parent / f"{inpath.name}-removed-annos"
-        if not inpath.is_dir():
-            shutil.copytree(original, inpath)
+    tool2outputdir = {
+        tool: output.inference_output_path(inpath, tool) for tool in itertools.chain(static, prob)
+    }
 
-            print(f"Removing annotations on '{inpath}'")
-
-            codemod.parallel_exec_transform_with_prettyprint(
-                transform=HintRemover(codemod.CodemodContext()),
-                files=codemod.gather_files([str(inpath)]),
-                jobs=1,
-                repo_root=str(inpath),
-            )
-
-    statics = list(map(lambda ctor: ctor(inpath), static))
-    probabilistics = list(map(lambda ctor: ctor(inpath), prob))
-
-    infs = lambda: itertools.chain(statics, probabilistics)
-
-    for inference in infs():
-        inference.infer()
-
-    # inferences = {inference.method: inference.inferred for inference in infs()}
-
-    # for inferrer in infs():
-    #     print(inferrer.inferred)
+    tool2icr = {tool: output.read_icr(output_dir) for tool, output_dir in tool2outputdir.items()}
 
     if engine is not None:
         baseline = build_type_collection(root=inpath).df
@@ -129,9 +110,7 @@ def cli_entrypoint(
         eng = engine(
             project=inpath, reference=baseline.drop(columns=[TypeCollectionSchema.anno], axis=1)
         )
-        inference_df = eng.resolve(
-            probabilistics[0].inferred, dynamic=None, probabilistic=probabilistics[1].inferred
-        )
+        inference_df = eng.resolve(tool2icr)
 
     else:
         inference_df = next(infs()).inferred
@@ -188,21 +167,5 @@ def cli_entrypoint(
         shutil.rmtree(inpath)
 
 
-def _derive_output_folder(
-    inpath: pathlib.Path,
-    /,
-    infs: list[Inference],
-    engine: type[ConflictResolution] | None = None,
-) -> pathlib.Path:
-    return (
-        inpath.parent
-        / f"{inpath.name}@{engine.method if engine else ''}({'+'.join(m.method for m in infs)})"
-    )
-
-
 if __name__ == "__main__":
     cli_entrypoint()
- """
-
-def cli_entrypoint():
-    ...
