@@ -9,28 +9,12 @@ import libcst.matchers as m
 
 import pandera.typing as pt
 
-from common._helper import _stringify
+from common.ast_helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
 from symbols.collector import TypeCollectorVistor
 
-
-class HintRemover(codemod.ContextAwareTransformer):
-    def leave_Param(self, _: cst.Param, updated_node: cst.Param) -> cst.Param:
-        return updated_node.with_changes(annotation=None)
-
-    def leave_FunctionDef(
-        self, _: cst.FunctionDef, updated_node: cst.FunctionDef
-    ) -> cst.FunctionDef:
-        return updated_node.with_changes(returns=None)
-
-    def leave_AnnAssign(
-        self, _: cst.AnnAssign, updated_node: cst.AnnAssign
-    ) -> cst.BaseSmallStatement | cst.RemovalSentinel:
-        if updated_node.value is None:
-            return cst.RemoveFromParent()
-
-        return cst.Assign(targets=[cst.AssignTarget(updated_node.target)], value=updated_node.value)
+from infer.removal import HintRemover
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
@@ -54,15 +38,6 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             pt.DataFrame[TypeCollectionSchema]
         )
 
-        #        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
-        #        if not req_mod_imports.empty:
-        # viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
-        # viable_imports = viable_imports[
-        # viable_imports["_"].notna() & viable_imports["pkg"].str.islower()
-        # ].drop_duplicates(keep="first")
-        # pkgs = viable_imports["pkg"].values
-        #
-        # for pkg in pkgs:
         AddImportsVisitor.add_needed_import(self.context, "typing")
         AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
@@ -172,7 +147,7 @@ class QName2SSATransformer(ScopeAwareTransformer):
             )
             candidates = self.annotations.loc[cand_mask]
             if candidates.empty:
-                self.logger.warning(f"Could not lookup {full_qname}")
+                # self.logger.warning(f"Could not lookup {full_qname}")
                 return
 
             qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
@@ -235,7 +210,7 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
             cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
             candidates = self.annotations.loc[cand_mask]
             if candidates.empty:
-                self.logger.warning(f"Could not lookup {full_qname_ssa}")
+                # self.logger.warning(f"Could not lookup {full_qname_ssa}")
                 return
 
             qname_ser = candidates[TypeCollectionSchema.qname]

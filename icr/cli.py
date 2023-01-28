@@ -1,20 +1,12 @@
-import pathlib
-import itertools
-import shutil
-import sys
-
+""" import pathlib
 import click
-from common import output
-from common.schemas import InferredSchema, TypeCollectionSchema
-from icr.insertion import TypeAnnotationApplierTransformer, HintRemover
 
-from symbols.collector import build_type_collection
-from .resolution import ConflictResolution, SubtypeVoting, Delegation
-from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
-from . import _factory
+from common import factory
+from infer.inference.hity import HiTyper
 
-from libcst import codemod
-from libcst.codemod import _cli as cstcli
+from infer.inference import MyPy, PyreInfer, PyreQuery, Type4Py, TypeWriter
+
+from icr.resolution import SubtypeVoting, Delegation
 
 
 @click.command(
@@ -28,7 +20,7 @@ from libcst.codemod import _cli as cstcli
         choices=[MyPy.__name__.lower(), PyreInfer.__name__.lower(), PyreQuery.__name__.lower()],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
+    callback=lambda ctx, _, value: [factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
     help="Static inference methods",
@@ -40,7 +32,7 @@ from libcst.codemod import _cli as cstcli
         choices=[HiTyper.__name__.lower(), TypeWriter.__name__.lower(), Type4Py.__name__.lower()],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: [_factory._inference_factory(v) for v in value] if value else [],
+    callback=lambda ctx, _, value: [factory._inference_factory(v) for v in value] if value else [],
     required=False,
     multiple=True,
     help="Probabilistic inference methods",
@@ -55,7 +47,7 @@ from libcst.codemod import _cli as cstcli
         ],
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: _factory._engine_factory(value) if value else None,
+    callback=lambda ctx, _, value: factory._engine_factory(value) if value else None,
     required=False,
     help="How differing inferences should be resolved",
 )
@@ -81,10 +73,13 @@ from libcst.codemod import _cli as cstcli
     help="Overwrite the target folder. Has no effect if --output was not given",
 )
 @click.option(
-    "-r", "--remove-annos", is_flag=True, help="Remove all annotations in the codebase before inferring"
+    "-r",
+    "--remove-annos",
+    is_flag=True,
+    help="Remove all annotations in the codebase before inferring",
 )
-def entrypoint(
-    static: list[type[Inference]],
+def cli_entrypoint(
+    tool: type[Inference],
     prob: list[type[Inference]],
     engine: type[ConflictResolution] | None,
     inpath: pathlib.Path,
@@ -102,7 +97,7 @@ def entrypoint(
         ), "When specifiying multiple inference methods, an engine must be specified!"
 
     if remove_annos:
-        inpath = inpath.parent / f"{inpath.name} - cleaned"
+        inpath = inpath.parent / f"{inpath.name}-removed-annos"
         if not inpath.is_dir():
             shutil.copytree(original, inpath)
 
@@ -110,7 +105,7 @@ def entrypoint(
 
             codemod.parallel_exec_transform_with_prettyprint(
                 transform=HintRemover(codemod.CodemodContext()),
-                files=cstcli.gather_files([str(inpath)]),
+                files=codemod.gather_files([str(inpath)]),
                 jobs=1,
                 repo_root=str(inpath),
             )
@@ -160,15 +155,17 @@ def entrypoint(
 
         # outdir.mkdir(exist_ok=True, parents=True)
         shutil.copytree(inpath, outdir, symlinks=True)
-        print("Applying annotations to code")
 
+        output.write_icr(inference_df, outdir)
+        print(f"Inferred types have been stored at {outdir}")
+
+        print("Applying annotations to code")
         # Retain top1 for annotating
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=TypeAnnotationApplierTransformer(
                 context=codemod.CodemodContext(), tycol=inference_df
             ),
             files=cstcli.gather_files([str(outdir)]),
-            jobs=1,
             repo_root=str(outdir),
         )
         print(
@@ -182,9 +179,6 @@ def entrypoint(
         print(f" - Skipped {result.skips} files.", file=sys.stderr)
         print(f" - Failed to collect from {result.failures} files.", file=sys.stderr)
         print(f" - {result.warnings} warnings were generated.", file=sys.stderr)
-
-        output.write_icr(inference_df, outdir)
-        print(f"Inferred types have been stored at {outdir}; exiting...")
 
     else:
         print(inference_df)
@@ -207,4 +201,8 @@ def _derive_output_folder(
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()
+ """
+
+def cli_entrypoint():
+    ...

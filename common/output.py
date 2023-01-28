@@ -4,12 +4,12 @@ import pathlib
 import pandas as pd
 import pandera.typing as pt
 from common.schemas import (
-    ContextCategory,
     ContextSymbolSchema,
     TypeCollectionCategory,
     InferredSchema,
-    InferredSchemaColumns,
 )
+
+from infer.inference import Inference
 
 
 def context_vector_path(project: pathlib.Path) -> pathlib.Path:
@@ -54,3 +54,10 @@ def read_icr(project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
     df = pd.read_csv(ipath, converters={"category": lambda c: TypeCollectionCategory[c]})
 
     return df.pipe(pt.DataFrame[InferredSchema])
+
+
+def inference_output_path(
+    inpath: pathlib.Path,
+    tool: Inference,
+) -> pathlib.Path:
+    return inpath.parent / f"{inpath.name}@({tool.method})"

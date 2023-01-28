@@ -43,7 +43,7 @@ from . import coverage, hintstat
     required=False,
     help="Compute relevant statistics and store alongside .tsv",
 )
-def entrypoint(
+def cli_entrypoint(
     repo: list[pathlib.Path],
     output: pathlib.Path,
     statistic: list[hintstat.StatisticImpl] | None,
@@ -112,4 +112,4 @@ def _collect(
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()

@@ -24,7 +24,7 @@ import pandera as pa
 import pandera.typing as pt
 
 
-from ._helper import _stringify, generate_qname_ssas_for_project
+from .ast_helper import _stringify, generate_qname_ssas_for_project
 from .schemas import (
     TypeCollectionCategory,
     TypeCollectionSchema,

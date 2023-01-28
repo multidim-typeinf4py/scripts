@@ -1,3 +1,1 @@
-from .cli import entrypoint
-
-__all__ = ["entrypoint"]
+from .cli import cli_entrypoint

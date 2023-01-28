@@ -1,27 +1,30 @@
+import logging
+import os
+
 import click
 
 import context
 import logregr
-import icr
+import infer
 import srcdiff
 import hintdiff
 import symbols
 
-import os
 
 if __name__ == "__main__":
-    os.environ["LIBCST_PARSER_TYPE"] = "native"
+    # os.environ["LIBCST_PARSER_TYPE"] = "native"
 
-    # logging518.config.fileConfig("pyproject.toml")
+    # FORMAT = "%(asctime)s %(clientip)-15s %(user)-8s %(message)s"
+    # logging.basicConfig(format=FORMAT)
 
     main = click.Group(
         commands=[
-            context.entrypoint,
-            icr.entrypoint,
-            hintdiff.entrypoint,
-            symbols.entrypoint,
-            srcdiff.entrypoint,
-            logregr.entrypoint,
+            context.cli_entrypoint,
+            infer.cli_entrypoint,
+            hintdiff.cli_entrypoint,
+            symbols.cli_entrypoint,
+            srcdiff.cli_entrypoint,
+            logregr.cli_entrypoint,
         ]
     )
     main()

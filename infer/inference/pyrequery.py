@@ -18,7 +18,7 @@ from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
 
-from common import _helper
+from common import ast_helper
 from common.schemas import InferredSchema, TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
@@ -76,7 +76,7 @@ class PyreQuery(PerFileInference):
                 TypeCollectionSchema.anno,
             ],
         ).assign(file=str(relative))
-        df = _helper.generate_qname_ssas_for_file(df)
+        df = ast_helper.generate_qname_ssas_for_file(df)
 
         return df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
 

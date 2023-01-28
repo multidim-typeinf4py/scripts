@@ -58,7 +58,7 @@ class Purpose(str, enum.Enum):
     default=False,
     help="1 iff given annotation is user-defined else 0",
 )
-def entrypoint(
+def cli_entrypoint(
     inpath: pathlib.Path,
     loop: bool,
     reassigned: bool,
@@ -80,4 +80,4 @@ def entrypoint(
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()

@@ -14,7 +14,7 @@ from libcst.codemod import _cli as cstcli
     required=True,
     help="Files to diff",
 )
-def entrypoint(inputs: tuple[pathlib.Path, pathlib.Path]) -> None:
+def cli_entrypoint(inputs: tuple[pathlib.Path, pathlib.Path]) -> None:
     former, latter = inputs
     former_module, latter_module = (
         cst.parse_module(former.open().read()),
@@ -26,4 +26,4 @@ def entrypoint(inputs: tuple[pathlib.Path, pathlib.Path]) -> None:
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()

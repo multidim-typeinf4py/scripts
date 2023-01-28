@@ -1,5 +1,5 @@
 import pathlib
-from icr.resolution import Delegation, DelegationOrder
+from infer.resolution import Delegation, DelegationOrder
 
 from common.schemas import SymbolSchema, InferredSchema, TypeCollectionCategory
 from symbols.collector import build_type_collection
@@ -7,7 +7,7 @@ from symbols.collector import build_type_collection
 from pandas._libs import missing
 import pandera.typing as pt
 
-from tests.icr.helpers import dfassertions
+from tests.infer.helpers import dfassertions
 
 import pytest
 

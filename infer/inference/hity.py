@@ -22,7 +22,7 @@ from pandas._libs import missing
 import pandera.typing as pt
 import pydantic
 
-from common import _helper
+from common import ast_helper
 
 
 @dataclass
@@ -106,7 +106,6 @@ class HiTyper(PerFileInference):
         if not hasattr(self, "predictions"):
             if not self.output_dir.is_dir():
                 self.output_dir.mkdir(parents=True, exist_ok=True)
-                self._predict()
 
             inferred_types_path = (
                 str(self.output_dir)
@@ -114,6 +113,8 @@ class HiTyper(PerFileInference):
                 + str(self.project).replace("/", "_")
                 + "_INFERREDTYPES.json"
             )
+            if not pathlib.Path(inferred_types_path).is_file():
+                self._predict()
             self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
 
         return self._predictions2df(self.predictions, relative)
@@ -121,7 +122,7 @@ class HiTyper(PerFileInference):
     def _predict(self):
         hityper.findusertype(
             _FindUserTypeArguments(
-                repo=str(self.project), core=4, validate=True, output_directory=str(self.output_dir)
+                repo=str(self.project), core=8, validate=True, output_directory=str(self.output_dir)
             )
         )
 
@@ -207,18 +208,18 @@ class HiTyper(PerFileInference):
                             )
 
         if not df_updates:
-            return InferredSchema.example(size=0) 
+            return InferredSchema.example(size=0)
 
         wout_ssa = [
             c
             for c in InferredSchemaColumns
             if c not in (InferredSchema.qname_ssa, InferredSchema.method)
         ]
-        df = pd.DataFrame(df_updates, columns=wout_ssa)        
+        df = pd.DataFrame(df_updates, columns=wout_ssa)
 
         return (
             df.assign(method=self.method)
-            .pipe(_helper.generate_qname_ssas_for_file)
+            .pipe(ast_helper.generate_qname_ssas_for_file)
             .pipe(pt.DataFrame[InferredSchema])
         )
 

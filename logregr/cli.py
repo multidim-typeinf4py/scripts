@@ -11,14 +11,14 @@ from common import output
 from symbols.collector import build_type_collection
 
 
-from icr.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
+from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
 
 @click.group(
     name="logregr",
     help="Interact with logistic regression model to evaluate efficacy of inference tools",
 )
-def entrypoint():
+def cli_entrypoint():
     ...
 
 
@@ -30,7 +30,7 @@ SUPPORTED = dict(
 )
 
 
-@entrypoint.command(name="train", help="Train logistic regression model")
+@cli_entrypoint.command(name="train", help="Train logistic regression model")
 @click.option(
     "-i",
     "--inpath",
@@ -40,7 +40,7 @@ def train(inpath: pathlib.Path) -> None:
     ...
 
 
-@entrypoint.command(name="dataset", help="Create dataset for model")
+@cli_entrypoint.command(name="dataset", help="Create dataset for model")
 @click.option(
     "-i",
     "--inpath",

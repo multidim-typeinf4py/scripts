@@ -15,7 +15,7 @@ from common.schemas import (
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
 )
-from common._helper import _stringify, generate_qname_ssas_for_file
+from common.ast_helper import _stringify, generate_qname_ssas_for_file
 
 from context.features import RelevantFeatures
 

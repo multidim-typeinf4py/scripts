@@ -4,7 +4,8 @@ from pyre_check.client import command_arguments, commands, configuration
 
 from . import _adaptors
 
-from ._base import ProjectWideInference, scratchpad, working_dir
+from ._base import ProjectWideInference
+from utils import scratchpad, working_dir
 from common.schemas import InferredSchema, TypeCollectionSchema
 
 from libcst.codemod import _cli as cstcli

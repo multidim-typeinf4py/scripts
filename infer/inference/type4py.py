@@ -52,7 +52,7 @@ class _Type4PyClass(NullifyEmptyDictModel):
 class _Type4PyResponse(NullifyEmptyDictModel):
     classes: list[_Type4PyClass]
     funcs: list[_Type4PyFunc]
-    mod_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]]
+    mod_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]] | None
     variables_p: _Type4PyName2Hint | None
 
 
@@ -78,7 +78,7 @@ class Type4Py(PerFileInference):
 
     def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         with (self.project / relative).open() as f:
-            r = requests.post("http://localhost:5001/api/predict?tc=0", f.read())
+            r = requests.post("http://localhost:5001/api/predict?tc=0", f.read().encode("utf-8"))
             # print(r.text)
 
         answer = _Type4PyAnswer.parse_raw(r.text)
@@ -367,6 +367,9 @@ class Type4Py2Annotations(cst.CSTVisitor):
             return None
 
     def _handle_global_var(self, node: cst.BaseAssignTargetExpression) -> None:
+        if not self._answer.response.mod_var_ln:
+            return None
+
         if not isinstance(node, cst.Name) or not self._answer.response.variables_p:
             return None
 

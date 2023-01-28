@@ -1,10 +1,10 @@
 import pathlib
 
 from common.schemas import InferredSchema
-from tests.icr.helpers import dfassertions
+from tests.infer.helpers import dfassertions
 
-from icr.inference._base import Inference
-from icr.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
+from infer.inference._base import Inference
+from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
 import pytest
 

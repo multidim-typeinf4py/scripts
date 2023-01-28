@@ -6,7 +6,7 @@ import libcst
 from libcst import codemod
 from libcst import metadata
 
-from common._helper import generate_qname_ssas_for_file
+from common.ast_helper import generate_qname_ssas_for_file
 from common.schemas import (
     TypeCollectionSchema,
     TypeCollectionSchemaColumns,
