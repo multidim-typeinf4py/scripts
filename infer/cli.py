@@ -77,7 +77,7 @@ def cli_entrypoint(
         inference_tool = tool(sc)
         inference_tool.infer()
 
-        outdir = output.inference_output_path(inpath, tool=inference_tool)
+        outdir = output.inference_output_path(inpath, tool=inference_tool.method)
         if outdir.is_dir() and overwrite:
             shutil.rmtree(outdir)
 
