@@ -58,6 +58,6 @@ def read_icr(project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
 
 def inference_output_path(
     inpath: pathlib.Path,
-    tool: Inference,
+    tool: str,
 ) -> pathlib.Path:
-    return inpath.parent / f"{inpath.name}@({tool.method})"
+    return inpath.parent / f"{inpath.name}@({tool})"
