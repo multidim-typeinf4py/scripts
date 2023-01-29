@@ -8,6 +8,9 @@ import shutil
 
 from libcst.codemod._cli import ParallelTransformResult
 
+from common.schemas import InferredSchema
+import pandera.typing as pt
+
 
 @contextmanager
 def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, None]:
@@ -46,3 +49,12 @@ def format_parallel_exec_result(action: str, result: ParallelTransformResult) ->
     """
 
     return format
+
+
+def top_preds_only(df: pt.DataFrame[InferredSchema]) -> pt.DataFrame[InferredSchema]:
+    return df.loc[
+        df.groupby(
+            by=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
+            sort=False,
+        )[InferredSchema.topn].idxmin()
+    ]
