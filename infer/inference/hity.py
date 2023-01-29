@@ -316,5 +316,17 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
 
 
 def _derive_qname(scope: str) -> list[str]:
-    scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
-    return list(filter(bool, reversed(scope.split("@"))))
+    if scope == "global@global":
+        return []
+
+    *funcname, classname = scope.replace(",", ".").split("@")
+    if classname == "global":
+        return funcname
+
+    return [classname, *funcname]
+
+    
+    # scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
+    # non_empties = list(filter(bool, scope.split("@")))
+    # *funcname,
+    # return list(filter(bool, reversed(scope.split("@"))))
