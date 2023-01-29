@@ -1,6 +1,6 @@
 from common.schemas import TypeCollectionCategory, InferredSchema
-from infer.resolution._base import Metadata
-from infer.resolution.voting import (
+from icr.resolution._base import Metadata
+from icr.resolution.voting import (
     SubtypeVoting,
     Majority,
     OF,

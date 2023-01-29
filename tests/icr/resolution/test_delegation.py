@@ -1,5 +1,5 @@
 import pathlib
-from infer.resolution import Delegation, DelegationOrder
+from icr.resolution import Delegation, DelegationOrder
 
 from common.schemas import SymbolSchema, InferredSchema, TypeCollectionCategory
 from symbols.collector import build_type_collection
