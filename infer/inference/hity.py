@@ -273,6 +273,12 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
             case cst.Attribute(cst.Name("self"), cst.Name(name)):
                 full = f"self.{name}"
 
+            case cst.Tuple(elements) | cst.List(elements):
+                for e in elements:
+                    self._handle_assn_tgt(e)
+
+                return False
+
             case _:
                 return None
 
@@ -305,7 +311,7 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
             pred = next(filter(lambda p: p.name == name, hints), None)
             if pred is not None:
                 pred.name = full
-                self._local_preds.pop(scope)
+                # self._local_preds.pop(scope)
                 self.retained[".".join(_derive_qname(scope))].append(pred)
 
 
