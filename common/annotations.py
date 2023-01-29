@@ -166,13 +166,9 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         if self.create_class_attributes:
             # Match exactly one AnnAssign per line without a value
             matcher = m.SimpleStatementLine(
-                body=[
-                    m.AnnAssign(target=m.Name(), annotation=m.Annotation(), value=None)
-                ]
+                body=[m.AnnAssign(target=m.Name(), annotation=m.Annotation(), value=None)]
             )
-            hints: list[cst.AnnAssign] = [
-                ssl for ssl in node.body.body if m.matches(ssl, matcher)
-            ]
+            hints: list[cst.AnnAssign] = [ssl for ssl in node.body.body if m.matches(ssl, matcher)]
 
         else:
             hints = []
@@ -235,23 +231,29 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.current_assign = node
 
-        if self.track_unannotated and len(node.targets) == 1:
-            name = get_full_name_for_node(node.targets[0].target)
-            if name is not None:
-                self.qualifier.append(name)
-            # annotation_value = self._handle_Annotation(annotation=node.annotation)
-            # assert False, f"Fork does not support {self.track_unannotated=}"
+        if self.track_unannotated: 
+            for nts in node.targets:
+                if isinstance(nts.target, (cst.Tuple, cst.List)):
+                    targets = [target.value for target in nts.target.elements]
 
-            self.annotations.attributes[".".join(self.qualifier)].append(None)
+                else:
+                    targets = [nts.target]
+
+                for target in targets:
+                    assert (
+                        name := get_full_name_for_node(target)
+                    ) is not None, f"Failed to grab full name for {cst.Module([node]).code}"
+                    self.qualifier.append(name)
+                    self.annotations.attributes[".".join(self.qualifier)].append(None)
+                    self.qualifier.pop()
+                # annotation_value = self._handle_Annotation(annotation=node.annotation)
+                # assert False, f"Fork does not support {self.track_unannotated=}"
 
     def leave_Assign(
         self,
         original_node: cst.Assign,
     ) -> None:
         self.current_assign = None
-
-        if self.qualifier:
-            self.qualifier.pop()
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))
@@ -308,9 +310,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
                     asname = m.alias
                 else:
                     asname = None
-                AddImportsVisitor.add_needed_import(
-                    self.context, m.module_name, asname=asname
-                )
+                AddImportsVisitor.add_needed_import(self.context, m.module_name, asname=asname)
                 return True
             else:
                 if node and isinstance(node, cst.Name) and node.value != target:
@@ -338,9 +338,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         node: NameOrAttribute,
     ) -> Union[cst.Name, cst.Attribute]:
         qualified_name = _get_unique_qualified_name(self, node)
-        should_qualify = self._handle_qualification_and_should_qualify(
-            qualified_name, node
-        )
+        should_qualify = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
         if should_qualify:
             qualified_node = (
@@ -391,9 +389,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
                     new_slice.append(item.with_changes(slice=new_index))
                 else:
                     if isinstance(item.slice, cst.Index):
-                        new_index = item.slice.with_changes(
-                            value=self._handle_Index(item.slice)
-                        )
+                        new_index = item.slice.with_changes(value=self._handle_Index(item.slice))
                         item = item.with_changes(slice=new_index)
                     new_slice.append(item)
             return new_node.with_changes(slice=tuple(new_slice))

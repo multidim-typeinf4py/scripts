@@ -5,9 +5,10 @@ import click
 from common import output
 from common import factory
 
-from infer.insertion import HintRemover
+from infer.insertion import TypeAnnotationApplierTransformer
+from infer.removal import HintRemover
 
-from utils import format_parallel_exec_result, scratchpad
+from utils import format_parallel_exec_result, scratchpad, top_preds_only
 
 from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 
@@ -89,8 +90,19 @@ def cli_entrypoint(
         print(f"Inference completed; writing results to {outdir}")
         shutil.copytree(sc, outdir, symlinks=True)
 
-        output.write_icr(inference_tool.inferred, outdir)
-        print(f"Inferred types have been stored at {outdir}")
+    output.write_icr(inference_tool.inferred, outdir)
+    print(f"Inferred types have been stored at {outdir}")
+
+    print(f"Applying Annotations to codebase at {outdir}")
+    result = codemod.parallel_exec_transform_with_prettyprint(
+        transform=TypeAnnotationApplierTransformer(
+            codemod.CodemodContext(), top_preds_only(inference_tool.inferred)
+        ),
+        files=codemod.gather_files([str(outdir)]),
+        jobs=1,
+        repo_root=str(outdir),
+    )
+    print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
