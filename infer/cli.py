@@ -99,7 +99,7 @@ def cli_entrypoint(
             codemod.CodemodContext(), top_preds_only(inference_tool.inferred)
         ),
         files=codemod.gather_files([str(outdir)]),
-        jobs=1,
+        # jobs=1,
         repo_root=str(outdir),
     )
     print(format_parallel_exec_result(action="Annotation Application", result=result))

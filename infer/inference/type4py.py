@@ -414,7 +414,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
             if clazz.q_name == clazz_qname
         ]
 
-        assert len(ms) <= 1
+        assert len(ms) <= 1, f"Found more than one prediction for {method_qname}"
         return ms[0] if ms else None
 
     def _class_scope(self, node: cst.CSTNode) -> metadata.ClassScope | None:
