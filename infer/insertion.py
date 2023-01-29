@@ -102,21 +102,6 @@ class QName2SSATransformer(ScopeAwareTransformer):
         self.annotations = annotations.copy().assign(consumed=0)
         self.logger = logging.getLogger(QName2SSATransformer.__qualname__)
 
-    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        diff_qnames = (
-            self.annotations[TypeCollectionSchema.qname]
-            != self.annotations[TypeCollectionSchema.qname_ssa]
-        )
-        unconsumed = self.annotations["consumed"] != 1
-        flagged = self.annotations[diff_qnames & unconsumed]
-
-        if not flagged.empty:
-            self.logger.warning(
-                f"Failed to apply qname_ssas for {flagged[[TypeCollectionSchema.qname, TypeCollectionSchema.qname_ssa]].values}"
-            )
-
-        return updated_node
-
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
             return updated_node.with_changes(target=qname_ssa)
@@ -143,7 +128,7 @@ class QName2SSATransformer(ScopeAwareTransformer):
             candidates = self.annotations.loc[cand_mask]
             if candidates.empty:
                 # self.logger.warning(f"Could not lookup {full_qname}")
-                return
+                return None
 
             qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
             qname_ssa = str(qname_ssa_ser.iloc[0])
@@ -156,7 +141,17 @@ class QName2SSATransformer(ScopeAwareTransformer):
 
             return e
 
-        return None
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elements = [
+                cst.Element(self._handle_assn_tgt(element.value) or element.value)
+                for element in node.elements
+            ]
+            return ctor(elements)
+
+        else:
+            return None
 
 
 class SSA2QNameTransformer(ScopeAwareTransformer):
@@ -164,23 +159,8 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
-        self.annotations = annotations.copy().assign(consumed=0)
+        self.annotations = annotations
         self.logger = logging.getLogger(SSA2QNameTransformer.__qualname__)
-
-    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        diff_qnames = (
-            self.annotations[TypeCollectionSchema.qname]
-            != self.annotations[TypeCollectionSchema.qname_ssa]
-        )
-        unconsumed = self.annotations["consumed"] != 1
-        flagged = self.annotations[diff_qnames & unconsumed]
-
-        if not flagged.empty:
-            self.logger.warning(
-                f"Failed to apply qname_ssas for {flagged[[TypeCollectionSchema.qname_ssa, TypeCollectionSchema.qname]].values}"
-            )
-
-        return updated_node
 
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
@@ -210,10 +190,6 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
 
             qname_ser = candidates[TypeCollectionSchema.qname]
             qname = qname_ser.iloc[0]
-            assert (
-                candidates["consumed"].iloc[0] == 0
-            ), f"Attempted to reapply {full_qname_ssa} -> {qname} more than once!"
-            self.annotations.at[qname_ser.index[0], "consumed"] = 1
 
             if s:
                 qname = qname.removeprefix(s + ".")
@@ -222,4 +198,14 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
 
             return e
 
-        return None
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elements = [
+                cst.Element(self._handle_assn_tgt(element.value) or element.value)
+                for element in node.elements
+            ]
+            return ctor(elements)
+
+        else:
+            return None

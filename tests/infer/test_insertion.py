@@ -16,11 +16,14 @@ import pandas as pd
 from pandas._libs import missing
 import pandera.typing as pt
 
+
 class AnnotationTesting(codemod.CodemodTest):
     HINTLESS = textwrap.dedent(
         """
         a = 10
         a = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -34,8 +37,15 @@ class AnnotationTesting(codemod.CodemodTest):
 
     HINTED = textwrap.dedent(
         """
+        b: str
+        c: int
+
+        import typing
+
         a: int = 10
         a: str = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -49,8 +59,15 @@ class AnnotationTesting(codemod.CodemodTest):
 
     HINTED_QNAME_SSA = textwrap.dedent(
         """
+        bλ1: str
+        cλ1: int
+
+        import typing
+    
         aλ1: int = 10
         aλ2: str = "Hello World"
+
+        (bλ1, cλ1) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -65,10 +82,12 @@ class AnnotationTesting(codemod.CodemodTest):
     ANNOS = (
         pd.DataFrame(
             {
-                "file": ["x.py"] * 5,
-                "category": [TypeCollectionCategory.VARIABLE] * 5,
-                "qname": ["a"] * 2 + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                "anno": ["int", "str", "int", "str", "str"],
+                "file": ["x.py"] * 7,
+                "category": [TypeCollectionCategory.VARIABLE] * 7,
+                "qname": ["a"] * 2
+                + ["b", "c"]
+                + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
+                "anno": ["int", "str", "str", "int", "int", "str", "str"],
             }
         )
         .pipe(generate_qname_ssas_for_file)
@@ -78,25 +97,91 @@ class AnnotationTesting(codemod.CodemodTest):
     FILENAME = ANNOS["file"].iloc[0]
 
 
-class Test_QName2QNameSSA(AnnotationTesting):
+class Test_QName2SSA(AnnotationTesting):
     TRANSFORM = QName2SSATransformer
 
     def test_qnames_transformed(self):
         self.assertCodemod(
-            AnnotationTesting.HINTED,
-            AnnotationTesting.HINTED_QNAME_SSA,
+            AnnotationTesting.HINTLESS,
+            textwrap.dedent(
+                """
+        aλ1 = 10
+        aλ2 = "Hello World"
+
+        (bλ1, cλ1) = "Hello", 5
+
+        def f(a, b, c): ...
+        
+        class C:
+            def __init__(self):
+                self.xλ1 = 0
+                defaultλ1 = self.x or "10"
+                self.xλ2 = default"""
+            ),
             annotations=AnnotationTesting.ANNOS,
         )
 
+    def test_tuple_assignment_transformed(self):
+        self.assertCodemod(
+            "a, (b, c) = 1, 5, 20",
+            "(aλ1, (bλ1, cλ1)) = 1, 5, 20",
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 3,
+                    "category": [TypeCollectionCategory.VARIABLE] * 3,
+                    "qname": ["a", "b", "c"],
+                    "anno": ["int", "int", "int"],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema]),
+        )
 
-class Test_QNameSSA2QName(AnnotationTesting):
+
+class Test_SSA2QName(AnnotationTesting):
     TRANSFORM = SSA2QNameTransformer
 
     def test_qname_ssas_transformed(self):
         self.assertCodemod(
-            AnnotationTesting.HINTED_QNAME_SSA,
+            textwrap.dedent(
+                """
+            bλ1: str
+            cλ1: int
+
+            import typing
+        
+            aλ1: int = 10
+            aλ2: str = "Hello World"
+
+            (bλ1, cλ1) = "Hello", 5
+
+            def f(a, b, c): ...
+            
+            class C:
+                def __init__(self):
+                    self.xλ1: int = 0
+                    defaultλ1: str = self.x or "10"
+                    self.xλ2: str = default
+            """
+            ),
             AnnotationTesting.HINTED,
             annotations=AnnotationTesting.ANNOS,
+        )
+
+    def test_tuple_assignment_transformed(self):
+        self.assertCodemod(
+            "(aλ1, (bλ1, cλ1)) = 1, 5, 20",
+            "(a, (b, c)) = 1, 5, 20",
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 3,
+                    "category": [TypeCollectionCategory.VARIABLE] * 3,
+                    "qname": ["a", "b", "c"],
+                    "anno": ["int", "int", "int"],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema]),
         )
 
 
@@ -106,7 +191,7 @@ class Test_CustomAnnotator(AnnotationTesting):
     def test_attributes(self):
         filename = AnnotationTesting.ANNOS[TypeCollectionSchema.file].iloc[0]
 
-        with_future_import = f"from __future__ import annotations\nimport typing\nfrom typing import *\n{AnnotationTesting.HINTED}"
+        with_future_import = f"from __future__ import annotations{AnnotationTesting.HINTED}"
 
         self.assertCodemod(
             AnnotationTesting.HINTLESS,
@@ -124,11 +209,14 @@ class Test_CustomAnnotator(AnnotationTesting):
         after = textwrap.dedent(
             f"""
         from __future__ import annotations
+        b: str
+
         import typing
-        from typing import *
     
         a = 10
         a: str = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -143,11 +231,12 @@ class Test_CustomAnnotator(AnnotationTesting):
         skip_df = (
             pd.DataFrame(
                 {
-                    "file": ["x.py"] * 5,
-                    "category": [TypeCollectionCategory.VARIABLE] * 5,
+                    "file": ["x.py"] * 7,
+                    "category": [TypeCollectionCategory.VARIABLE] * 7,
                     "qname": ["a"] * 2
+                    + ["b", "c"]
                     + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": [missing.NA, "str", "int", "str", missing.NA],
+                    "anno": [missing.NA, "str", "str", missing.NA, "int", "str", missing.NA],
                 }
             )
             .pipe(generate_qname_ssas_for_file)
@@ -171,10 +260,11 @@ class Test_CustomAnnotator(AnnotationTesting):
             f"""
         from __future__ import annotations
         import typing
-        from typing import *
         
         a = 10
         a = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a: amod.A, b: bmod.B, c: cmod.C): ...
         
@@ -216,10 +306,11 @@ class Test_CustomAnnotator(AnnotationTesting):
             f"""
         from __future__ import annotations
         import typing
-        from typing import *
 
         a = 10
         a = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a, b, c) -> int: ...
         
@@ -261,10 +352,11 @@ class Test_CustomAnnotator(AnnotationTesting):
             f"""
         from __future__ import annotations
         import typing
-        from typing import *
 
         a = 10
         a = "Hello World"
+
+        (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
