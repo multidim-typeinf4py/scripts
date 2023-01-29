@@ -39,12 +39,12 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         )
 
         AddImportsVisitor.add_needed_import(self.context, "typing")
-        AddImportsVisitor.add_needed_import(self.context, "typing", "*")
+        # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
         removed = tree.visit(HintRemover(self.context))
 
         symbol_collector = TypeCollectorVistor.strict(context=self.context)
-        removed = symbol_collector.transform_module(removed)
+        symbol_collector.transform_module(removed)
 
         with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
@@ -63,11 +63,6 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             handle_function_bodies=True,
             create_class_attributes=True,
         ).transform_module(with_ssa_qnames)
-
-        # ApplyTypeAnnotationsVisitor.store_stub_in_context(self.context, hinted)
-        # imported = ApplyTypeAnnotationsVisitor(
-        #    context=self.context, overwrite_existing_annotations=False
-        # ).transform_module(hinted)
 
         with_qnames = SSA2QNameTransformer(
             context=self.context, annotations=module_tycol
