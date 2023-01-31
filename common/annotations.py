@@ -17,7 +17,7 @@ from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisitor
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
 from libcst.codemod.visitors._imports import ImportItem
-from libcst.helpers import get_full_name_for_node
+from libcst.helpers import get_full_name_for_node, get_full_name_for_node_or_raise
 from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider, ClassScope
 
 from libcst.codemod.visitors._apply_type_annotations import (
@@ -139,6 +139,8 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         # Store the annotations.
         self.annotations = MultiVarAnnotations.empty()
 
+        self._cst_annassign_hinting: dict[str, cst.Annotation] = {}
+
         self.handle_function_bodies = handle_function_bodies
         self.create_class_attributes = create_class_attributes
         self.track_unannotated = track_unannotated
@@ -209,58 +211,94 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.qualifier.pop()
 
-    def visit_AnnAssign(
-        self,
-        node: cst.AnnAssign,
-    ) -> bool:
-        if type(self.get_metadata(ScopeProvider, node, None)) is not ClassScope:
-            name = get_full_name_for_node(node.target)
-            if name is not None:
-                self.qualifier.append(name)
-            annotation_value = self._handle_Annotation(annotation=node.annotation)
-            self.annotations.attributes[".".join(self.qualifier)].append(annotation_value)
-
-            if name is not None:
-                self.qualifier.pop()
-
-        return True
+    # def visit_AnnAssign(
+    #    self,
+    #    node: cst.AnnAssign,
+    # ) -> bool:
+    #    return True
 
     def leave_AnnAssign(
         self,
         original_node: cst.AnnAssign,
     ) -> None:
-        # self.qualifier.pop()
-        ...
+        return None
 
     def visit_Assign(
         self,
         node: cst.Assign,
     ) -> None:
         self.current_assign = node
-
-        if self.track_unannotated: 
-            for nts in node.targets:
-                if isinstance(nts.target, (cst.Tuple, cst.List)):
-                    targets = [target.value for target in nts.target.elements]
-
-                else:
-                    targets = [nts.target]
-
-                for target in targets:
-                    assert (
-                        name := get_full_name_for_node(target)
-                    ) is not None, f"Failed to grab full name for {cst.Module([node]).code}"
-                    self.qualifier.append(name)
-                    self.annotations.attributes[".".join(self.qualifier)].append(None)
-                    self.qualifier.pop()
-                # annotation_value = self._handle_Annotation(annotation=node.annotation)
-                # assert False, f"Fork does not support {self.track_unannotated=}"
+        return self.track_unannotated
 
     def leave_Assign(
         self,
         original_node: cst.Assign,
     ) -> None:
         self.current_assign = None
+
+    @m.call_if_inside(m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AnnAssign(self, node: cst.AnnAssign):
+        if type(self.get_metadata(ScopeProvider, node)) is not ClassScope:
+            name = get_full_name_for_node_or_raise(node.target)
+            annotation_value = self._handle_Annotation(annotation=node.annotation)
+
+            self.qualifier.append(name)
+            full_qual = ".".join(self.qualifier)
+            self.qualifier.pop()
+
+            self.annotations.attributes[full_qual].append(annotation_value)
+
+            # Hinting is used in an assignment; no longer purely a "hint"
+            if full_qual in self._cst_annassign_hinting:
+                self._cst_annassign_hinting.pop(full_qual)
+
+            # Used purely for hinting; track this
+            if node.value is None:
+                self._cst_annassign_hinting[full_qual] = annotation_value
+
+    @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
+        # Check beforehand;
+        if self.track_unannotated:
+            name = get_full_name_for_node_or_raise(node.target)
+            self.qualifier.append(name)
+            full_qual = ".".join(self.qualifier)
+            self.qualifier.pop()
+
+            # Use hinting only for tuple assignment; expect tools to annotate single targets directly
+            self.annotations.attributes[full_qual].append(None)
+            if full_qual in self._cst_annassign_hinting:
+                self._cst_annassign_hinting.pop(full_qual)
+
+        return self.track_unannotated
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_Tuple(self, node: cst.Tuple) -> bool | None:
+        # Check beforehand; unpackables cannot be annotated by themselves
+        if self.track_unannotated:
+            self._visit_unpackable(node.elements)
+        return self.track_unannotated
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_List(self, node: cst.List) -> bool | None:
+        # Check beforehand; unpackables cannot be annotated by themselves
+        if self.track_unannotated:
+            self._visit_unpackable(node.elements)
+        return self.track_unannotated
+
+    def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
+        targets = map(lambda e: e.value, elements)
+        for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
+            name = get_full_name_for_node_or_raise(target)
+
+            self.qualifier.append(name)
+            full_qualifier = ".".join(self.qualifier)
+            self.qualifier.pop()
+
+            # If cst.AnnAssign without value (i.e. just a hint) has been made for this assignment,
+            # then do NOT add to the collection of annotations
+            if full_qualifier not in self._cst_annassign_hinting:
+                self.annotations.attributes[full_qualifier].append(None)
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))

@@ -212,3 +212,56 @@ class Test_TrackUnannotated(codemod.CodemodTest):
         diff = pd.concat([common, expected_df]).drop_duplicates(keep=False)
 
         assert diff.empty, f"Diff:\n{diff}\n"
+
+
+class Test_UnpackableHinting(codemod.CodemodTest):
+    def test_no_duplication(self):
+        code = textwrap.dedent(
+            """
+        a: int
+        b: str
+
+        a, b = 5, "Hello World"
+        a, b = 20, "Another One"
+
+        a: str = "Hello World"
+
+        a = "Unannotated!"
+        """
+        )
+
+        module = libcst.parse_module(code)
+
+        expected_df = (
+            pd.DataFrame(
+                {
+                    "file": ["x.py"] * 4,
+                    "category": [TypeCollectionCategory.VARIABLE] * 4,
+                    "qname": ["a", "b", "a", "a"],
+                    "anno": ["int", "str", "str", missing.NA],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        visitor = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            ),
+        )
+        visitor.transform_module(module)
+
+        df = visitor.collection.df
+        assert not df.empty
+        print(df)
+
+        df = pd.merge(df, expected_df, how="right", indicator=True)
+
+        m = df[df["_merge"] == "right_only"]
+        print(m)
+
+        assert m.empty, f"Diff:\n{m}\n"
