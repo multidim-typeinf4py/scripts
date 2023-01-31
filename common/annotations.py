@@ -295,8 +295,8 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             full_qualifier = ".".join(self.qualifier)
             self.qualifier.pop()
 
-            # If cst.AnnAssign without value (i.e. just a hint) has been made for this assignment,
-            # then do NOT add to the collection of annotations
+            # Iff cst.AnnAssign without value (i.e. just a hint) has been made for this assignment,
+            # => DO NOT add to the collection of annotations
             if full_qualifier not in self._cst_annassign_hinting:
                 self.annotations.attributes[full_qualifier].append(None)
 
