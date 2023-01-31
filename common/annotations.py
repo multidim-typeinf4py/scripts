@@ -18,7 +18,7 @@ from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisito
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
 from libcst.codemod.visitors._imports import ImportItem
 from libcst.helpers import get_full_name_for_node
-from libcst.metadata import PositionProvider, QualifiedNameProvider
+from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider, ClassScope
 
 from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
@@ -105,6 +105,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     """
 
     METADATA_DEPENDENCIES = (
+        ScopeProvider,
         PositionProvider,
         QualifiedNameProvider,
     )
@@ -212,18 +213,24 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         self,
         node: cst.AnnAssign,
     ) -> bool:
-        name = get_full_name_for_node(node.target)
-        if name is not None:
-            self.qualifier.append(name)
-        annotation_value = self._handle_Annotation(annotation=node.annotation)
-        self.annotations.attributes[".".join(self.qualifier)].append(annotation_value)
+        if type(self.get_metadata(ScopeProvider, node, None)) is not ClassScope:
+            name = get_full_name_for_node(node.target)
+            if name is not None:
+                self.qualifier.append(name)
+            annotation_value = self._handle_Annotation(annotation=node.annotation)
+            self.annotations.attributes[".".join(self.qualifier)].append(annotation_value)
+
+            if name is not None:
+                self.qualifier.pop()
+
         return True
 
     def leave_AnnAssign(
         self,
         original_node: cst.AnnAssign,
     ) -> None:
-        self.qualifier.pop()
+        # self.qualifier.pop()
+        ...
 
     def visit_Assign(
         self,
