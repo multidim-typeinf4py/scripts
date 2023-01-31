@@ -267,3 +267,41 @@ class Test_UnpackableHinting(codemod.CodemodTest):
         print(m)
 
         assert m.empty, f"Diff:\n{m}\n"
+
+    def test_deep_unpackable_recursion(self):
+        code = textwrap.dedent("c: int\na, (b, c) = 5, (10, 20)")
+
+        module = libcst.parse_module(code)
+
+        expected_df = (
+            pd.DataFrame(
+                {
+                    "file": ["x.py"] * 3,
+                    "category": [TypeCollectionCategory.VARIABLE] * 3,
+                    "qname": ["a", "b", "c"],
+                    "anno": [missing.NA] * 2 + ["int"],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        visitor = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            ),
+        )
+        visitor.transform_module(module)
+
+        df = visitor.collection.df
+        assert not df.empty
+
+        df = pd.merge(df, expected_df, how="right", indicator=True)
+
+        m = df[df["_merge"] == "right_only"]
+        print(m)
+
+        assert m.empty, f"Diff:\n{m}\n"
