@@ -144,11 +144,12 @@ def test_hints_found(
         sep="\n",
     )
 
-    common = pd.merge(collection.df, hints_df, on=TypeCollectionSchemaColumns)
-    diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
+    df = pd.merge(collection.df, hints_df, how="right", indicator=True)
 
-    assert diff.empty, f"Diff:\n{diff}\n"
+    m = df[df["_merge"] == "right_only"]
+    print(m)
 
+    assert m.empty, f"Diff:\n{m}\n"
 
 def test_loadable(code_path: pathlib.Path) -> None:
     import tempfile
@@ -208,10 +209,12 @@ class Test_TrackUnannotated(codemod.CodemodTest):
 
         df = visitor.collection.df
 
-        common = pd.merge(expected_df, df)
-        diff = pd.concat([common, expected_df]).drop_duplicates(keep=False)
+        df = pd.merge(df, expected_df, how="right", indicator=True)
 
-        assert diff.empty, f"Diff:\n{diff}\n"
+        m = df[df["_merge"] == "right_only"]
+        print(m)
+
+        assert m.empty, f"Diff:\n{m}\n"
 
 
 class Test_UnpackableHinting(codemod.CodemodTest):
@@ -257,7 +260,6 @@ class Test_UnpackableHinting(codemod.CodemodTest):
 
         df = visitor.collection.df
         assert not df.empty
-        print(df)
 
         df = pd.merge(df, expected_df, how="right", indicator=True)
 
