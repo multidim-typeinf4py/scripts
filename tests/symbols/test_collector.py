@@ -1,3 +1,4 @@
+import operator
 import pathlib
 import textwrap
 import typing
@@ -151,6 +152,7 @@ def test_hints_found(
 
     assert m.empty, f"Diff:\n{m}\n"
 
+
 def test_loadable(code_path: pathlib.Path) -> None:
     import tempfile
 
@@ -164,9 +166,52 @@ def test_loadable(code_path: pathlib.Path) -> None:
         assert diff.empty
 
 
-class Test_TrackUnannotated(codemod.CodemodTest):
+class AnnotationTracking(codemod.CodemodTest):
+    def performTracking(self, code: str) -> pt.DataFrame[TypeCollectionSchema]:
+        module = libcst.parse_module(textwrap.dedent(code))
+
+        visitor = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            ),
+        )
+        visitor.transform_module(module)
+
+        return visitor.collection.df
+
+    def assertMatchingAnnotating(
+        self,
+        actual: pt.DataFrame[TypeCollectionSchema],
+        expected: list[tuple[TypeCollectionCategory, str, str | missing.NAType]],
+    ) -> None:
+        files = ["x.py"] * len(expected)
+        categories = list(map(operator.itemgetter(0), expected))
+        qnames = list(map(operator.itemgetter(1), expected))
+        annos = list(map(operator.itemgetter(2), expected))
+
+        if expected:
+            expected_df = (
+                pd.DataFrame(
+                    {"file": files, "category": categories, "qname": qnames, "anno": annos}
+                )
+                .pipe(generate_qname_ssas_for_file)
+                .pipe(pt.DataFrame[TypeCollectionSchema])
+            )
+        else:
+            expected_df = TypeCollectionSchema.example(size=0)
+
+        comparison = pd.merge(actual, expected_df, how="outer", indicator=True)
+        m = comparison[comparison["_merge"] != "both"]
+        print(m)
+        assert m.empty, f"Diff:\n{m}\n"
+
+
+class Test_TrackUnannotated(AnnotationTracking):
     def test_unannotated_present(self):
-        code = textwrap.dedent(
+        df = self.performTracking(
             """
         from __future__ import annotations
 
@@ -181,127 +226,120 @@ class Test_TrackUnannotated(codemod.CodemodTest):
                 default: str = self.x or "10"
                 self.x = default"""
         )
-        module = libcst.parse_module(code)
 
-        expected_df = (
-            pd.DataFrame(
-                {
-                    "file": ["x.py"] * 5,
-                    "category": [TypeCollectionCategory.VARIABLE] * 5,
-                    "qname": ["a"] * 2
-                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": [missing.NA, "str", "int", "str", missing.NA],
-                }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema])
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "a", "str"),
+
+                (TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", missing.NA),
+
+                (TypeCollectionCategory.CALLABLE_RETURN, "C.__init__", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "C.__init__.self", missing.NA),
+
+                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
+                (TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
+                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", missing.NA),
+            ],
         )
 
-        visitor = TypeCollectorVistor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            ),
+
+class Test_HintingBehaviour(AnnotationTracking):
+    def test_no_store_when_unused(self):
+        df = self.performTracking("a: int")
+        self.assertMatchingAnnotating(
+            df,
+            [],
         )
-        visitor.transform_module(module)
 
-        df = visitor.collection.df
-
-        df = pd.merge(df, expected_df, how="right", indicator=True)
-
-        m = df[df["_merge"] == "right_only"]
-        print(m)
-
-        assert m.empty, f"Diff:\n{m}\n"
-
-
-class Test_UnpackableHinting(codemod.CodemodTest):
-    def test_no_duplication(self):
-        code = textwrap.dedent(
+    def test_hinting_merged(self):
+        df = self.performTracking(
             """
         a: int
-        b: str
-
-        a, b = 5, "Hello World"
-        a, b = 20, "Another One"
-
-        a: str = "Hello World"
-
-        a = "Unannotated!"
+        a = 5
         """
         )
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "int")])
 
-        module = libcst.parse_module(code)
-
-        expected_df = (
-            pd.DataFrame(
-                {
-                    "file": ["x.py"] * 4,
-                    "category": [TypeCollectionCategory.VARIABLE] * 4,
-                    "qname": ["a", "b", "a", "a"],
-                    "anno": ["int", "str", "str", missing.NA],
-                }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema])
+    def test_hinting_consumed(self):
+        df = self.performTracking(
+            """
+        a: int
+        a = 10
+        a = 20
+        """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+            ],
         )
 
-        visitor = TypeCollectorVistor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            ),
+    def test_hinting_overwrite(self):
+        # Unlikely to happen, but check anyway :)
+        df = self.performTracking(
+            """
+            a: int
+            a: str = "Hello World"
+            """
         )
-        visitor.transform_module(module)
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "str")])
 
-        df = visitor.collection.df
-        assert not df.empty
+    def test_hinting_applied_to_unpackables(self):
+        tuple_df = self.performTracking(
+            """
+            a: int
+            b: list[str]
 
-        df = pd.merge(df, expected_df, how="right", indicator=True)
+            a, *b = 5, "Hello World"
+            """
+        )
+        self.assertMatchingAnnotating(
+            tuple_df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "b", "list[str]"),
+            ],
+        )
 
-        m = df[df["_merge"] == "right_only"]
-        print(m)
+        list_df = self.performTracking(
+            """
+            a: list[str]
+            b: int
 
-        assert m.empty, f"Diff:\n{m}\n"
+            [*a, b] = "hello world", 10
+            """
+        )
+        self.assertMatchingAnnotating(
+            list_df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "list[str]"),
+                (TypeCollectionCategory.VARIABLE, "b", "int"),
+            ],
+        )
 
     def test_deep_unpackable_recursion(self):
-        code = textwrap.dedent("c: int\na, (b, c) = 5, (10, 20)")
+        df = self.performTracking(
+            """
+            d: int
+            d = 5
 
-        module = libcst.parse_module(code)
-
-        expected_df = (
-            pd.DataFrame(
-                {
-                    "file": ["x.py"] * 3,
-                    "category": [TypeCollectionCategory.VARIABLE] * 3,
-                    "qname": ["a", "b", "c"],
-                    "anno": [missing.NA] * 2 + ["int"],
-                }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema])
+            c: int
+            a, (b, c) = 5, (10, 20)
+            """
         )
-
-        visitor = TypeCollectorVistor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            ),
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "b", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "c", "int"),
+                (TypeCollectionCategory.VARIABLE, "d", "int"),
+            ],
         )
-        visitor.transform_module(module)
-
-        df = visitor.collection.df
-        assert not df.empty
-
-        df = pd.merge(df, expected_df, how="right", indicator=True)
-
-        m = df[df["_merge"] == "right_only"]
-        print(m)
-
-        assert m.empty, f"Diff:\n{m}\n"

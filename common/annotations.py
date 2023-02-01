@@ -246,59 +246,50 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             full_qual = ".".join(self.qualifier)
             self.qualifier.pop()
 
-            self.annotations.attributes[full_qual].append(annotation_value)
+            # Hinting is used in an assignment; track
+            if node.value is not None:
+                self.annotations.attributes[full_qual].append(annotation_value)
 
-            # Hinting is used in an assignment; no longer purely a "hint"
-            if full_qual in self._cst_annassign_hinting:
-                self._cst_annassign_hinting.pop(full_qual)
+                # If hint was given, drop it
+                if full_qual in self._cst_annassign_hinting:
+                    self._cst_annassign_hinting.pop(full_qual)
 
-            # Used purely for hinting; track this
-            if node.value is None:
+            # Otherwise AnnAssign is used purely for hinting; track this,
+            # but do not store hint in attributes
+            else:
                 self._cst_annassign_hinting[full_qual] = annotation_value
 
     @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        # Check beforehand;
-        if self.track_unannotated:
-            name = get_full_name_for_node_or_raise(node.target)
-            self.qualifier.append(name)
-            full_qual = ".".join(self.qualifier)
-            self.qualifier.pop()
-
-            # Use hinting only for tuple assignment; expect tools to annotate single targets directly
-            self.annotations.attributes[full_qual].append(None)
-            if full_qual in self._cst_annassign_hinting:
-                self._cst_annassign_hinting.pop(full_qual)
-
+        self._visit_unannotated_target(node.target)
         return self.track_unannotated
 
     @m.call_if_inside(m.AssignTarget())
     def visit_Tuple(self, node: cst.Tuple) -> bool | None:
-        # Check beforehand; unpackables cannot be annotated by themselves
-        if self.track_unannotated:
-            self._visit_unpackable(node.elements)
+        self._visit_unpackable(node.elements)
         return self.track_unannotated
 
     @m.call_if_inside(m.AssignTarget())
     def visit_List(self, node: cst.List) -> bool | None:
-        # Check beforehand; unpackables cannot be annotated by themselves
-        if self.track_unannotated:
-            self._visit_unpackable(node.elements)
+        self._visit_unpackable(node.elements)
         return self.track_unannotated
 
     def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
         targets = map(lambda e: e.value, elements)
         for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
+            self._visit_unannotated_target(target)
+
+    def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
+        if self.track_unannotated:
             name = get_full_name_for_node_or_raise(target)
 
             self.qualifier.append(name)
-            full_qualifier = ".".join(self.qualifier)
+            fullqual = ".".join(self.qualifier)
             self.qualifier.pop()
 
-            # Iff cst.AnnAssign without value (i.e. just a hint) has been made for this assignment,
-            # => DO NOT add to the collection of annotations
-            if full_qualifier not in self._cst_annassign_hinting:
-                self.annotations.attributes[full_qualifier].append(None)
+            # Consume stored hint if present
+            hint = self._cst_annassign_hinting.pop(fullqual, None)
+            self.annotations.attributes[fullqual].append(hint)
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))
