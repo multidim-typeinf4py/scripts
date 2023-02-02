@@ -204,8 +204,10 @@ class AnnotationTracking(codemod.CodemodTest):
             expected_df = TypeCollectionSchema.example(size=0)
 
         comparison = pd.merge(actual, expected_df, how="outer", indicator=True)
+        print(comparison)
+
         m = comparison[comparison["_merge"] != "both"]
-        print(m)
+        # print(m)
         assert m.empty, f"Diff:\n{m}\n"
 
 
@@ -248,7 +250,7 @@ class Test_TrackUnannotated(AnnotationTracking):
         )
 
 
-class Test_HintingBehaviour(AnnotationTracking):
+class Test_HintTracking(AnnotationTracking):
     def test_no_store_when_unused(self):
         df = self.performTracking("a: int")
         self.assertMatchingAnnotating(
@@ -324,6 +326,24 @@ class Test_HintingBehaviour(AnnotationTracking):
             ],
         )
 
+    def test_hinting_applied_to_chained_assignment(self):
+        df = self.performTracking("""
+        a: int
+        b: str
+        d: tuple[int, str]
+
+        d = (a, b) = (5, "Test")
+        """)
+        
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "b", "str"),
+                (TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
+            ]
+        )
+
     def test_deep_unpackable_recursion(self):
         df = self.performTracking(
             """
@@ -341,5 +361,26 @@ class Test_HintingBehaviour(AnnotationTracking):
                 (TypeCollectionCategory.VARIABLE, "b", missing.NA),
                 (TypeCollectionCategory.VARIABLE, "c", "int"),
                 (TypeCollectionCategory.VARIABLE, "d", "int"),
+            ],
+        )
+
+    def test_multiple_reassign(self):
+        df = self.performTracking(
+            """
+            a: int
+            a = 5
+
+            a: bytes
+            a: str = "Hello World"
+
+            a = 5
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "a", "str"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
