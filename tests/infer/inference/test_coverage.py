@@ -5,7 +5,7 @@ from common.schemas import InferredSchema
 from infer.inference._base import Inference
 from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
-from infer.helpers import dfassertions
+from . import dfassertions
 
 import pytest
 import pandera.typing as pt
