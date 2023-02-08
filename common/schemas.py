@@ -20,7 +20,7 @@ class SymbolSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
     qname: pt.Series[str] = pa.Field()
-    qname_ssa: pt.Series[str] = pa.Field()
+    qname_ssa: pt.Series[str] = pa.Field(unique=True)
 
 
 class TypeCollectionSchema(SymbolSchema):
