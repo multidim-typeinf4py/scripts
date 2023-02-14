@@ -1,20 +1,20 @@
 import pathlib
 
 from common.schemas import InferredSchema
-from tests.infer.helpers import dfassertions
 
 from infer.inference._base import Inference
 from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
-import pytest
+from . import dfassertions
 
+import pytest
 import pandera.typing as pt
 
 
 @pytest.fixture(
     scope="class",
-    # params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
-    params=[HiTyper],
+    params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
+    # params=[HiTyper],
     ids=lambda e: e.__qualname__,
 )
 def methoddf(request) -> tuple[str, pt.DataFrame[InferredSchema]]:

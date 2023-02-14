@@ -144,9 +144,10 @@ class QName2SSATransformer(ScopeAwareTransformer):
         elif isinstance(node, (cst.List, cst.Tuple)):
             ctor = type(node)
 
+            elem_ts = map(type, node.elements)
             elements = [
-                cst.Element(self._handle_assn_tgt(element.value) or element.value)
-                for element in node.elements
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
             ]
             return ctor(elements)
 
@@ -201,9 +202,10 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
         elif isinstance(node, (cst.List, cst.Tuple)):
             ctor = type(node)
 
+            elem_ts = map(type, node.elements)
             elements = [
-                cst.Element(self._handle_assn_tgt(element.value) or element.value)
-                for element in node.elements
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
             ]
             return ctor(elements)
 

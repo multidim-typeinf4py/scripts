@@ -9,8 +9,6 @@ from common.schemas import (
     InferredSchema,
 )
 
-from infer.inference import Inference
-
 
 def context_vector_path(project: pathlib.Path) -> pathlib.Path:
     return project / ".context-vectors.csv"

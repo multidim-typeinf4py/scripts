@@ -1,3 +1,4 @@
+import operator
 import pathlib
 import textwrap
 import typing
@@ -144,10 +145,12 @@ def test_hints_found(
         sep="\n",
     )
 
-    common = pd.merge(collection.df, hints_df, on=TypeCollectionSchemaColumns)
-    diff = pd.concat([common, hints_df]).drop_duplicates(keep=False)
+    df = pd.merge(collection.df, hints_df, how="right", indicator=True)
 
-    assert diff.empty, f"Diff:\n{diff}\n"
+    m = df[df["_merge"] == "right_only"]
+    print(m)
+
+    assert m.empty, f"Diff:\n{m}\n"
 
 
 def test_loadable(code_path: pathlib.Path) -> None:
@@ -163,9 +166,54 @@ def test_loadable(code_path: pathlib.Path) -> None:
         assert diff.empty
 
 
-class Test_TrackUnannotated(codemod.CodemodTest):
+class AnnotationTracking(codemod.CodemodTest):
+    def performTracking(self, code: str) -> pt.DataFrame[TypeCollectionSchema]:
+        module = libcst.parse_module(textwrap.dedent(code))
+
+        visitor = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            ),
+        )
+        visitor.transform_module(module)
+
+        return visitor.collection.df
+
+    def assertMatchingAnnotating(
+        self,
+        actual: pt.DataFrame[TypeCollectionSchema],
+        expected: list[tuple[TypeCollectionCategory, str, str | missing.NAType]],
+    ) -> None:
+        files = ["x.py"] * len(expected)
+        categories = list(map(operator.itemgetter(0), expected))
+        qnames = list(map(operator.itemgetter(1), expected))
+        annos = list(map(operator.itemgetter(2), expected))
+
+        if expected:
+            expected_df = (
+                pd.DataFrame(
+                    {"file": files, "category": categories, "qname": qnames, "anno": annos}
+                )
+                .pipe(generate_qname_ssas_for_file)
+                .pipe(pt.DataFrame[TypeCollectionSchema])
+            )
+        else:
+            expected_df = TypeCollectionSchema.example(size=0)
+
+        comparison = pd.merge(actual, expected_df, how="outer", indicator=True)
+        print(comparison)
+
+        m = comparison[comparison["_merge"] != "both"]
+        # print(m)
+        assert m.empty, f"Diff:\n{m}\n"
+
+
+class Test_TrackUnannotated(AnnotationTracking):
     def test_unannotated_present(self):
-        code = textwrap.dedent(
+        df = self.performTracking(
             """
         from __future__ import annotations
 
@@ -180,35 +228,159 @@ class Test_TrackUnannotated(codemod.CodemodTest):
                 default: str = self.x or "10"
                 self.x = default"""
         )
-        module = libcst.parse_module(code)
 
-        expected_df = (
-            pd.DataFrame(
-                {
-                    "file": ["x.py"] * 5,
-                    "category": [TypeCollectionCategory.VARIABLE] * 5,
-                    "qname": ["a"] * 2
-                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": [missing.NA, "str", "int", "str", missing.NA],
-                }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema])
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "a", "str"),
+
+                (TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", missing.NA),
+
+                (TypeCollectionCategory.CALLABLE_RETURN, "C.__init__", missing.NA),
+                (TypeCollectionCategory.CALLABLE_PARAMETER, "C.__init__.self", missing.NA),
+
+                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
+                (TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
+                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", missing.NA),
+            ],
         )
 
-        visitor = TypeCollectorVistor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            ),
+
+class Test_HintTracking(AnnotationTracking):
+    def test_no_store_when_unused(self):
+        df = self.performTracking("a: int")
+        self.assertMatchingAnnotating(
+            df,
+            [],
         )
-        visitor.transform_module(module)
 
-        df = visitor.collection.df
+    def test_hinting_merged(self):
+        df = self.performTracking(
+            """
+        a: int
+        a = 5
+        """
+        )
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "int")])
 
-        common = pd.merge(expected_df, df)
-        diff = pd.concat([common, expected_df]).drop_duplicates(keep=False)
+    def test_hinting_consumed(self):
+        df = self.performTracking(
+            """
+        a: int
+        a = 10
+        a = 20
+        """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+            ],
+        )
 
-        assert diff.empty, f"Diff:\n{diff}\n"
+    def test_hinting_overwrite(self):
+        # Unlikely to happen, but check anyway :)
+        df = self.performTracking(
+            """
+            a: int
+            a: str = "Hello World"
+            """
+        )
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "str")])
+
+    def test_hinting_applied_to_unpackables(self):
+        tuple_df = self.performTracking(
+            """
+            a: int
+            b: list[str]
+
+            a, *b = 5, "Hello World"
+            """
+        )
+        self.assertMatchingAnnotating(
+            tuple_df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "b", "list[str]"),
+            ],
+        )
+
+        list_df = self.performTracking(
+            """
+            a: list[str]
+            b: int
+
+            [*a, b] = "hello world", 10
+            """
+        )
+        self.assertMatchingAnnotating(
+            list_df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "list[str]"),
+                (TypeCollectionCategory.VARIABLE, "b", "int"),
+            ],
+        )
+
+    def test_hinting_applied_to_chained_assignment(self):
+        df = self.performTracking("""
+        a: int
+        b: str
+        d: tuple[int, str]
+
+        d = (a, b) = (5, "Test")
+        """)
+        
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "b", "str"),
+                (TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
+            ]
+        )
+
+    def test_deep_unpackable_recursion(self):
+        df = self.performTracking(
+            """
+            d: int
+            d = 5
+
+            c: int
+            a, (b, c) = 5, (10, 20)
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "b", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "c", "int"),
+                (TypeCollectionCategory.VARIABLE, "d", "int"),
+            ],
+        )
+
+    def test_multiple_reassign(self):
+        df = self.performTracking(
+            """
+            a: int
+            a = 5
+
+            a: bytes
+            a: str = "Hello World"
+
+            a = 5
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "a", "str"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+            ],
+        )
