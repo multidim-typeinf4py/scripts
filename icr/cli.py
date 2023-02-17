@@ -1,15 +1,20 @@
 import itertools
 import pathlib
+import shutil
+import sys
 import click
 
 from common import factory, output
-from common.schemas import TypeCollectionSchema
+from common.schemas import InferredSchema, TypeCollectionSchema
 from infer.inference.hity import HiTyper
 
 from icr.resolution import ConflictResolution
 from infer.inference import MyPy, PyreInfer, PyreQuery, Type4Py, TypeWriter
 
+from libcst import codemod
+
 from icr.resolution import SubtypeVoting, Delegation
+from infer.insertion import TypeAnnotationApplierTransformer
 from symbols.collector import build_type_collection
 
 
@@ -110,10 +115,12 @@ def cli_entrypoint(
         eng = engine(
             project=inpath, reference=baseline.drop(columns=[TypeCollectionSchema.anno], axis=1)
         )
+
+        tool = "+".join(tool2icr.keys())
         inference_df = eng.resolve(tool2icr)
 
     else:
-        inference_df = next(infs()).inferred
+        tool, inference_df = next((tool, df) for tool, df in tool2icr.items())
 
         inference_df = inference_df.loc[
             inference_df.groupby(
@@ -123,7 +130,7 @@ def cli_entrypoint(
         ]
 
     if persist:
-        outdir = _derive_output_folder(original, infs=list(infs()), engine=engine)
+        outdir = output.inference_output_path(original, tool=tool)
         if outdir.is_dir() and not overwrite:
             raise RuntimeError(
                 f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
@@ -144,7 +151,7 @@ def cli_entrypoint(
             transform=TypeAnnotationApplierTransformer(
                 context=codemod.CodemodContext(), tycol=inference_df
             ),
-            files=cstcli.gather_files([str(outdir)]),
+            files=codemod.gather_files([str(outdir)]),
             repo_root=str(outdir),
         )
         print(
