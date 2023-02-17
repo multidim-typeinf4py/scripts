@@ -13,35 +13,10 @@ from common.schemas import (
     TypeCollectionCategory,
 )
 
+import logging
+
 import pandera.typing as pt
 import pandas as pd
-
-
-@contextmanager
-def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, None]:
-    with tempfile.TemporaryDirectory() as td:
-        shutil.copytree(
-            src=str(untouched),
-            dst=td,
-            dirs_exist_ok=True,
-            ignore_dangling_symlinks=True,
-            symlinks=False,
-        )
-        try:
-            yield pathlib.Path(td)
-        finally:
-            pass
-
-
-@contextmanager
-def working_dir(wd: pathlib.Path) -> typing.Generator[None, None, None]:
-    oldcwd = pathlib.Path.cwd()
-    os.chdir(wd)
-
-    try:
-        yield
-    finally:
-        os.chdir(oldcwd)
 
 
 class Inference(abc.ABC):
@@ -52,7 +27,9 @@ class Inference(abc.ABC):
     def __init__(self, project: pathlib.Path) -> None:
         super().__init__()
         self.project = project.resolve()
-        self.inferred = pt.DataFrame[InferredSchema](columns=InferredSchemaColumns)
+        self.inferred = InferredSchema.to_schema().example(size=0)
+
+        self.logger = logging.getLogger(type(self).__qualname__)
 
     @abc.abstractmethod
     def infer(self) -> None:
@@ -67,6 +44,7 @@ class Inference(abc.ABC):
 class ProjectWideInference(Inference):
     def infer(self) -> None:
         if self.inferred.empty:
+            self.logger.debug(f"Inferring project-wide on {self.project}")
             proj_inf = self._infer_project()
             self.inferred = (
                 proj_inf.assign(method=self.method)
@@ -75,7 +53,7 @@ class ProjectWideInference(Inference):
             )
 
     @abc.abstractmethod
-    def _infer_project(self) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
         pass
 
 
@@ -85,11 +63,8 @@ class PerFileInference(Inference):
         for subfile in self.project.rglob("*.py"):
             relative = subfile.relative_to(self.project)
             if str(relative) not in self.inferred["file"]:
-                reldf: pt.DataFrame[InferredSchema] = (
-                    self._infer_file(relative)
-                    .assign(method=self.method)
-                    .pipe(pt.DataFrame[InferredSchema])
-                )
+                self.logger.debug(f"Inferring per-file on {self.project} @ {relative}")
+                reldf: pt.DataFrame[InferredSchema] = self._infer_file(relative)
                 updates.append(reldf)
         if updates:
             self.inferred = (

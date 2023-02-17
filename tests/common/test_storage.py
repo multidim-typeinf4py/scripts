@@ -7,7 +7,7 @@ from common.storage import TypeCollection
 import libcst.codemod as codemod
 import libcst.codemod._cli as cstcli
 
-from icr.insertion import TypeAnnotationApplierTransformer
+from infer.insertion import TypeAnnotationApplierTransformer
 
 import pytest
 

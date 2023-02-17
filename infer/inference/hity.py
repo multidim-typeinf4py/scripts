@@ -5,7 +5,13 @@ import pathlib
 import shutil
 
 from ._base import PerFileInference
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import (
+    InferredSchema,
+    InferredSchemaColumns,
+    TypeCollectionCategory,
+    TypeCollectionSchema,
+    TypeCollectionSchemaColumns,
+)
 
 import hityper.__main__ as hityper
 import libcst as cst
@@ -16,7 +22,7 @@ from pandas._libs import missing
 import pandera.typing as pt
 import pydantic
 
-from common import _helper
+from common import ast_helper
 
 
 @dataclass
@@ -93,29 +99,30 @@ class HiTyper(PerFileInference):
         self.output_dir = self.project / ".hityper"
         self.topn = 3
 
-        if self.output_dir.is_dir():
-            shutil.rmtree(path=str(self.output_dir))
+        # if self.output_dir.is_dir():
+        #     shutil.rmtree(path=str(self.output_dir))
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         if not hasattr(self, "predictions"):
             if not self.output_dir.is_dir():
                 self.output_dir.mkdir(parents=True, exist_ok=True)
-                self._predict()
 
-                inferred_types_path = (
-                    str(self.output_dir)
-                    + "/"
-                    + str(self.project).replace("/", "_")
-                    + "_INFERREDTYPES.json"
-                )
-                self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
+            inferred_types_path = (
+                str(self.output_dir)
+                + "/"
+                + str(self.project).replace("/", "_")
+                + "_INFERREDTYPES.json"
+            )
+            if not pathlib.Path(inferred_types_path).is_file():
+                self._predict()
+            self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
 
         return self._predictions2df(self.predictions, relative)
 
     def _predict(self):
         hityper.findusertype(
             _FindUserTypeArguments(
-                repo=str(self.project), core=4, validate=True, output_directory=str(self.output_dir)
+                repo=str(self.project), core=8, validate=True, output_directory=str(self.output_dir)
             )
         )
 
@@ -139,10 +146,12 @@ class HiTyper(PerFileInference):
 
     def _predictions2df(
         self, predictions: _HiTyperPredictions, file: pathlib.Path
-    ) -> pt.DataFrame[TypeCollectionSchema]:
-        df_updates: list[tuple[str, TypeCollectionCategory, str, str]] = []
+    ) -> pt.DataFrame[InferredSchema]:
+        df_updates: list[tuple[str, TypeCollectionCategory, str, str, int]] = []
 
-        scopes = predictions.__root__[self.project / file]
+        scopes = predictions.__root__.get(self.project / file, None)
+        if scopes is None:
+            return InferredSchema.example(size=0)
 
         src = cst.parse_module(open(self.project / file).read())
         module = metadata.MetadataWrapper(src)
@@ -154,7 +163,7 @@ class HiTyper(PerFileInference):
             qname_prefix = scope
 
             for scope_pred in scope_predictions:
-                for ty in scope_pred.type[: self.topn] or [None]:
+                for n, ty in enumerate(scope_pred.type[: self.topn] or [None]):
                     ty = ty or missing.NA
 
                     match scope_pred.category:
@@ -166,6 +175,7 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.CALLABLE_PARAMETER,
                                     f"{qname_prefix}.{scope_pred.name}",
                                     ty,
+                                    n,
                                 )
                             )
 
@@ -177,6 +187,7 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.CALLABLE_RETURN,
                                     qname_prefix,
                                     ty,
+                                    n,
                                 )
                             )
 
@@ -192,13 +203,25 @@ class HiTyper(PerFileInference):
                                     TypeCollectionCategory.VARIABLE,
                                     qname,
                                     ty,
+                                    n,
                                 )
                             )
-        wout_ssa = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
+
+        if not df_updates:
+            return InferredSchema.example(size=0)
+
+        wout_ssa = [
+            c
+            for c in InferredSchemaColumns
+            if c not in (InferredSchema.qname_ssa, InferredSchema.method)
+        ]
         df = pd.DataFrame(df_updates, columns=wout_ssa)
 
-        df = _helper.generate_qname_ssas_for_file(df)
-        return df.pipe(pt.DataFrame[TypeCollectionSchema])
+        return (
+            df.assign(method=self.method)
+            .pipe(ast_helper.generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[InferredSchema])
+        )
 
 
 class HiTyperLocalDisambig(cst.CSTVisitor):
@@ -215,7 +238,8 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
                 if pred.category == _HiTyperPredictionCategory.LOCAL:
                     self._local_preds[scope].append(pred)
                 else:
-                    self.retained[".".join(_derive_qname(scope))].append(pred)
+                    derived = ".".join(_derive_qname(scope))
+                    self.retained[derived].append(pred)
 
         """ self._local_preds = {
             scope: pred
@@ -233,6 +257,7 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
                 if pred.category != _HiTyperPredictionCategory.LOCAL
             ),
         ) """
+        ...
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         return self._handle_assn_tgt(node.target)
@@ -247,6 +272,12 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
 
             case cst.Attribute(cst.Name("self"), cst.Name(name)):
                 full = f"self.{name}"
+
+            case cst.Tuple(elements) | cst.List(elements):
+                for e in elements:
+                    self._handle_assn_tgt(e)
+
+                return False
 
             case _:
                 return None
@@ -280,10 +311,22 @@ class HiTyperLocalDisambig(cst.CSTVisitor):
             pred = next(filter(lambda p: p.name == name, hints), None)
             if pred is not None:
                 pred.name = full
-                self._local_preds.pop(scope)
+                # self._local_preds.pop(scope)
                 self.retained[".".join(_derive_qname(scope))].append(pred)
 
 
 def _derive_qname(scope: str) -> list[str]:
-    scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
-    return list(filter(bool, reversed(scope.split("@"))))
+    if scope == "global@global":
+        return []
+
+    *funcname, classname = scope.replace(",", ".").split("@")
+    if classname == "global":
+        return funcname
+
+    return [classname, *funcname]
+
+    
+    # scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
+    # non_empties = list(filter(bool, scope.split("@")))
+    # *funcname,
+    # return list(filter(bool, reversed(scope.split("@"))))

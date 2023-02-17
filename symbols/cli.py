@@ -25,7 +25,7 @@ from .collector import build_type_collection
     required=True,
     help="Output path for .tsv",
 )
-def entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
+def cli_entrypoint(root: pathlib.Path, output: pathlib.Path) -> None:
     collection = build_type_collection(root)
     _store(collection, output)
 
@@ -36,4 +36,4 @@ def _store(collection: TypeCollection, output: pathlib.Path) -> None:
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()

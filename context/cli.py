@@ -66,7 +66,7 @@ class Purpose(str, enum.Enum):
     default=False,
     help="1 iff given annotation is user-defined else 0",
 )
-def entrypoint(
+def cli_entrypoint(
     inpath: pathlib.Path,
     loop: bool,
     reassigned: bool,
@@ -86,11 +86,11 @@ def entrypoint(
         generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file))
         for file in codemod.gather_files([str(inpath)])
     ]
-    df = pd.concat(list(filter(lambda d: d is not None, rs)), ignore_index=True).pipe(
-        pt.DataFrame[ContextSymbolSchema]
-    )
-    output.write_context(df, inpath)
+    df = pd.concat(rs, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+
+    print(f"Feature set size: {df.shape}; writing to {output.context_vector_path(inpath)}")
+    output.write_context_vectors(df, inpath)
 
 
 if __name__ == "__main__":
-    entrypoint()
+    cli_entrypoint()

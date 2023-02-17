@@ -17,8 +17,8 @@ from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisitor
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
 from libcst.codemod.visitors._imports import ImportItem
-from libcst.helpers import get_full_name_for_node
-from libcst.metadata import PositionProvider, QualifiedNameProvider
+from libcst.helpers import get_full_name_for_node, get_full_name_for_node_or_raise
+from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider, ClassScope
 
 from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
@@ -105,6 +105,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     """
 
     METADATA_DEPENDENCIES = (
+        ScopeProvider,
         PositionProvider,
         QualifiedNameProvider,
     )
@@ -138,6 +139,8 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         # Store the annotations.
         self.annotations = MultiVarAnnotations.empty()
 
+        self._cst_annassign_hinting: dict[str, cst.Annotation] = {}
+
         self.handle_function_bodies = handle_function_bodies
         self.create_class_attributes = create_class_attributes
         self.track_unannotated = track_unannotated
@@ -166,13 +169,9 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         if self.create_class_attributes:
             # Match exactly one AnnAssign per line without a value
             matcher = m.SimpleStatementLine(
-                body=[
-                    m.AnnAssign(target=m.Name(), annotation=m.Annotation(), value=None)
-                ]
+                body=[m.AnnAssign(target=m.Name(), annotation=m.Annotation(), value=None)]
             )
-            hints: list[cst.AnnAssign] = [
-                ssl for ssl in node.body.body if m.matches(ssl, matcher)
-            ]
+            hints: list[cst.AnnAssign] = [ssl for ssl in node.body.body if m.matches(ssl, matcher)]
 
         else:
             hints = []
@@ -212,37 +211,24 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.qualifier.pop()
 
-    def visit_AnnAssign(
-        self,
-        node: cst.AnnAssign,
-    ) -> bool:
-        name = get_full_name_for_node(node.target)
-        if name is not None:
-            self.qualifier.append(name)
-        annotation_value = self._handle_Annotation(annotation=node.annotation)
-        self.annotations.attributes[".".join(self.qualifier)].append(annotation_value)
-        return True
+    # def visit_AnnAssign(
+    #    self,
+    #    node: cst.AnnAssign,
+    # ) -> bool:
+    #    return True
 
     def leave_AnnAssign(
         self,
         original_node: cst.AnnAssign,
     ) -> None:
-        self.qualifier.pop()
+        return None
 
     def visit_Assign(
         self,
         node: cst.Assign,
     ) -> None:
         self.current_assign = node
-
-        if self.track_unannotated and len(node.targets) == 1:
-            name = get_full_name_for_node(node.targets[0].target)
-            if name is not None:
-                self.qualifier.append(name)
-            # annotation_value = self._handle_Annotation(annotation=node.annotation)
-            # assert False, f"Fork does not support {self.track_unannotated=}"
-
-            self.annotations.attributes[".".join(self.qualifier)].append(None)
+        return self.track_unannotated
 
     def leave_Assign(
         self,
@@ -250,8 +236,60 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.current_assign = None
 
-        if self.qualifier:
+    @m.call_if_inside(m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AnnAssign(self, node: cst.AnnAssign):
+        if type(self.get_metadata(ScopeProvider, node)) is not ClassScope:
+            name = get_full_name_for_node_or_raise(node.target)
+            annotation_value = self._handle_Annotation(annotation=node.annotation)
+
+            self.qualifier.append(name)
+            full_qual = ".".join(self.qualifier)
             self.qualifier.pop()
+
+            # Hinting is used in an assignment; track
+            if node.value is not None:
+                self.annotations.attributes[full_qual].append(annotation_value)
+
+                # If hint was given, drop it
+                if full_qual in self._cst_annassign_hinting:
+                    self._cst_annassign_hinting.pop(full_qual)
+
+            # Otherwise AnnAssign is used purely for hinting; track this,
+            # but do not store hint in attributes
+            else:
+                self._cst_annassign_hinting[full_qual] = annotation_value
+
+    @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
+        self._visit_unannotated_target(node.target)
+        return self.track_unannotated
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_Tuple(self, node: cst.Tuple) -> bool | None:
+        self._visit_unpackable(node.elements)
+        return self.track_unannotated
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_List(self, node: cst.List) -> bool | None:
+        self._visit_unpackable(node.elements)
+        return self.track_unannotated
+
+    def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
+        targets = map(lambda e: e.value, elements)
+        for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
+            self._visit_unannotated_target(target)
+
+    def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
+        if self.track_unannotated:
+            name = get_full_name_for_node_or_raise(target)
+
+            self.qualifier.append(name)
+            fullqual = ".".join(self.qualifier)
+            self.qualifier.pop()
+
+            # Consume stored hint if present
+            hint = self._cst_annassign_hinting.pop(fullqual, None)
+            self.annotations.attributes[fullqual].append(hint)
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))
@@ -308,9 +346,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
                     asname = m.alias
                 else:
                     asname = None
-                AddImportsVisitor.add_needed_import(
-                    self.context, m.module_name, asname=asname
-                )
+                AddImportsVisitor.add_needed_import(self.context, m.module_name, asname=asname)
                 return True
             else:
                 if node and isinstance(node, cst.Name) and node.value != target:
@@ -338,9 +374,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         node: NameOrAttribute,
     ) -> Union[cst.Name, cst.Attribute]:
         qualified_name = _get_unique_qualified_name(self, node)
-        should_qualify = self._handle_qualification_and_should_qualify(
-            qualified_name, node
-        )
+        should_qualify = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
         if should_qualify:
             qualified_node = (
@@ -391,9 +425,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
                     new_slice.append(item.with_changes(slice=new_index))
                 else:
                     if isinstance(item.slice, cst.Index):
-                        new_index = item.slice.with_changes(
-                            value=self._handle_Index(item.slice)
-                        )
+                        new_index = item.slice.with_changes(value=self._handle_Index(item.slice))
                         item = item.with_changes(slice=new_index)
                     new_slice.append(item)
             return new_node.with_changes(slice=tuple(new_slice))

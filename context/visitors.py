@@ -15,14 +15,14 @@ from common.schemas import (
     ContextSymbolSchemaColumns,
     TypeCollectionCategory,
 )
-from common._helper import _stringify, generate_qname_ssas_for_file
+from common.ast_helper import _stringify, generate_qname_ssas_for_file
 
 from context.features import RelevantFeatures
 
 
 def generate_context_vectors_for_file(
     features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
-) -> pt.DataFrame[ContextSymbolSchema] | None:
+) -> pt.DataFrame[ContextSymbolSchema]:
     visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
     module = cst.parse_module(path.open().read())
 
@@ -227,9 +227,9 @@ class ContextVectorVisitor(cst.CSTVisitor):
                     else ContextCategory.INSTANCE_ATTR
                 )
 
-    def build(self) -> pt.DataFrame[ContextSymbolSchema] | None:
+    def build(self) -> pt.DataFrame[ContextSymbolSchema]:
         if not self.dfrs:
-            return None
+            return ContextSymbolSchema.to_schema().example(size=0)
 
         wout_qname_ssa = [c for c in ContextSymbolSchemaColumns if c != "qname_ssa"]
         df = (

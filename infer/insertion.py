@@ -1,44 +1,20 @@
-import functools
+import logging
 import pathlib
 
 from libcst import codemod
 import libcst as cst
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
-from libcst import codemod
 import libcst.matchers as m
 
 import pandera.typing as pt
 
-from common._helper import _stringify
+from common.ast_helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
+from symbols.collector import TypeCollectorVistor
 
-
-class _ParameterHintRemover(cst.CSTTransformer):
-    def leave_Param(self, _: cst.Param, updated_node: cst.Param) -> cst.Param:
-        return updated_node.with_changes(annotation=None)
-
-
-class _ReturnHintRemover(cst.CSTTransformer):
-    def leave_FunctionDef(
-        self, _: cst.FunctionDef, updated_node: cst.FunctionDef
-    ) -> cst.FunctionDef:
-        return updated_node.with_changes(returns=None)
-
-
-class _AssignHintRemover(cst.CSTTransformer):
-    def leave_AnnAssign(
-        self, _: cst.AnnAssign, updated_node: cst.AnnAssign
-    ) -> cst.BaseSmallStatement | cst.RemovalSentinel:
-        if updated_node.value is None:
-            return cst.RemoveFromParent()
-
-        return cst.Assign(targets=[cst.AssignTarget(updated_node.target)], value=updated_node.value)
-
-
-class _HintRemover(_AssignHintRemover, _ParameterHintRemover, _ReturnHintRemover):
-    pass
+from infer.removal import HintRemover
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
@@ -61,24 +37,22 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         module_tycol = self.tycol[self.tycol[TypeCollectionSchema.file] == str(relative)].pipe(
             pt.DataFrame[TypeCollectionSchema]
         )
-        #        req_mod_imports = module_tycol["anno"].str.split(".", n=1, regex=False, expand=True)
-        #        if not req_mod_imports.empty:
-        # viable_imports = req_mod_imports.set_axis(["pkg", "_"], axis=1)
-        # viable_imports = viable_imports[
-        # viable_imports["_"].notna() & viable_imports["pkg"].str.islower()
-        # ].drop_duplicates(keep="first")
-        # pkgs = viable_imports["pkg"].values
-        #
-        # for pkg in pkgs:
-        # AddImportsVisitor.add_needed_import(self.context, pkg)
 
-        removed = tree.visit(_HintRemover())
+        AddImportsVisitor.add_needed_import(self.context, "typing")
+        # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
-        with_ssa_qnames = FromQName2SSAQNameTransformer(
+        removed = tree.visit(HintRemover(self.context))
+
+        symbol_collector = TypeCollectorVistor.strict(context=self.context)
+        symbol_collector.transform_module(removed)
+
+        with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(removed)
 
-        annotations = TypeCollection.to_libcst_annotations(module_tycol)
+        annotations = TypeCollection.to_libcst_annotations(
+            module_tycol, symbol_collector.collection.df
+        )
 
         # Due to renaming, it it safe to use LibCST's implementation for this!
         hinted = ApplyTypeAnnotationsVisitor(
@@ -90,12 +64,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             create_class_attributes=True,
         ).transform_module(with_ssa_qnames)
 
-        # ApplyTypeAnnotationsVisitor.store_stub_in_context(self.context, hinted)
-        # imported = ApplyTypeAnnotationsVisitor(
-        #    context=self.context, overwrite_existing_annotations=False
-        # ).transform_module(hinted)
-
-        with_qnames = FromSSAQName2QnameTransformer(
+        with_qnames = SSA2QNameTransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(hinted)
 
@@ -125,20 +94,13 @@ class ScopeAwareTransformer(codemod.ContextAwareTransformer):
         return self._scope[-1] if self._scope else tuple()
 
 
-class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
+class QName2SSATransformer(ScopeAwareTransformer):
     def __init__(
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
         self.annotations = annotations.copy().assign(consumed=0)
-
-    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        unconsumed = self.annotations[self.annotations["consumed"] != 1]
-        assert (
-            unconsumed.empty
-        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname, TypeCollectionSchema.qname_ssa]].values()}"
-
-        return updated_node
+        self.logger = logging.getLogger(QName2SSATransformer.__qualname__)
 
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
@@ -164,7 +126,9 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
                 self.annotations["consumed"] != 1
             )
             candidates = self.annotations.loc[cand_mask]
-            assert not candidates.empty, f"Could not lookup {full_qname}; {self.annotations}"
+            if candidates.empty:
+                # self.logger.warning(f"Could not lookup {full_qname}")
+                return None
 
             qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
             qname_ssa = str(qname_ssa_ser.iloc[0])
@@ -177,23 +141,27 @@ class FromQName2SSAQNameTransformer(ScopeAwareTransformer):
 
             return e
 
-        return None
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elem_ts = map(type, node.elements)
+            elements = [
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
+            ]
+            return ctor(elements)
+
+        else:
+            return None
 
 
-class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
+class SSA2QNameTransformer(ScopeAwareTransformer):
     def __init__(
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
     ) -> None:
         super().__init__(context)
-        self.annotations = annotations.copy().assign(consumed=0)
-
-    def leave_Module(self, _: cst.Module, updated_node: cst.Module) -> cst.Module:
-        unconsumed = self.annotations[self.annotations["consumed"] != 1]
-        assert (
-            unconsumed.empty
-        ), f"Failed to apply qname_ssas for {unconsumed[[TypeCollectionSchema.qname_ssa, TypeCollectionSchema.qname]].values()}"
-
-        return updated_node
+        self.annotations = annotations
+        self.logger = logging.getLogger(SSA2QNameTransformer.__qualname__)
 
     def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
@@ -217,13 +185,12 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
 
             cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
             candidates = self.annotations.loc[cand_mask]
+            if candidates.empty:
+                # self.logger.warning(f"Could not lookup {full_qname_ssa}")
+                return
 
             qname_ser = candidates[TypeCollectionSchema.qname]
             qname = qname_ser.iloc[0]
-            assert (
-                candidates["consumed"].iloc[0] == 0
-            ), f"Attempted to reapply {full_qname_ssa} -> {qname} more than once!"
-            self.annotations.at[qname_ser.index[0], "consumed"] = 1
 
             if s:
                 qname = qname.removeprefix(s + ".")
@@ -232,4 +199,15 @@ class FromSSAQName2QnameTransformer(ScopeAwareTransformer):
 
             return e
 
-        return None
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elem_ts = map(type, node.elements)
+            elements = [
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
+            ]
+            return ctor(elements)
+
+        else:
+            return None

@@ -113,6 +113,7 @@ class SubtypeVoting(IterativeResolution):
                 "qname": [metadata.qname],
                 "qname_ssa": [metadata.qname_ssa],
                 "anno": [anno],
+                "topn": [0],
             }
         )
 

@@ -1,5 +1,5 @@
-from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
-from .resolution import ConflictResolution, SubtypeVoting, Delegation
+from infer.inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
+from icr.resolution import ConflictResolution, SubtypeVoting, Delegation
 
 _INFERENCE_FACTORY: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
@@ -11,7 +11,7 @@ _INFERENCE_FACTORY: dict[str, type[Inference]] = {
 }
 
 
-def _inference_factory(value: str | None) -> type[Inference]:
+def _inference_factory(value: str) -> type[Inference]:
     return _INFERENCE_FACTORY[value.lower()]
 
 
@@ -21,5 +21,5 @@ _ENGINE_FACTORY: dict[str, type[ConflictResolution]] = {
 }
 
 
-def _engine_factory(value: str | None) -> type[ConflictResolution]:
+def _engine_factory(value: str) -> type[ConflictResolution]:
     return _ENGINE_FACTORY[value.lower()]

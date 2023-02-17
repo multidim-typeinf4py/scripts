@@ -4,8 +4,9 @@ from pyre_check.client import command_arguments, commands, configuration
 
 from . import _adaptors
 
-from ._base import ProjectWideInference, scratchpad, working_dir
-from common.schemas import TypeCollectionSchema
+from ._base import ProjectWideInference
+from utils import scratchpad, working_dir
+from common.schemas import InferredSchema, TypeCollectionSchema
 
 from libcst.codemod import _cli as cstcli
 
@@ -15,7 +16,7 @@ class PyreInfer(ProjectWideInference):
 
     _OUTPUT_DIR = ".pyre-stubs"
 
-    def _infer_project(self) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
         with scratchpad(self.project) as sp, working_dir(sp):
             config = configuration.create_configuration(
                 arguments=command_arguments.CommandArguments(
@@ -40,4 +41,8 @@ class PyreInfer(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            return _adaptors.hints2df(sp)
+            return (
+                _adaptors.hints2df(sp)
+                .assign(method=self.method, topn=0)
+                .pipe(pt.DataFrame[InferredSchema])
+            )

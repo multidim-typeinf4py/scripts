@@ -6,7 +6,8 @@ import libcst.codemod._cli as cstcli
 from mypy import stubgen
 
 from . import _adaptors
-from ._base import ProjectWideInference, scratchpad
+from ._base import ProjectWideInference
+from utils import scratchpad
 from common.schemas import TypeCollectionSchema
 
 

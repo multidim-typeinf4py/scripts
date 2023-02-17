@@ -1,12 +1,9 @@
 from ast import literal_eval
-import collections
-import functools
 import itertools
 import operator
 import pathlib
 import pickle
 import re
-import sys
 from typing import List, no_type_check
 from os.path import splitext, basename, join
 import libcst as cst
@@ -15,7 +12,7 @@ import libcst.metadata as metadata
 from common.storage import TypeCollection
 
 from ._base import PerFileInference
-from common.schemas import TypeCollectionSchema
+from common.schemas import InferredSchema
 
 from gensim.models import Word2Vec
 import numpy as np
@@ -199,7 +196,7 @@ class TypeWriter(PerFileInference):
         super().__init__(project)
         self.topn = 3
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         import tempfile
 
         TD = tempfile.TemporaryDirectory()
@@ -302,9 +299,7 @@ class TypeWriter(PerFileInference):
             id_trans_func_param,
         )
         if dp_ids_params is False:
-            return pt.DataFrame[TypeCollectionSchema](
-                columns=TypeCollectionSchema.to_schema().columns
-            )
+            return InferredSchema.to_schema().example(size=0)
         dp_ids_ret = process_datapoints_TW(
             join(TEMP_DIR, "ext_funcs_ret.csv"), TEMP_DIR, "identifiers_", "ret", id_trans_func_ret
         )
@@ -433,7 +428,7 @@ class TypeWriter(PerFileInference):
             arg_batches.append(arg_batch)
             ret_batches.append(ret_batch)
 
-        for arg_batch, ret_batch in zip(arg_batches, ret_batches):
+        for n, (arg_batch, ret_batch) in enumerate(zip(arg_batches, ret_batches)):
             visitor = Typewriter2Annotations(arg_batch, ret_batch)
             metadata.MetadataWrapper(module).visit(visitor)
 
@@ -441,9 +436,9 @@ class TypeWriter(PerFileInference):
             collection = TypeCollection.from_annotations(
                 file=relative, annotations=annotations, strict=True
             )
-            collections.append(collection.df)
+            collections.append(collection.df.assign(method=self.method, topn=n))
 
-        return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[TypeCollectionSchema])
+        return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[InferredSchema])
 
 
 class Typewriter2Annotations(cst.CSTVisitor):

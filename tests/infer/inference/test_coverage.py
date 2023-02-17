@@ -1,19 +1,20 @@
 import pathlib
 
 from common.schemas import InferredSchema
-from tests.icr.helpers import dfassertions
 
-from icr.inference._base import Inference
-from icr.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
+from infer.inference._base import Inference
+from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter
+
+from . import dfassertions
 
 import pytest
-
 import pandera.typing as pt
 
 
 @pytest.fixture(
     scope="class",
     params=[HiTyper, PyreInfer, PyreQuery, Type4Py, TypeWriter],
+    # params=[HiTyper],
     ids=lambda e: e.__qualname__,
 )
 def methoddf(request) -> tuple[str, pt.DataFrame[InferredSchema]]:
@@ -191,5 +192,15 @@ class TestCoverage:
     def test_unique(self, methoddf: tuple[str, pt.DataFrame[InferredSchema]]):
         method, df = methoddf
         # unique based on slot, e.g. parameter and variable can be the same
-        dups = df[df.duplicated(subset=["category", "qname", "anno"], keep=False)]
+        dups = df[
+            df.duplicated(
+                subset=[
+                    InferredSchema.category,
+                    InferredSchema.qname_ssa,
+                    InferredSchema.anno,
+                    InferredSchema.topn,
+                ],
+                keep=False,
+            )
+        ]
         assert dups.empty, str(dups)

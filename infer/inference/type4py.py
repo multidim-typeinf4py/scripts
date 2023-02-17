@@ -1,11 +1,9 @@
-import functools
 import itertools
 import operator
 import pathlib
-import typing
 import requests
 
-from common.schemas import TypeCollectionSchema, TypeCollectionSchemaColumns
+from common.schemas import InferredSchema
 from common.storage import TypeCollection
 from ._base import PerFileInference
 
@@ -15,9 +13,7 @@ from common.annotations import (
     FunctionAnnotation,
 )
 import libcst as cst
-import libcst.matchers as m
 import libcst.metadata as metadata
-from libcst.metadata.scope_provider import LocalScope
 
 import pandera.typing as pt
 import pydantic
@@ -56,7 +52,7 @@ class _Type4PyClass(NullifyEmptyDictModel):
 class _Type4PyResponse(NullifyEmptyDictModel):
     classes: list[_Type4PyClass]
     funcs: list[_Type4PyFunc]
-    mod_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]]
+    mod_var_ln: dict[str, tuple[tuple[int, int], tuple[int, int]]] | None
     variables_p: _Type4PyName2Hint | None
 
 
@@ -80,9 +76,9 @@ class _Type4PyAnswer(pydantic.BaseModel):
 class Type4Py(PerFileInference):
     method = "type4py"
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         with (self.project / relative).open() as f:
-            r = requests.post("http://localhost:5001/api/predict?tc=0", f.read())
+            r = requests.post("http://localhost:5001/api/predict?tc=0", f.read().encode("utf-8"))
             # print(r.text)
 
         answer = _Type4PyAnswer.parse_raw(r.text)
@@ -92,13 +88,13 @@ class Type4Py(PerFileInference):
             print(
                 f"WARNING: {Type4Py.__qualname__} failed for {self.project / relative} - {answer.error}"
             )
-            return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+            return InferredSchema.to_schema().example(size=0)
 
         if answer.response is None:
             print(
                 f"WARNING: {Type4Py.__qualname__} couldnt infer anything for {self.project / relative}"
             )
-            return pt.DataFrame[TypeCollectionSchema](columns=TypeCollectionSchemaColumns)
+            return InferredSchema.to_schema().example(size=0)
 
         src = (self.project / relative).open().read()
         module = cst.MetadataWrapper(cst.parse_module(src))
@@ -112,7 +108,7 @@ class Type4Py(PerFileInference):
         collection = TypeCollection.from_annotations(
             file=relative, annotations=annotations, strict=True
         )
-        return collection.df
+        return collection.df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
 
 
 class Type4Py2Annotations(cst.CSTVisitor):
@@ -331,11 +327,16 @@ class Type4Py2Annotations(cst.CSTVisitor):
 
             (hint, _) = hints[0]
 
-            self.annotations.attributes[
+            attr_name = (
                 f"{func.q_name}.{method_self}.{variable}"
                 if isinstance(node, cst.Attribute)
                 else f"{func.q_name}.{variable}"
-            ].append(cst.Annotation(cst.parse_expression(hint)))
+            )
+            attr_name = attr_name.replace(".<locals>.", ".")
+
+            self.annotations.attributes[attr_name].append(
+                cst.Annotation(cst.parse_expression(hint))
+            )
             return None
 
     def _handle_assgn_in_function(
@@ -358,13 +359,17 @@ class Type4Py2Annotations(cst.CSTVisitor):
                 continue
 
             (hint, _) = hints[0]
-            self.annotations.attributes[f"{func.q_name}.{variable}"].append(
+            qual_scope = f"{func.q_name}.{variable}".replace(".<locals>.", ".")
+            self.annotations.attributes[qual_scope].append(
                 cst.Annotation(cst.parse_expression(hint))
             )
 
             return None
 
     def _handle_global_var(self, node: cst.BaseAssignTargetExpression) -> None:
+        if not self._answer.response.mod_var_ln:
+            return None
+
         if not isinstance(node, cst.Name) or not self._answer.response.variables_p:
             return None
 
@@ -409,7 +414,7 @@ class Type4Py2Annotations(cst.CSTVisitor):
             if clazz.q_name == clazz_qname
         ]
 
-        assert len(ms) <= 1
+        assert len(ms) <= 1, f"Found more than one prediction for {method_qname}"
         return ms[0] if ms else None
 
     def _class_scope(self, node: cst.CSTNode) -> metadata.ClassScope | None:
