@@ -113,6 +113,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         ident = _stringify(node.target)
+        fullqual = ".".join((*self.scope(), ident))
 
         if node.value is not None:
             match self.get_metadata(metadata.ScopeProvider, node):
@@ -122,6 +123,9 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
                 case _:
                     category = TypeCollectionCategory.VARIABLE
 
+            if fullqual in self._annassign_hinting:
+                self._annassign_hinting.pop(fullqual)
+
             self._handle_annotatable(
                 annotatable=node.target,
                 identifier=ident,
@@ -130,7 +134,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             )
 
         else:
-            self._annassign_hinting[ident] = node.annotation
+            self._annassign_hinting[fullqual] = node.annotation
 
     @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
