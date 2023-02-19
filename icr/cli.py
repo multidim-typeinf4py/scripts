@@ -120,9 +120,9 @@ def cli_entrypoint(
         inference_df = eng.resolve(tool2icr)
 
     else:
-        tool, inference_df = next((tool, df) for tool, df in tool2icr.items())
+        tool, icr_df = next((tool, df) for tool, df in tool2icr.items())
 
-        inference_df = inference_df.loc[
+        inference_df = icr_df.loc[
             inference_df.groupby(
                 by=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
                 sort=False,
