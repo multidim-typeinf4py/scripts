@@ -14,7 +14,7 @@ from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
 from symbols.collector import TypeCollectorVistor
 
-from infer.removal import HintRemover
+from libsa4py.cst_transformers import TypeAnnotationRemover
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
@@ -41,7 +41,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         AddImportsVisitor.add_needed_import(self.context, "typing")
         # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
-        removed = tree.visit(HintRemover(self.context))
+        removed = tree.visit(TypeAnnotationRemover())
 
         symbol_collector = TypeCollectorVistor.strict(context=self.context)
         symbol_collector.transform_module(removed)

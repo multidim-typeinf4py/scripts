@@ -13,7 +13,7 @@ from utils import format_parallel_exec_result, scratchpad, top_preds_only
 from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 
 from libcst import codemod
-
+from libsa4py.cst_transformers import TypeAnnotationRemover
 
 @click.command(
     name="infer",
@@ -69,7 +69,7 @@ def cli_entrypoint(
         if remove_annos:
             print(f"--remove-annos provided, removing annotations on '{sc}'")
             result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=HintRemover(codemod.CodemodContext()),
+                transform=TypeAnnotationRemover(),
                 files=codemod.gather_files([str(sc)]),
                 repo_root=str(sc),
             )
