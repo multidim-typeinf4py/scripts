@@ -3,8 +3,10 @@ import operator
 import pathlib
 import requests
 
+import json
+
 from common.schemas import InferredSchema
-from common.storage import TypeCollection
+from symbols.collector import TypeCollectorVistor
 from ._base import PerFileInference
 
 from common.annotations import (
@@ -13,7 +15,10 @@ from common.annotations import (
     FunctionAnnotation,
 )
 import libcst as cst
+from libcst import codemod
 import libcst.metadata as metadata
+
+from libsa4py.cst_transformers import TypeApplier
 
 import pandera.typing as pt
 import pydantic
@@ -58,19 +63,7 @@ class _Type4PyResponse(NullifyEmptyDictModel):
 
 class _Type4PyAnswer(pydantic.BaseModel):
     error: str | None
-    response: _Type4PyResponse | None
-
-
-# NOTE: THERE IS A BUG / THERE IS AMBIGUITY IN THE PREDICTIONS OF TYPE4PY!!
-# NOTE: The returned JSON does not discriminate between attributes and variables,
-# NOTE: meaning one prediction is overwritten by the other. MRE follows:
-
-# NOTE: class C:
-# NOTE:     def f(self, i):
-# NOTE:         self.very_specific_name = 5
-# NOTE:         very_specific_name = "String"
-
-# NOTE: This is "handled" by referencing the span of the variable stated in Type4Py's JSON
+    response: dict | None
 
 
 class Type4Py(PerFileInference):
@@ -88,368 +81,33 @@ class Type4Py(PerFileInference):
             print(
                 f"WARNING: {Type4Py.__qualname__} failed for {self.project / relative} - {answer.error}"
             )
-            return InferredSchema.to_schema().example(size=0)
+            return InferredSchema.example(size=0)
 
         if answer.response is None:
             print(
                 f"WARNING: {Type4Py.__qualname__} couldnt infer anything for {self.project / relative}"
             )
-            return InferredSchema.to_schema().example(size=0)
+            return InferredSchema.example(size=0)
 
         src = (self.project / relative).open().read()
         module = cst.MetadataWrapper(cst.parse_module(src))
 
         # Callables
-        anno_maker = Type4Py2Annotations(answer=answer)
-        module.visit(anno_maker)
+        # anno_maker = Type4Py2Annotations(answer=answer)
+        inferred = module.visit(TypeApplier(f_processeed_dict=answer.response, apply_nlp=False))
 
-        annotations = anno_maker.annotations
-
-        collection = TypeCollection.from_annotations(
-            file=relative, annotations=annotations, strict=True
-        )
-        return collection.df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
-
-
-class Type4Py2Annotations(cst.CSTVisitor):
-    METADATA_DEPENDENCIES = (
-        metadata.PositionProvider,
-        metadata.QualifiedNameProvider,
-        metadata.ScopeProvider,
-    )
-    """Type4Py's predictions for callables are ordered alphabetically...
-    And reassigning simply overwrites the previous prediction
-    Parse files to determine correct annotating"""
-
-    def __init__(self, answer: _Type4PyAnswer) -> None:
-        super().__init__()
-        self.annotations = MultiVarAnnotations.empty()
-        self._answer = answer.copy(deep=True)
-
-        # qualified callable name and the name of the class's this (None in functions)
-        self._method_callable: tuple[str, str | None] | None = None
-
-    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
-        assert (fqname := self.get_metadata(metadata.QualifiedNameProvider, node)) is not None
-        fqnames = [fn.name for fn in fqname]
-        assert len(fqnames) == 1
-
-        # Functions
-        indirect_clazz_scope = self._class_scope(node)
-        if indirect_clazz_scope is None and (f := self._func(func_qname=fqnames[0])) is not None:
-            key = FunctionKey.make(f.q_name.replace(".<locals>.", "."), node.params)
-            self.annotations.functions[key] = self._handle_func(f, node.params)
-
-        # Methods
-        if (
-            indirect_clazz_scope is not None
-            and (class_qname := indirect_clazz_scope.name) is not None
-            and (f := self._method(clazz_qname=class_qname, method_qname=fqnames[0])) is not None
-        ):
-            key = FunctionKey.make(f.q_name.replace(".<locals>.", "."), node.params)
-            self.annotations.functions[key] = self._handle_func(f, node.params)
-
-        # Mark callables when trying to assign variables
-        if (scope := self.get_metadata(metadata.ScopeProvider, node)) is not None:
-            match scope:
-                # Method
-                case metadata.ClassScope():
-                    method_self: str | None = next(
-                        map(lambda p: p.name.value, node.params.params), None
-                    )
-
-                # Function
-                case _:
-                    method_self = None
-
-            self._method_callable = (fqnames[0], method_self)
-
-        else:
-            self._method_callable = None
-
-        return None
-
-    def leave_FunctionDef(self, _: cst.FunctionDef) -> None:
-        self._method_callable = None
-        return None
-
-    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
-        return self._handle_assign_target(node.target)
-
-    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        return self._handle_assign_target(node.target)
-
-    def _handle_assign_target(self, node: cst.BaseAssignTargetExpression) -> None:
-        if (scope := self.get_metadata(metadata.ScopeProvider, node)) is None:
-            return
-
-        # Attempt to assign to variables and handle bug with identically named vars
-        code = cst.Module([node]).code
-        match (self._method_callable, scope.parent, scope):
-            # Method
-            case (str(qmethod), str(method_self)), metadata.ClassScope(), metadata.FunctionScope():
-                # print(f"{code} is being treated as assignment in method")
-                self._handle_assgn_in_method(
-                    node,
-                    clazz_qname=scope.parent.name,
-                    method_qname=qmethod,
-                    method_self=method_self,
-                )
-
-            # Function
-            case (str(qfunc), _), _, metadata.FunctionScope():
-                # print(f"{code} is being treated as assignment in function")
-                self._handle_assgn_in_function(node, funcqname=qfunc)
-
-            # Class attr
-            case None, _, metadata.ClassScope():
-                # print(f"{code} is being treated as assignment to class attr")
-                self._handle_class_attr(node, clazz_qname=scope.name)
-
-            # Global variable
-            case None, _, metadata.GlobalScope():
-                self._handle_global_var(node)
-
-            case _:
-                print(f"{code} is being ignored")
-                return None
-
-    def _handle_class_attr(self, node: cst.BaseAssignTargetExpression, clazz_qname: str) -> None:
-        # Class attributes
-        if not isinstance(node, cst.Name):
-            return None
-
-        attr = self._clazz_attr(clazz_qname=clazz_qname, attr_name=node.value)
-        if attr is None:
-            return
-
-        variable, hints = attr
-        (hint, _) = hints[0]
-
-        clazz_name = clazz_qname.split(".")[-1]
-        if clazz_qname not in self.annotations.class_definitions:
-            self.annotations.class_definitions[clazz_qname] = cst.ClassDef(
-                name=cst.Name(clazz_name), body=cst.IndentedBlock(body=[])
-            )
-
-        body = self.annotations.class_definitions[f"{clazz_qname}"].body
-        body = cst.IndentedBlock(
-            body=[
-                *body.body,
-                cst.SimpleStatementLine(
-                    body=[
-                        cst.AnnAssign(
-                            target=cst.Name(variable),
-                            annotation=cst.Annotation(cst.parse_expression(hint)),
-                        )
-                    ]
+        collector = TypeCollectorVistor.strict(
+            context=codemod.CodemodContext(
+                filename=str(self.project / relative),
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=str(self.project),
+                    paths=[str(self.project / relative)],
+                    providers=[],
                 ),
-            ]
+            )
         )
+        inferred = collector.transform_module(inferred)
 
-        self.annotations.class_definitions[clazz_qname] = cst.ClassDef(
-            name=cst.Name(clazz_name), body=body
+        return collector.collection.df.assign(method="type4py", topn=0).pipe(
+            pt.DataFrame[InferredSchema]
         )
-        return None
-
-    def _handle_func(self, f: _Type4PyFunc, params: cst.Parameters) -> FunctionAnnotation:
-        num_params: list[cst.Param] = list()
-        kwonly_params: list[cst.Param] = list()
-        posonly_params: list[cst.Param] = list()
-
-        posonly_param_names = set(map(lambda p: p.name.value, params.posonly_params))
-        kwonly_param_names = set(map(lambda p: p.name.value, params.kwonly_params))
-        param_names = set(map(lambda p: p.name.value, params.params))
-
-        for variable, hints in (f.params_p or dict()).items():
-            if not hints:
-                continue
-
-            hint, _ = hints[0]
-            param = cst.Param(
-                name=cst.Name(variable), annotation=cst.Annotation(cst.parse_expression(hint))
-            )
-
-            if variable in param_names:
-                num_params.append(param)
-            elif variable in kwonly_param_names:
-                kwonly_params.append(param)
-            elif variable in posonly_param_names:
-                posonly_params.append(param)
-            else:
-                raise RuntimeError(
-                    f"{variable} is neither a parameter, nor a pos-only, not a kw-only parameter of {f.q_name}"
-                )
-
-        ps = cst.Parameters(
-            params=num_params,
-            kwonly_params=kwonly_params,
-            posonly_params=posonly_params,
-        )
-
-        match f.ret_type_p:
-            case [(hint, _), *_]:
-                annoexpr: cst.Annotation | None = cst.Annotation(cst.parse_expression(hint))
-            case _:
-                annoexpr = None
-
-        return FunctionAnnotation(parameters=ps, returns=annoexpr)
-
-    def _handle_assgn_in_method(
-        self,
-        node: cst.BaseAssignTargetExpression,
-        clazz_qname: str,
-        method_qname: str,
-        method_self: str,
-    ) -> None:
-        match node:
-            case cst.Name(value=ident):
-                span = self.get_metadata(metadata.PositionProvider, node)
-
-            case cst.Attribute(value=cst.Name(method_self), attr=cst.Name(ident)):
-                span = self.get_metadata(metadata.PositionProvider, node)
-
-            case _:
-                return None
-
-        if (func := self._method(clazz_qname=clazz_qname, method_qname=method_qname)) is None:
-            print(f"cannot find {clazz_qname=} @ {method_qname=}")
-            return
-        for variable, hints in (func.variables_p or dict()).items():
-            if not hints or ident != variable:
-                continue
-
-            # if (resp_span := func.fn_var_ln.get(variable)) is None:
-            #    continue
-
-            # if not self._span_matches(node, resp_span, span):
-            #     continue
-
-            (hint, _) = hints[0]
-
-            attr_name = (
-                f"{func.q_name}.{method_self}.{variable}"
-                if isinstance(node, cst.Attribute)
-                else f"{func.q_name}.{variable}"
-            )
-            attr_name = attr_name.replace(".<locals>.", ".")
-
-            self.annotations.attributes[attr_name].append(
-                cst.Annotation(cst.parse_expression(hint))
-            )
-            return None
-
-    def _handle_assgn_in_function(
-        self, node: cst.BaseAssignTargetExpression, funcqname: str
-    ) -> None:
-        if not isinstance(node, cst.Name):
-            return None
-
-        if (func := self._func(func_qname=funcqname)) is None:
-            return None
-
-        for variable, hints in (func.variables_p or dict()).items():
-            if not hints or node.value != variable:
-                continue
-
-            if (resp_span := func.fn_var_ln.get(variable)) is None:
-                continue
-
-            if not self._span_matches(node, resp_span):
-                continue
-
-            (hint, _) = hints[0]
-            qual_scope = f"{func.q_name}.{variable}".replace(".<locals>.", ".")
-            self.annotations.attributes[qual_scope].append(
-                cst.Annotation(cst.parse_expression(hint))
-            )
-
-            return None
-
-    def _handle_global_var(self, node: cst.BaseAssignTargetExpression) -> None:
-        if not self._answer.response.mod_var_ln:
-            return None
-
-        if not isinstance(node, cst.Name) or not self._answer.response.variables_p:
-            return None
-
-        if not (hints := self._answer.response.variables_p[node.value]):
-            return None
-
-        if not self._span_matches(node, self._answer.response.mod_var_ln[node.value]):
-            return None
-
-        (hint, _) = hints[0]
-        self.annotations.attributes[node.value].append(cst.Annotation(cst.parse_expression(hint)))
-
-        return None
-
-    def _clazz_attr(
-        self, clazz_qname: str, attr_name: str
-    ) -> tuple[str, list[tuple[str, float]]] | None:
-        cs = [
-            (variable, hints)
-            for clazz in self._answer.response.classes
-            if clazz.variables_p
-            for variable, hints in clazz.variables_p.items()
-            if variable == attr_name
-            if clazz.variables_p is not None and clazz.q_name == clazz_qname
-        ]
-
-        assert len(cs) <= 1
-        return cs[0] if cs else None
-
-    def _func(self, func_qname: str) -> _Type4PyFunc | None:
-        fs = [func for func in self._answer.response.funcs if func.q_name == func_qname]
-
-        assert len(fs) <= 1
-        return fs[0] if fs else None
-
-    def _method(self, clazz_qname: str, method_qname: str) -> _Type4PyFunc | None:
-        ms = [
-            func
-            for clazz in self._answer.response.classes
-            for func in clazz.funcs
-            if func.q_name == method_qname
-            if clazz.q_name == clazz_qname
-        ]
-
-        assert len(ms) <= 1, f"Found more than one prediction for {method_qname}"
-        return ms[0] if ms else None
-
-    def _class_scope(self, node: cst.CSTNode) -> metadata.ClassScope | None:
-        def _scope_recursion(scope: metadata.Scope) -> metadata.ClassScope | None:
-            if isinstance(scope, metadata.BuiltinScope):
-                return None
-
-            if isinstance(scope, metadata.ClassScope):
-                return scope
-
-            return _scope_recursion(scope.parent)
-
-        scope = self.get_metadata(metadata.ScopeProvider, node)
-        if scope is None:
-            return None
-
-        if isinstance(scope, metadata.ClassScope):
-            return scope
-
-        return _scope_recursion(scope.parent)
-
-    def _span_matches(
-        self,
-        node: cst.CSTNode,
-        resp_span: tuple[tuple[int, int], tuple[int, int]],
-        rnge: metadata.CodeRange | None = None,
-    ) -> bool:
-        span = rnge or self.get_metadata(metadata.PositionProvider, node)
-
-        (resp_start_line, resp_start_col), (resp_stop_line, resp_stop_col) = resp_span
-        align = [
-            (resp_start_line, span.start.line),
-            (resp_start_col, span.start.column),
-            (resp_stop_line, span.end.line),
-            (resp_stop_col, span.end.column),
-        ]
-
-        return all(itertools.starmap(operator.eq, align))
