@@ -6,8 +6,11 @@ import pandera.typing as pt
 
 import pandas as pd
 from pandas._libs import missing
+
 import libcst as cst
 import libcst.metadata as metadata
+from libcst import matchers as m
+from libcst.helpers import get_full_name_for_node_or_raise
 
 from common.schemas import (
     ContextCategory,
@@ -32,10 +35,28 @@ def generate_context_vectors_for_file(
     return visitor.build()
 
 
-class ContextVectorVisitor(cst.CSTVisitor):
+class ContextVectorVisitor(m.MatcherDecoratableVisitor):
+    ContextVector = collections.namedtuple(
+        "ContextVector",
+        [
+            ContextSymbolSchema.file,
+            ContextSymbolSchema.category,
+            ContextSymbolSchema.qname,
+            ContextSymbolSchema.anno,
+            ContextSymbolSchema.loop,
+            ContextSymbolSchema.reassigned,
+            ContextSymbolSchema.nested,
+            ContextSymbolSchema.user_defined,
+            ContextSymbolSchema.branching,
+            ContextSymbolSchema.ctxt_category,
+        ],
+    )
+
     METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
 
     def __init__(self, filepath: str, features: RelevantFeatures) -> None:
+        super().__init__()
+
         self.features: RelevantFeatures = features
 
         self.scope_stack: list[tuple[str, ...]] = []
@@ -44,7 +65,12 @@ class ContextVectorVisitor(cst.CSTVisitor):
         self.filepath = filepath
         self.loop_stack: list[cst.CSTNode] = []
 
-        self.dfrs: list[tuple[str, str, str, int, int, int, int, int, int]] = []
+        self.dfrs: list[ContextVectorVisitor.ContextVector] = []
+
+        self._annassign_hinting: dict[str, cst.Annotation] = dict()
+
+
+        self._noncst_metadata: dict[str, ] = dict()
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
         self._handle_annotatable(
@@ -85,29 +111,60 @@ class ContextVectorVisitor(cst.CSTVisitor):
     def leave_Else(self, _: cst.Else) -> None:
         self._leave_branch()
 
-    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        ident = _stringify(node.target)
-        self._handle_annotatable(
-            annotatable=node.target,
-            identifier=ident,
-            annotation=None,
-            category=TypeCollectionCategory.VARIABLE,
-        )
-
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
-        match self.get_metadata(metadata.ScopeProvider, node):
+        ident = _stringify(node.target)
+
+        if node.value is not None:
+            match self.get_metadata(metadata.ScopeProvider, node):
+                case metadata.ClassScope():
+                    category = TypeCollectionCategory.CLASS_ATTR
+
+                case _:
+                    category = TypeCollectionCategory.VARIABLE
+
+            self._handle_annotatable(
+                annotatable=node.target,
+                identifier=ident,
+                annotation=node.annotation,
+                category=category,
+            )
+
+        else:
+            self._annassign_hinting[ident] = node.annotation
+
+    @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
+        self._visit_unannotated_target(node.target)
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_Tuple(self, node: cst.Tuple) -> bool | None:
+        self._visit_unpackable(node.elements)
+
+    @m.call_if_inside(m.AssignTarget())
+    def visit_List(self, node: cst.List) -> bool | None:
+        self._visit_unpackable(node.elements)
+
+    def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
+        targets = map(lambda e: e.value, elements)
+        for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
+            self._visit_unannotated_target(target)
+
+    def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
+        name = get_full_name_for_node_or_raise(target)
+        fullqual = self.qname_within_scope(name)
+
+        # Consume stored hint if present
+        hint = self._annassign_hinting.pop(fullqual, None)
+
+        match self.get_metadata(metadata.ScopeProvider, target):
             case metadata.ClassScope():
                 category = TypeCollectionCategory.CLASS_ATTR
 
             case _:
                 category = TypeCollectionCategory.VARIABLE
 
-        ident = _stringify(node.target)
         self._handle_annotatable(
-            annotatable=node.target,
-            identifier=ident,
-            annotation=node.annotation,
-            category=category,
+            annotatable=target, identifier=_stringify(target), annotation=hint, category=category
         )
 
     def _update_scope_stack(self, name: str) -> None:
@@ -126,9 +183,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
         return self.scope_stack[-1] if self.scope_stack else tuple()
 
     def qname_within_scope(self, identifier: str) -> str:
-        if s := self.scope():
-            return f"{'.'.join(s)}.{identifier}"
-        return identifier
+        return ".".join((*self.scope(), identifier))
 
     def visit_While(self, node: cst.While) -> bool | None:
         self.loop_stack.append(node)
@@ -159,7 +214,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
         qname = self.qname_within_scope(identifier)
 
         self.dfrs.append(
-            (
+            ContextVectorVisitor.ContextVector(
                 self.filepath,
                 category,
                 qname,
@@ -229,7 +284,7 @@ class ContextVectorVisitor(cst.CSTVisitor):
 
     def build(self) -> pt.DataFrame[ContextSymbolSchema]:
         if not self.dfrs:
-            return ContextSymbolSchema.to_schema().example(size=0)
+            return ContextSymbolSchema.example(size=0)
 
         wout_qname_ssa = [c for c in ContextSymbolSchemaColumns if c != "qname_ssa"]
         df = (
@@ -249,12 +304,10 @@ class ContextVectorVisitor(cst.CSTVisitor):
 
         # Annotatables in flow control do not have to be marked as "reassigned" as long as there are no
         # occurrences of the same annotatable beforehand
-        questionable_branching = df[
-            (df[ContextSymbolSchema.branching] == 1) & (df[ContextSymbolSchema.reassigned] == 1)
-        ]
+        questionable_branching = (df[ContextSymbolSchema.branching] == 1) & (df[ContextSymbolSchema.reassigned] == 1)
         questionable_qnames = df.loc[questionable_branching, ContextSymbolSchema.qname]
 
-        false_reassigned = ...
+        #false_reassigned = ...
 
-
+        print(df)
         return df

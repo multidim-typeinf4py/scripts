@@ -59,3 +59,22 @@ def test_feature(
     assert (
         neg_failing.empty
     ), f"{neg_failing[ContextSymbolSchema.qname].unique()} shouldn't be marked as '{feature}'"
+
+
+@pytest.fixture
+def tuple_dataset() -> pt.DataFrame[ContextSymbolSchema]:
+    repo = pathlib.Path.cwd() / "tests" / "context"
+    cvs = generate_context_vectors_for_file(
+        features=RelevantFeatures(
+            loop=True, reassigned=True, nested=True, user_defined=True, branching=True
+        ),
+        repo=repo,
+        path=repo / "tuples.py",
+    )
+
+    return cvs
+
+
+def test_tuple_handling(tuple_dataset: pt.DataFrame[ContextSymbolSchema]):
+    print(tuple_dataset)
+    assert False
