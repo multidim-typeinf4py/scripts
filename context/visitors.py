@@ -1,26 +1,21 @@
 import builtins
 import collections
-import operator
 import pathlib
-
-import pandera.typing as pt
-
-import pandas as pd
-from pandas._libs import missing
 
 import libcst as cst
 import libcst.metadata as metadata
+import pandas as pd
+import pandera.typing as pt
 from libcst import matchers as m
 from libcst.helpers import get_full_name_for_node_or_raise
+from pandas._libs import missing
 
+from common.ast_helper import _stringify, generate_qname_ssas_for_file
 from common.schemas import (
     ContextCategory,
     ContextSymbolSchema,
-    ContextSymbolSchemaColumns,
     TypeCollectionCategory,
 )
-from common.ast_helper import _stringify, generate_qname_ssas_for_file
-
 from context.features import RelevantFeatures
 
 
@@ -253,11 +248,8 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
     def _is_reassigned(self, identifier: str) -> bool:
         scope = self.scope_components()
 
-        if identifier in self.visible_symbols.get(scope, set()):
-            return True
-
         for window in reversed(range(len(scope))):
-            window_scope = scope[:window]
+            window_scope = scope[:window + 1]
             if identifier in self.visible_symbols.get(window_scope, set()):
                 return True
 
@@ -323,15 +315,22 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         self.invisible_symbols[leaving] = self.visible_symbols.pop(leaving, set())
 
     def _leave_branch(self, branch: cst.If | cst.Else) -> None:
-        # propagate intersection of invisible symbols
         *outer, _ = leaving = self.scope_components()
 
-        # propagate intersection of invisible symbols upwards to parent branch, i.e.
+        # Special-case: For-Else; set-intersection; symbol may be unbound
+        if (
+                len(self.full_scope_nodes) >= 2  # access safety
+                and m.matches(self.full_scope_nodes[-2], m.For(orelse=m.Else()))  # is and if with a child branch
+                and self.full_scope_nodes[-2].orelse is branch  # this if's child is precisely this branch
+        ):
+            self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
+
+        # propagate set-intersection of invisible symbols upwards to parent branch, i.e.
         # if True
         #   ...
-        # else:
+        # else: <--
         #   ...
-        if (
+        elif (
                 len(self.full_scope_nodes) >= 2  # access safety
                 and m.matches(self.full_scope_nodes[-2],
                               m.If(orelse=m.If() | m.Else()))  # is and if with a child branch
@@ -340,9 +339,16 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             self.invisible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
 
         # otherwise we reached first branch; move invisible symbols to visible symbols
-        # this handles 
-        else:
+        # Single If; set-intersection; symbol may be unbound
+        elif m.matches(self.full_scope_nodes[-1], m.If(orelse=~(m.If() | m.Else()))):
+            self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
+
+        # If with further branches; set-union of intersected symbols
+        elif m.matches(self.full_scope_nodes[-1], m.If(orelse=m.If() | m.Else())):
             self.visible_symbols[tuple(outer)] |= self.invisible_symbols.pop(leaving, set())
+
+        else:
+            assert False, cst.Module([branch]).code
 
         self.full_scope_nodes.pop()
         self.full_scope_names.pop()
@@ -395,13 +401,16 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         )
 
         # Reassigned variables also mean e.g. redefined parameters
-        reass_variables = df[
-            (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
-            & (df[ContextSymbolSchema.reassigned] == 1)
-            ]
+        # reass_variables = df[
+        #    (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
+        #    & (df[ContextSymbolSchema.reassigned] == 1)
+        #    ]
         # Find symbols by the same name
-        parameters = df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname])
-        df.loc[parameters, ContextSymbolSchema.reassigned] = 1
+        # same_name_symbols = (
+        #        df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname]) &
+        #        df[ContextSymbolSchema.]
+        #        )
+        # df.loc[same_name_symbols, ContextSymbolSchema.reassigned] = 1
 
         # Annotatables in flow control do not have to be marked as "reassigned" as long as there are no
         # occurrences of the same annotatable beforehand
