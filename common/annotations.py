@@ -264,12 +264,17 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         self._visit_unannotated_target(node.target)
         return self.track_unannotated
 
-    @m.call_if_inside(m.AssignTarget())
+    @m.call_if_inside(m.AugAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    def visit_AugAssign(self, node: cst.AugAssign) -> bool | None:
+        self._visit_unannotated_target(node.target)
+        return self.track_unannotated
+
+    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
     def visit_Tuple(self, node: cst.Tuple) -> bool | None:
         self._visit_unpackable(node.elements)
         return self.track_unannotated
 
-    @m.call_if_inside(m.AssignTarget())
+    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
     def visit_List(self, node: cst.List) -> bool | None:
         self._visit_unpackable(node.elements)
         return self.track_unannotated
@@ -280,7 +285,7 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             self._visit_unannotated_target(target)
 
     def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
-        if self.track_unannotated:
+        if self.track_unannotated and m.matches(target, m.Name() | m.Attribute(value=m.Name("self"))):
             name = get_full_name_for_node_or_raise(target)
 
             self.qualifier.append(name)
