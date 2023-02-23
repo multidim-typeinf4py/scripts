@@ -1,10 +1,7 @@
 from __future__ import annotations
-from collections import defaultdict
 
-import functools
 import itertools
 import pathlib
-import typing
 
 from common.annotations import (
     MultiVarAnnotations,
@@ -16,9 +13,7 @@ from libcst.codemod.visitors._apply_type_annotations import (
 )
 import libcst as cst
 
-import numpy as np
 
-from pandas._libs import missing
 import pandas as pd
 import pandera as pa
 import pandera.typing as pt
@@ -31,7 +26,6 @@ from .schemas import (
     TypeCollectionSchemaColumns,
 )
 
-from .schemas import MergedAnnotationSchema, MergedAnnotationSchemaColumns
 
 
 class TypeCollection:
@@ -310,109 +304,3 @@ class TypeCollection:
 
     def merge_into(self, other: TypeCollection) -> None:
         self.update(other.df)
-
-
-# Currently schema-less as merging results into unpredictable column naming
-class MergedAnnotations:
-    """
-    Maintain DataFrames used for tracking symbols across multiple files,
-    and allow for querying of symbols in a manner that makes comparing occurrences of
-    a singular symbol across the "same" file in different places simple
-    """
-
-    @pa.check_types
-    def __init__(self, df: pt.DataFrame[MergedAnnotationSchema]) -> None:
-        self.df = df
-
-    @staticmethod
-    def from_collections(
-        collections: typing.Sequence[tuple[pathlib.Path, TypeCollection]],
-    ) -> MergedAnnotations:
-        dfs = map(
-            lambda pdf: pdf[1].df.rename(columns={"anno": f"{pdf[0].name}_anno"}),
-            collections,
-        )
-
-        df: pd.DataFrame = functools.reduce(
-            lambda acc, curr: pd.merge(
-                left=acc,
-                right=curr,
-                how="outer",
-                on=[
-                    TypeCollectionSchema.file,
-                    TypeCollectionSchema.category,
-                    TypeCollectionSchema.qname_ssa,
-                ],
-            ),
-            dfs,
-        ).fillna(missing.NA)
-
-        return MergedAnnotations(df=df.pipe(pt.DataFrame[MergedAnnotationSchema]))
-
-    @staticmethod
-    def load(path: str | pathlib.Path) -> MergedAnnotations:
-        return MergedAnnotations(
-            df=pd.read_csv(
-                path,
-                converters={"category": lambda c: TypeCollectionCategory[c]},
-            ).pipe(pt.DataFrame[MergedAnnotationSchema])
-        )
-
-    def write(self, path: str | pathlib.Path) -> None:
-        self.df.to_csv(
-            path,
-            index=False,
-        )
-
-    def differing(
-        self,
-        *,
-        roots: list[pathlib.Path] | None = None,
-        files: list[pathlib.Path] | None = None,
-    ) -> pt.DataFrame[MergedAnnotationSchema]:
-
-        # Query relevant files
-        match files:
-            case [pathlib.Path(), *_]:
-                sfiles = list(map(str, files))
-                relevant_file_df = self.df[self.df["file"].isin(sfiles)]
-            case None:
-                relevant_file_df = self.df
-            case _:
-                raise AssertionError(f"Unhandled case for `files`: {list(map(type, files))}")
-
-        # Query relevant projects
-        match roots:
-            case [pathlib.Path(), *_]:
-                relevant_root_df = relevant_file_df.filter(
-                    items=[f"{root.name}_anno" for root in roots]
-                )
-            case None:
-                relevant_root_df = relevant_file_df.filter(regex=r"_anno$")
-            case _:
-                raise AssertionError(f"Unhandled case for `roots`: {list(map(type, roots))}")
-
-        # Compute differences between projects
-        relevant_anno_df = relevant_root_df[
-            relevant_root_df.apply(lambda row: pd.Series.nunique(row, dropna=False), axis=1) != 1
-        ]
-
-        anno_diff = pd.merge(
-            left=self.df[MergedAnnotationSchemaColumns],
-            right=relevant_anno_df,
-            left_index=True,
-            right_index=True,
-        )
-        return anno_diff.pipe(pt.DataFrame[MergedAnnotationSchema])
-
-    def hints_for_repo(
-        self, *, repo: pathlib.Path, files: list[pathlib.Path] | None = None
-    ) -> pt.DataFrame[TypeCollectionSchema]:
-        df = self.df[MergedAnnotationSchemaColumns + [f"{repo.name}_anno"]].rename(
-            columns={f"{repo.name}_anno": "anno"}
-        )
-
-        sfiles = list(map(str, files or []))
-        file_df = df[df["file"].isin(sfiles)]
-
-        return file_df.pipe(pt.DataFrame[TypeCollectionSchema])
