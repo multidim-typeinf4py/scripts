@@ -120,20 +120,20 @@ class HiTyper(PerFileInference):
         return self._predictions2df(self.predictions, relative)
 
     def _predict(self):
-        hityper.findusertype(
-            _FindUserTypeArguments(
-                repo=str(self.project), core=8, validate=True, output_directory=str(self.output_dir)
-            )
-        )
+        # hityper.findusertype(
+        #     _FindUserTypeArguments(
+        #         repo=str(self.project), core=8, validate=True, output_directory=str(self.output_dir)
+        #    )
+        # )
 
-        hityper.gentdg(
-            _GenTDGArguments(
-                repo=str(self.project),
-                optimize=True,
-                output_directory=str(self.output_dir),
-                output_format="json",
-            )
-        )
+        # hityper.gentdg(
+        #     _GenTDGArguments(
+        #         repo=str(self.project),
+        #         optimize=True,
+        #         output_directory=str(self.output_dir),
+        #         output_format="json",
+        #     )
+        # )
 
         hityper.infertypes(
             _InferenceArguments(
@@ -325,7 +325,6 @@ def _derive_qname(scope: str) -> list[str]:
 
     return [classname, *funcname]
 
-    
     # scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
     # non_empties = list(filter(bool, scope.split("@")))
     # *funcname,
