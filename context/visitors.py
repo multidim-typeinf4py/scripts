@@ -20,7 +20,7 @@ from context.features import RelevantFeatures
 
 
 def generate_context_vectors_for_file(
-        features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
+    features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
 ) -> pt.DataFrame[ContextSymbolSchema]:
     visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
     module = cst.parse_module(path.open().read())
@@ -208,11 +208,11 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         )
 
     def _handle_annotatable(
-            self,
-            annotatable: cst.CSTNode,
-            identifier: str,
-            annotation: cst.Annotation | None,
-            category: TypeCollectionCategory,
+        self,
+        annotatable: cst.CSTNode,
+        identifier: str,
+        annotation: cst.Annotation | None,
+        category: TypeCollectionCategory,
     ) -> None:
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
 
@@ -249,7 +249,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         scope = self.scope_components()
 
         for window in reversed(range(len(scope))):
-            window_scope = scope[:window + 1]
+            window_scope = scope[: window + 1]
             if identifier in self.visible_symbols.get(window_scope, set()):
                 return True
 
@@ -319,9 +319,12 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         # Special-case: For-Else; set-intersection; symbol may be unbound
         if (
-                len(self.full_scope_nodes) >= 2  # access safety
-                and m.matches(self.full_scope_nodes[-2], m.For(orelse=m.Else()))  # is and if with a child branch
-                and self.full_scope_nodes[-2].orelse is branch  # this if's child is precisely this branch
+            len(self.full_scope_nodes) >= 2  # access safety
+            and m.matches(
+                self.full_scope_nodes[-2], m.For(orelse=m.Else())
+            )  # is and if with a child branch
+            and self.full_scope_nodes[-2].orelse
+            is branch  # this if's child is precisely this branch
         ):
             self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
 
@@ -331,10 +334,12 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         # else: <--
         #   ...
         elif (
-                len(self.full_scope_nodes) >= 2  # access safety
-                and m.matches(self.full_scope_nodes[-2],
-                              m.If(orelse=m.If() | m.Else()))  # is and if with a child branch
-                and self.full_scope_nodes[-2].orelse is branch  # this if's child is precisely this branch
+            len(self.full_scope_nodes) >= 2  # access safety
+            and m.matches(
+                self.full_scope_nodes[-2], m.If(orelse=m.If() | m.Else())
+            )  # is and if with a child branch
+            and self.full_scope_nodes[-2].orelse
+            is branch  # this if's child is precisely this branch
         ):
             self.invisible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
 
@@ -371,7 +376,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         return ".".join((*self.real_scope_components(), identifier))
 
     def _ctxt_category(
-            self, annotatable: cst.CSTNode, category: TypeCollectionCategory
+        self, annotatable: cst.CSTNode, category: TypeCollectionCategory
     ) -> ContextCategory:
         match category:
             case TypeCollectionCategory.CALLABLE_RETURN:
@@ -399,27 +404,4 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             .pipe(generate_qname_ssas_for_file)
             .pipe(pt.DataFrame[ContextSymbolSchema])
         )
-
-        # Reassigned variables also mean e.g. redefined parameters
-        # reass_variables = df[
-        #    (df[ContextSymbolSchema.category] == TypeCollectionCategory.VARIABLE)
-        #    & (df[ContextSymbolSchema.reassigned] == 1)
-        #    ]
-        # Find symbols by the same name
-        # same_name_symbols = (
-        #        df[ContextSymbolSchema.qname].isin(reass_variables[ContextSymbolSchema.qname]) &
-        #        df[ContextSymbolSchema.]
-        #        )
-        # df.loc[same_name_symbols, ContextSymbolSchema.reassigned] = 1
-
-        # Annotatables in flow control do not have to be marked as "reassigned" as long as there are no
-        # occurrences of the same annotatable beforehand
-        """ questionable_branching = (df[ContextSymbolSchema.branching] == 1) & (
-            df[ContextSymbolSchema.reassigned] == 1
-        )
-        questionable_qnames = df.loc[questionable_branching, ContextSymbolSchema.qname]
-
-        # false_reassigned = ...
-
-        print(df) """
         return df
