@@ -107,6 +107,11 @@ class QName2SSATransformer(ScopeAwareTransformer):
             return updated_node.with_changes(target=qname_ssa)
         return updated_node
 
+    def leave_AugAssign(self, _: cst.AugAssign, updated_node: cst.AugAssign) -> cst.AugAssign:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
+
     def leave_AssignTarget(
         self, _: cst.AssignTarget, updated_node: cst.AssignTarget
     ) -> cst.AssignTarget:
@@ -171,6 +176,11 @@ class SSA2QNameTransformer(ScopeAwareTransformer):
     def leave_AssignTarget(
         self, _: cst.AssignTarget, updated_node: cst.AssignTarget
     ) -> cst.AssignTarget:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
+
+    def leave_AugAssign(self, _: cst.AugAssign, updated_node: cst.AugAssign) -> cst.AugAssign:
         if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
             return updated_node.with_changes(target=qname_ssa)
         return updated_node
