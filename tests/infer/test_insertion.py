@@ -300,7 +300,6 @@ class Test_CustomAnnotator(AnnotationTesting):
     def test_assign_hinting(self):
         before = textwrap.dedent(
             """
-        a: int
         a = 10
         a, _ = 10, None
         a += "Hello"

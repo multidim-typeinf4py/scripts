@@ -2,18 +2,18 @@ import pathlib
 import shutil
 
 import click
+from common.annotations import TypeAnnotationRemover
 from common import output
 from common import factory
 
 from infer.insertion import TypeAnnotationApplierTransformer
-from infer.removal import HintRemover
 
 from utils import format_parallel_exec_result, scratchpad, top_preds_only
 
 from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
 
 from libcst import codemod
-from libsa4py.cst_transformers import TypeAnnotationRemover
+
 
 @click.command(
     name="infer",
@@ -52,24 +52,40 @@ from libsa4py.cst_transformers import TypeAnnotationRemover
     help="Overwrite the output folder. Has no effect if --output was not given",
 )
 @click.option(
-    "-r",
-    "--remove-annos",
+    "-rv",
+    "--remove-var-annos",
     is_flag=True,
-    help="Remove all annotations in the codebase before inferring",
+    help="Remove all variable annotations in the codebase before inferring",
+)
+@click.option(
+    "-rp",
+    "--remove-param-annos",
+    is_flag=True,
+    help="Remove all parameter annotations in the codebase before inferring",
+)
+@click.option(
+    "-rr",
+    "--remove-ret-annos",
+    is_flag=True,
+    help="Remove all return annotations in the codebase before inferring",
 )
 def cli_entrypoint(
     tool: type[Inference],
     inpath: pathlib.Path,
     overwrite: bool,
-    remove_annos: bool,
+    remove_var_annos: bool,
+    remove_param_annos: bool,
+    remove_ret_annos: bool,
 ) -> None:
     with scratchpad(inpath) as sc:
         print(f"Using {sc} as a scratchpad for inference!")
 
-        if remove_annos:
+        if remove_var_annos or remove_param_annos or remove_ret_annos:
             print(f"--remove-annos provided, removing annotations on '{sc}'")
             result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=TypeAnnotationRemover(),
+                transform=TypeAnnotationRemover(
+                    variables=remove_var_annos, parameters=remove_param_annos, rets=remove_ret_annos
+                ),
                 files=codemod.gather_files([str(sc)]),
                 repo_root=str(sc),
             )

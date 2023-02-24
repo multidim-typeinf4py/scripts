@@ -279,7 +279,9 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             self._visit_unannotated_target(target)
 
     def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
-        if self.track_unannotated and m.matches(target, m.Name() | m.Attribute(value=m.Name("self"))):
+        if self.track_unannotated and m.matches(
+            target, m.Name() | m.Attribute(value=m.Name("self"))
+        ):
             name = get_full_name_for_node_or_raise(target)
 
             self.qualifier.append(name)
@@ -469,8 +471,8 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
         return parameters.with_changes(params=update_annotations(parameters.params))
 
 
-
 from libcst.codemod.visitors._apply_type_annotations import Annotations
+
 
 class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
     """
@@ -527,9 +529,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         super().__init__(context)
         # Qualifier for storing the canonical name of the current function.
         self.qualifier: List[str] = []
-        self.annotations: Annotations = (
-            Annotations.empty() if annotations is None else annotations
-        )
+        self.annotations: Annotations = Annotations.empty() if annotations is None else annotations
         self.toplevel_annotations: Dict[str, cst.Annotation] = {}
         self.visited_classes: Set[str] = set()
         self.overwrite_existing_annotations = overwrite_existing_annotations
@@ -609,9 +609,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             global_names_gatherer.class_names
         )
 
-        context_contents = self.context.scratch.get(
-            ApplyTypeAnnotationsVisitor.CONTEXT_KEY
-        )
+        context_contents = self.context.scratch.get(ApplyTypeAnnotationsVisitor.CONTEXT_KEY)
         if context_contents is not None:
             (
                 stub,
@@ -624,12 +622,8 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             self.overwrite_existing_annotations = (
                 self.overwrite_existing_annotations or overwrite_existing_annotations
             )
-            self.use_future_annotations = (
-                self.use_future_annotations or use_future_annotations
-            )
-            self.strict_posargs_matching = (
-                self.strict_posargs_matching and strict_posargs_matching
-            )
+            self.use_future_annotations = self.use_future_annotations or use_future_annotations
+            self.strict_posargs_matching = self.strict_posargs_matching and strict_posargs_matching
             self.strict_annotation_matching = (
                 self.strict_annotation_matching or strict_annotation_matching
             )
@@ -646,9 +640,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             self.annotations.update(visitor.annotations)
 
         if self.use_future_annotations:
-            AddImportsVisitor.add_needed_import(
-                self.context, "__future__", "annotations"
-            )
+            AddImportsVisitor.add_needed_import(self.context, "__future__", "annotations")
 
         tree_with_imports = AddImportsVisitor(self.context).transform_module(tree)
         tree_with_changes = tree_with_imports.visit(self)
@@ -681,17 +673,13 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         import_gatherer = GatherImportsVisitor(CodemodContext())
         stub.visit(import_gatherer)
         symbol_map = import_gatherer.symbol_mapping
-        existing_import_names = _get_imported_names(
-            existing_import_gatherer.all_imports
-        )
+        existing_import_names = _get_imported_names(existing_import_gatherer.all_imports)
         symbol_collector = ImportedSymbolCollector(existing_import_names, self.context)
         cst.MetadataWrapper(stub).visit(symbol_collector)
         module_imports = {}
         for sym, imported_symbols in symbol_collector.imported_symbols.items():
             existing = existing_import_gatherer.symbol_mapping.get(sym)
-            if existing and any(
-                s.module_name != existing.module_name for s in imported_symbols
-            ):
+            if existing and any(s.module_name != existing.module_name for s in imported_symbols):
                 # If a symbol is imported in the main file, we have to qualify
                 # it when imported from a different module in the stub file.
                 used = True
@@ -747,9 +735,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             and (node.value in self.global_names)
             and not (node.value in self.visited_classes)
         ):
-            return annotation.with_changes(
-                annotation=cst.SimpleString(value=f'"{node.value}"')
-            )
+            return annotation.with_changes(annotation=cst.SimpleString(value=f'"{node.value}"'))
         return annotation
 
     # smart constructors: all applied annotations happen via one of these
@@ -807,9 +793,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
                 return body
 
         self.annotation_counts.attribute_annotations += 1
-        return body.with_changes(
-            body=(cst.SimpleStatementLine(body=[hint]), *body.body)
-        )
+        return body.with_changes(body=(cst.SimpleStatementLine(body=[hint]), *body.body))
 
     # private methods used in the visit and leave methods
 
@@ -833,9 +817,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
                     if self._qualifier_name() in self.annotations.attributes:
                         annotation = self.annotations.attributes[self._qualifier_name()]
                         outside_annos.append(
-                            cst.AnnAssign(
-                                target=cst.Name(name), annotation=annotation, value=None
-                            )
+                            cst.AnnAssign(target=cst.Name(name), annotation=annotation, value=None)
                         )
                     self.qualifier.pop()
 
@@ -847,9 +829,8 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             name = get_full_name_for_node(only_target)
             if name is not None:
                 self.qualifier.append(name)
-                if (
-                    self._qualifier_name() in self.annotations.attributes
-                    and not isinstance(only_target, cst.Subscript)
+                if self._qualifier_name() in self.annotations.attributes and not isinstance(
+                    only_target, cst.Subscript
                 ):
                     annotation = self.annotations.attributes[self._qualifier_name()]
                     self.qualifier.pop()
@@ -1038,9 +1019,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         ) -> bool:
             return compatible(f.returns, g.returns)
 
-        return match_params(function, annotations) and match_return(
-            function, annotations
-        )
+        return match_params(function, annotations) and match_return(function, annotations)
 
     # transform API methods
 
@@ -1149,7 +1128,6 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         self, original_node: cst.AugAssign, updated_node: cst.AugAssign
     ) -> cst.FlattenSentinel[cst.BaseSmallStatement]:
 
-
         outside_annos: list[cst.AnnAssign] = []
         target = updated_node.target
 
@@ -1161,11 +1139,8 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
                 # as `a: int` and `b: int`.
                 self.qualifier.append(name)
 
-                print(f"AugAssign for {self._qualifier_name()}, {self.annotations.attributes}")
                 if self._qualifier_name() in self.annotations.attributes:
-                    annotation = self.annotations.attributes[
-                        self._qualifier_name()
-                    ]
+                    annotation = self.annotations.attributes[self._qualifier_name()]
                     outside_annos.append(
                         cst.AnnAssign(
                             target=cst.Name(name),
@@ -1195,9 +1170,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
                         # as `a: int` and `b: int`.
                         self.qualifier.append(name)
                         if self._qualifier_name() in self.annotations.attributes:
-                            annotation = self.annotations.attributes[
-                                self._qualifier_name()
-                            ]
+                            annotation = self.annotations.attributes[self._qualifier_name()]
                             outside_annos.append(
                                 cst.AnnAssign(
                                     target=cst.Name(name),
@@ -1232,11 +1205,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         # NOTE: The entire change will also be abandoned if
         # self.annotation_counts is all 0s, so if adding any new category make
         # sure to record it there.
-        if not (
-            self.toplevel_annotations
-            or fresh_class_definitions
-            or self.annotations.typevars
-        ):
+        if not (self.toplevel_annotations or fresh_class_definitions or self.annotations.typevars):
             return updated_node
 
         toplevel_statements = []
@@ -1258,9 +1227,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
 
         # TypeVar definitions could be scattered through the file, so do not
         # attempt to put new ones with existing ones, just add them at the top.
-        typevars = {
-            k: v for k, v in self.annotations.typevars.items() if k not in self.typevars
-        }
+        typevars = {k: v for k, v in self.annotations.typevars.items() if k not in self.typevars}
         if typevars:
             for var, stmt in typevars.items():
                 toplevel_statements.append(cst.Newline())
@@ -1278,3 +1245,66 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
                 *statements_after_imports,
             ]
         )
+
+
+class TypeAnnotationRemover(cst.CSTTransformer):
+    """
+    Configurable type annotation removal.
+    Based on LibSA4Py implementation
+    """
+
+    def __init__(self, variables: bool = True, parameters: bool = True, rets: bool = True) -> None:
+        super().__init__()
+
+        self.variables = variables
+        self.parameters = parameters
+        self.rets = rets
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> Union[cst.BaseStatement, cst.RemovalSentinel]:
+        if not self.rets:
+            return updated_node
+        return (
+            updated_node.with_changes(returns=None)
+            if original_node.returns is not None
+            else updated_node
+        )
+
+    def leave_Param(
+        self, original_node: cst.Param, updated_node: cst.Param
+    ) -> Union[cst.Param, cst.MaybeSentinel, cst.RemovalSentinel]:
+        if not self.parameters:
+            return updated_node
+        return (
+            updated_node.with_changes(annotation=None)
+            if original_node.annotation is not None
+            else updated_node
+        )
+
+    def leave_AnnAssign(
+        self, original_node: cst.AnnAssign, updated_node: cst.AnnAssign
+    ) -> Union[cst.BaseSmallStatement, cst.RemovalSentinel]:
+        if not self.variables:
+            return updated_node
+
+        # Do not special case hinting like 'a: int' and 'self.foo: str'; remove it entirely instead
+        if m.matches(
+            original_node,
+            m.AnnAssign(
+                target=m.Name(),
+                annotation=m.Annotation(),
+                value=None,
+            )
+            | m.AnnAssign(
+                target=m.Attribute(),
+                annotation=m.Annotation(),
+                value=None,
+            ),
+        ):
+            updated_node = cst.RemoveFromParent()
+        else:
+            updated_node = cst.Assign(
+                targets=[cst.AssignTarget(target=original_node.target)], value=original_node.value
+            )
+        return updated_node

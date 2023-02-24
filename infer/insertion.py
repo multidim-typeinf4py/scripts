@@ -4,7 +4,7 @@ import pathlib
 from libcst import codemod
 import libcst as cst
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
-from common.annotations import ApplyTypeAnnotationsVisitor
+from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
 import libcst.matchers as m
 
 import pandera.typing as pt
@@ -13,8 +13,6 @@ from common.ast_helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
 from symbols.collector import TypeCollectorVistor
-
-from libsa4py.cst_transformers import TypeAnnotationRemover
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
