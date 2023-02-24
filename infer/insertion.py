@@ -4,7 +4,7 @@ import pathlib
 from libcst import codemod
 import libcst as cst
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
-from libcst.codemod.visitors._apply_type_annotations import ApplyTypeAnnotationsVisitor
+from common.annotations import ApplyTypeAnnotationsVisitor
 import libcst.matchers as m
 
 import pandera.typing as pt

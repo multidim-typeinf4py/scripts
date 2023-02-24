@@ -35,15 +35,12 @@ class AnnotationTesting(codemod.CodemodTest):
 
     HINTED = textwrap.dedent(
         """
-        b: str
-        c: int
-
         import typing
 
         a: int = 10
         a: str = "Hello World"
 
-        (b, c) = "Hello", 5
+        b: str; c: int; (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -57,15 +54,13 @@ class AnnotationTesting(codemod.CodemodTest):
 
     HINTED_QNAME_SSA = textwrap.dedent(
         """
-        bλ1: str
-        cλ1: int
 
         import typing
     
         aλ1: int = 10
         aλ2: str = "Hello World"
 
-        (bλ1, cλ1) = "Hello", 5
+        bλ1: str; cλ1: int; (bλ1, cλ1) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -119,14 +114,12 @@ class Test_CustomAnnotator(AnnotationTesting):
         after = textwrap.dedent(
             f"""
         from __future__ import annotations
-        b: str
-
         import typing
     
         a = 10
         a: str = "Hello World"
 
-        (b, c) = "Hello", 5
+        b: str; (b, c) = "Hello", 5
 
         def f(a, b, c): ...
         
@@ -294,6 +287,52 @@ class Test_CustomAnnotator(AnnotationTesting):
 
         self.assertCodemod(
             AnnotationTesting.HINTLESS,
+            after,
+            tycol=attr_df,
+            context_override=codemod.CodemodContext(
+                filename=AnnotationTesting.FILENAME,
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=[AnnotationTesting.FILENAME], providers=[]
+                ),
+            ),
+        )
+
+    def test_assign_hinting(self):
+        before = textwrap.dedent(
+            """
+        a: int
+        a = 10
+        a, _ = 10, None
+        a += "Hello"
+        """
+        )
+
+        after = textwrap.dedent(
+            """
+            from __future__ import annotations
+            import typing
+
+            a: int = 10
+            a: int; (a, _) = 10, None
+            a: str; a += "Hello"
+        """
+        )
+
+        attr_df = (
+            pd.DataFrame(
+                {
+                    "file": [AnnotationTesting.FILENAME] * 3,
+                    "category": [TypeCollectionCategory.VARIABLE] * 3,
+                    "qname": ["a"] * 3,
+                    "anno": ["int"] * 2 + ["str"],
+                }
+            )
+            .pipe(generate_qname_ssas_for_file)
+            .pipe(pt.DataFrame[TypeCollectionSchema])
+        )
+
+        self.assertCodemod(
+            before,
             after,
             tycol=attr_df,
             context_override=codemod.CodemodContext(
