@@ -1292,12 +1292,7 @@ class TypeAnnotationRemover(cst.CSTTransformer):
         if m.matches(
             original_node,
             m.AnnAssign(
-                target=m.Name(),
-                annotation=m.Annotation(),
-                value=None,
-            )
-            | m.AnnAssign(
-                target=m.Attribute(),
+                target=m.Name() | m.Attribute(),
                 annotation=m.Annotation(),
                 value=None,
             ),
