@@ -32,9 +32,14 @@ class TestFeatures:
         )
 
     def test_reassigned(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
-        self.exact_check(
+        self.one_positive_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
+            ContextSymbolSchema.reassigned,
+        )
+        self.one_negative_check(
+            context_dataset,
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
             ContextSymbolSchema.reassigned,
         )
 
@@ -67,6 +72,7 @@ class TestFeatures:
                 "parammed",
                 "parammed.p",
                 "branching",
+                "branching.x",
             ],
             ContextSymbolSchema.branching
         )
@@ -145,17 +151,21 @@ class TestFeatures:
         mask = context_dataset[ContextSymbolSchema.qname].isin(qnames)
         positive_df, negative_df = context_dataset[mask], context_dataset[~mask]
 
+        errors = []
+
         pos_failing = positive_df[positive_df[feature] != 1]
         if not pos_failing.empty:
-            pytest.fail(
+            errors.append(
                 f"{pos_failing[ContextSymbolSchema.qname].unique()} are not marked as '{feature}'\n{pos_failing}"
             )
 
         neg_failing = negative_df[negative_df[feature] != 0]
         if not neg_failing.empty:
-            pytest.fail(
-                f"{neg_failing[ContextSymbolSchema.qname].unique()} are not marked as '{feature}'\n{neg_failing}"
+            errors.append(
+                f"{neg_failing[ContextSymbolSchema.qname].unique()} should not be marked as '{feature}'\n{neg_failing}"
             )
+
+        assert not errors, ",".join(errors)
 
 
 @pytest.fixture
