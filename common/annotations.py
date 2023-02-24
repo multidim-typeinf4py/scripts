@@ -211,12 +211,6 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.qualifier.pop()
 
-    # def visit_AnnAssign(
-    #    self,
-    #    node: cst.AnnAssign,
-    # ) -> bool:
-    #    return True
-
     def leave_AnnAssign(
         self,
         original_node: cst.AnnAssign,
@@ -292,8 +286,8 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             fullqual = ".".join(self.qualifier)
             self.qualifier.pop()
 
-            # Consume stored hint if present
-            hint = self._cst_annassign_hinting.pop(fullqual, None)
+            # Reference stored hint if present
+            hint = self._cst_annassign_hinting.get(fullqual, None)
             self.annotations.attributes[fullqual].append(hint)
 
     @m.call_if_inside(m.Assign())

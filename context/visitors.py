@@ -193,8 +193,8 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         name = get_full_name_for_node_or_raise(target)
         fullqual = self.qname_within_scope(name)
 
-        # Consume stored hint if present
-        hint = self._annassign_hinting.pop(fullqual, None)
+        # Reference stored hint if present
+        hint = self._annassign_hinting.get(fullqual, None)
 
         match self.get_metadata(metadata.ScopeProvider, target):
             case metadata.ClassScope():

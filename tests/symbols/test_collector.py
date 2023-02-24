@@ -267,22 +267,6 @@ class Test_HintTracking(AnnotationTracking):
         )
         self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "int")])
 
-    def test_hinting_consumed(self):
-        df = self.performTracking(
-            """
-        a: int
-        a = 10
-        a = 20
-        """
-        )
-        self.assertMatchingAnnotating(
-            df,
-            [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
-            ],
-        )
-
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
         df = self.performTracking(
@@ -383,4 +367,23 @@ class Test_HintTracking(AnnotationTracking):
                 (TypeCollectionCategory.VARIABLE, "a", "str"),
                 (TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
+        )
+
+    def test_hint_retainment(self):
+        df = self.performTracking(
+            """
+            a: int
+            a = 10
+            a = 5
+
+            a: str
+            a = "Hello"
+            a = "World"
+            """
+        )
+        print(df)
+        self.assertMatchingAnnotating(
+            df,
+            [(TypeCollectionCategory.VARIABLE, "a", "int")] * 2 +
+            [(TypeCollectionCategory.VARIABLE, "a", "str")] * 2
         )
