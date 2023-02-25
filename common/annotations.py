@@ -302,7 +302,6 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             self._visit_unannotated_target(node.target)
         elif m.matches(node.target, m.List() | m.Tuple()):
             self._visit_unpackable(node.target)
-    
 
     def _visit_unpackable(self, unpackable: cst.List | cst.Tuple) -> bool | None:
         targets = map(lambda e: e.value, unpackable.elements)
@@ -480,6 +479,14 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             return cst.Annotation(annotation=self._handle_Subscript(node))
         elif isinstance(node, NAME_OR_ATTRIBUTE):
             return cst.Annotation(annotation=self._handle_NameOrAttribute(node))
+        elif isinstance(node, cst.BinaryOperation):
+            return cst.Annotation(
+                annotation=cst.BinaryOperation(
+                    left=self._handle_Annotation(cst.Annotation(node.left)).annotation,
+                    operator=node.operator,
+                    right=self._handle_Annotation(cst.Annotation(node.right)).annotation,
+                )
+            )
         else:
             raise ValueError(f"Unexpected annotation node: {node}")
 

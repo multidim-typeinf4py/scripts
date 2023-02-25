@@ -28,7 +28,7 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
 class TestFeatures:
     def test_loop(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.exact_check(
-            context_dataset, ["looping.x", "looping.a", "branching.a"], ContextSymbolSchema.loop
+            context_dataset, ["looping.x", "looping.a", "looping._", "branching.a", "branching.e"], ContextSymbolSchema.loop
         )
 
     def test_reassigned(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):

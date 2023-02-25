@@ -64,6 +64,8 @@ def branching():
 
     if x < 10:
         b = True
+    elif x > 10:
+        b = None
     else:
         b = False
 
