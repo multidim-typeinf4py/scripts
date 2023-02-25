@@ -10,6 +10,7 @@ import functools
 
 import libcst as cst
 import libcst.matchers as m
+from libcst import metadata
 
 from libcst.codemod._context import CodemodContext
 from libcst.codemod._visitor import ContextAwareTransformer
@@ -1288,7 +1289,9 @@ class TypeAnnotationRemover(cst.CSTTransformer):
         if not self.variables:
             return updated_node
 
-        # Do not special case hinting like 'a: int' and 'self.foo: str'; remove it entirely instead
+        # Remove hinting like 'a: int' and 'self.foo: str' if outside of a class' body; 
+        # Otherwise, remove it entirely instead if it is not a hint in a class;
+        # in that case; replace it by 'a = ...'
         if m.matches(
             original_node,
             m.AnnAssign(
@@ -1297,7 +1300,10 @@ class TypeAnnotationRemover(cst.CSTTransformer):
                 value=None,
             ),
         ):
-            updated_node = cst.RemoveFromParent()
+            if isinstance(self.get_metadata(metadata.ScopeProvider, updated_node), metadata.ClassScope):
+                updated_node = cst.Assign(targets=[cst.AssignTarget(target=original_node.target)], value=cst.Ellipsis())
+            else:
+                updated_node = cst.RemoveFromParent()
         else:
             updated_node = cst.Assign(
                 targets=[cst.AssignTarget(target=original_node.target)], value=original_node.value
