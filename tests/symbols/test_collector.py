@@ -234,15 +234,12 @@ class Test_TrackUnannotated(AnnotationTracking):
             [
                 (TypeCollectionCategory.VARIABLE, "a", missing.NA),
                 (TypeCollectionCategory.VARIABLE, "a", "str"),
-
                 (TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", missing.NA),
-
                 (TypeCollectionCategory.CALLABLE_RETURN, "C.__init__", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "C.__init__.self", missing.NA),
-
                 (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
                 (TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
                 (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", missing.NA),
@@ -311,21 +308,23 @@ class Test_HintTracking(AnnotationTracking):
         )
 
     def test_hinting_applied_to_chained_assignment(self):
-        df = self.performTracking("""
+        df = self.performTracking(
+            """
         a: int
         b: str
         d: tuple[int, str]
 
         d = (a, b) = (5, "Test")
-        """)
-        
+        """
+        )
+
         self.assertMatchingAnnotating(
             df,
             [
                 (TypeCollectionCategory.VARIABLE, "a", "int"),
                 (TypeCollectionCategory.VARIABLE, "b", "str"),
                 (TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
-            ]
+            ],
         )
 
     def test_deep_unpackable_recursion(self):
@@ -381,9 +380,119 @@ class Test_HintTracking(AnnotationTracking):
             a = "World"
             """
         )
-        print(df)
         self.assertMatchingAnnotating(
             df,
-            [(TypeCollectionCategory.VARIABLE, "a", "int")] * 2 +
-            [(TypeCollectionCategory.VARIABLE, "a", "str")] * 2
+            [(TypeCollectionCategory.VARIABLE, "a", "int")] * 2
+            + [(TypeCollectionCategory.VARIABLE, "a", "str")] * 2,
+        )
+
+    def test_walrus(self):
+        unannotated_df = self.performTracking(
+            """
+            (x := 4)
+            """
+        )
+        self.assertMatchingAnnotating(
+            unannotated_df, [(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
+        )
+
+        annotated_df = self.performTracking(
+            """
+            x: int
+            (x := 4)
+            """
+        )
+        self.assertMatchingAnnotating(annotated_df, [(TypeCollectionCategory.VARIABLE, "x", "int")])
+
+    def test_for_unannotated(self):
+        df = self.performTracking(
+            """
+            for x in [1, 2, 3]:
+                ...
+            """
+        )
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
+
+    def test_for_annotated(self):
+        df = self.performTracking(
+            """
+            x: int
+            for x in [1, 2, 3]:
+                ...
+            """
+        )
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "x", "int")])
+
+    def test_for_unpacking_annotated(self):
+        df = self.performTracking(
+            """
+            x: int
+            y: str
+
+            for x, y in zip([1, 2, 3], "abc"):
+                ...
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "x", "int"),
+                (TypeCollectionCategory.VARIABLE, "y", "str"),
+            ],
+        )
+
+    def test_withitem_unannotated(self):
+        df = self.performTracking(
+            """
+        with open(file) as f:
+            ...
+        """
+        )
+
+        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
+
+    def test_withitem_annotated(self):
+        df = self.performTracking(
+            """
+        import _io
+
+        f: _io.TextIOWrapper
+        with open(file) as f:
+            ...
+        """
+        )
+
+        self.assertMatchingAnnotating(
+            df, [(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
+        )
+
+    def test_comprehension(self):
+        df = self.performTracking(
+            """
+        [[x.value] for x in z]
+        """
+        )
+
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "x", missing.NA),
+            ],
+        )
+
+    def test_comprehension_annotated(self):
+        df = self.performTracking(
+            """
+        from enum import Enum
+
+        x: Enum
+        [[x.value] for x in z]
+        """
+        )
+
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "x", "enum.Enum"),
+            ],
         )
