@@ -137,12 +137,6 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
     def leave_While(self, _: cst.While) -> None:
         self._leave_loop()
 
-    def visit_For(self, node: cst.For) -> bool | None:
-        self._enter_loop(node)
-
-    def leave_For(self, _: cst.For) -> None:
-        self._leave_loop()
-
     @m.call_if_inside(
         m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()))
     )
@@ -215,6 +209,9 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             self._visit_unannotated_target(node.target)
         elif m.matches(node.target, m.List() | m.Tuple()):
             self._visit_unpackable(node.target)
+
+    def leave_For(self, _: cst.For) -> None:
+        self._leave_loop()
 
     def visit_CompFor(self, node: cst.CompFor) -> bool | None:
         if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
