@@ -212,12 +212,6 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.qualifier.pop()
 
-    def leave_AnnAssign(
-        self,
-        original_node: cst.AnnAssign,
-    ) -> None:
-        return None
-
     def visit_Assign(
         self,
         node: cst.Assign,
@@ -231,8 +225,10 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
     ) -> None:
         self.current_assign = None
 
-    @m.call_if_inside(m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
-    def visit_AnnAssign(self, node: cst.AnnAssign):
+    @m.call_if_inside(
+        m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()))
+    )
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         if type(self.get_metadata(ScopeProvider, node)) is not ClassScope:
             name = get_full_name_for_node_or_raise(node.target)
             annotation_value = self._handle_Annotation(annotation=node.annotation)
@@ -254,35 +250,69 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             else:
                 self._cst_annassign_hinting[full_qual] = annotation_value
 
-    @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    @m.call_if_inside(
+        m.AssignTarget(
+            target=m.Name()
+            | m.Attribute(value=m.Name("self"), attr=m.Name())
+            | m.List()
+            | m.Tuple()
+        )
+    )
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        self._visit_unannotated_target(node.target)
-        return self.track_unannotated
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    @m.call_if_inside(m.AugAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    @m.call_if_inside(
+        m.AugAssign(
+            target=m.Name()
+            | m.Attribute(value=m.Name("self"), attr=m.Name())
+            | m.List()
+            | m.Tuple()
+        )
+    )
     def visit_AugAssign(self, node: cst.AugAssign) -> bool | None:
-        self._visit_unannotated_target(node.target)
-        return self.track_unannotated
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
-    def visit_Tuple(self, node: cst.Tuple) -> bool | None:
-        self._visit_unpackable(node.elements)
-        return self.track_unannotated
+    def visit_WithItem(self, node: cst.WithItem) -> bool | None:
+        if node.asname is not None:
+            if m.matches(node.asname.name, m.Name()):
+                self._visit_unannotated_target(node.asname.name)
+            elif m.matches(node.asname.name, m.List() | m.Tuple()):
+                self._visit_unpackable(node.asname.name)
 
-    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
-    def visit_List(self, node: cst.List) -> bool | None:
-        self._visit_unpackable(node.elements)
-        return self.track_unannotated
+    def visit_For(self, node: cst.For) -> bool | None:
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
-        targets = map(lambda e: e.value, elements)
-        for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
-            self._visit_unannotated_target(target)
+    def visit_CompFor(self, node: cst.CompFor) -> bool | None:
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
-        if self.track_unannotated and m.matches(
-            target, m.Name() | m.Attribute(value=m.Name("self"))
-        ):
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> bool | None:
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
+
+    def _visit_unpackable(self, unpackable: cst.List | cst.Tuple) -> bool | None:
+        targets = map(lambda e: e.value, unpackable.elements)
+        for target in targets:
+            if m.matches(target, m.Tuple() | m.List()):
+                self._visit_unpackable(target)
+            else:
+                self._visit_unannotated_target(target)
+
+    def _visit_unannotated_target(self, target: cst.BaseAssignTargetExpression) -> bool | None:
+        if self.track_unannotated:
             name = get_full_name_for_node_or_raise(target)
 
             self.qualifier.append(name)
@@ -449,6 +479,14 @@ class MultiVarTypeCollector(m.MatcherDecoratableVisitor):
             return cst.Annotation(annotation=self._handle_Subscript(node))
         elif isinstance(node, NAME_OR_ATTRIBUTE):
             return cst.Annotation(annotation=self._handle_NameOrAttribute(node))
+        elif isinstance(node, cst.BinaryOperation):
+            return cst.Annotation(
+                annotation=cst.BinaryOperation(
+                    left=self._handle_Annotation(cst.Annotation(node.left)).annotation,
+                    operator=node.operator,
+                    right=self._handle_Annotation(cst.Annotation(node.right)).annotation,
+                )
+            )
         else:
             raise ValueError(f"Unexpected annotation node: {node}")
 
@@ -1289,19 +1327,23 @@ class TypeAnnotationRemover(cst.CSTTransformer):
         if not self.variables:
             return updated_node
 
-        # Remove hinting like 'a: int' and 'self.foo: str' if outside of a class' body; 
+        # Remove hinting like 'a: int' and 'self.foo: str' if outside of a class' body;
         # Otherwise, remove it entirely instead if it is not a hint in a class;
         # in that case; replace it by 'a = ...'
         if m.matches(
             original_node,
             m.AnnAssign(
-                target=m.Name() | m.Attribute(),
+                target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()),
                 annotation=m.Annotation(),
                 value=None,
             ),
         ):
-            if isinstance(self.get_metadata(metadata.ScopeProvider, updated_node), metadata.ClassScope):
-                updated_node = cst.Assign(targets=[cst.AssignTarget(target=original_node.target)], value=cst.Ellipsis())
+            if isinstance(
+                self.get_metadata(metadata.ScopeProvider, updated_node), metadata.ClassScope
+            ):
+                updated_node = cst.Assign(
+                    targets=[cst.AssignTarget(target=original_node.target)], value=cst.Ellipsis()
+                )
             else:
                 updated_node = cst.RemoveFromParent()
         else:

@@ -143,6 +143,9 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
     def leave_For(self, _: cst.For) -> None:
         self._leave_loop()
 
+    @m.call_if_inside(
+        m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()))
+    )
     def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
         ident = _stringify(node.target)
         fullqual = self.qname_within_scope(ident)
@@ -167,27 +170,71 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         else:
             self._annassign_hinting[fullqual] = node.annotation
-
-    @m.call_if_inside(m.AssignTarget(target=m.Name() | m.Attribute(value=m.Name("self"))))
+    
+    
+    @m.call_if_inside(
+        m.AssignTarget(
+            target=m.Name()
+            | m.Attribute(value=m.Name("self"), attr=m.Name())
+            | m.List()
+            | m.Tuple()
+        )
+    )
     def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        self._visit_unannotated_target(node.target)
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    @m.call_if_inside(m.AugAssign(target=m.Name() | m.Attribute(value=m.Name("self"))))
+
+    @m.call_if_inside(
+        m.AugAssign(
+            target=m.Name()
+            | m.Attribute(value=m.Name("self"), attr=m.Name())
+            | m.List()
+            | m.Tuple()
+        )
+    )
     def visit_AugAssign(self, node: cst.AugAssign) -> bool | None:
-        self._visit_unannotated_target(node.target)
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
 
-    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
-    def visit_Tuple(self, node: cst.Tuple) -> bool | None:
-        self._visit_unpackable(node.elements)
+    def visit_WithItem(self, node: cst.WithItem) -> bool | None:
+        if node.asname is not None:
+            if m.matches(node.asname.name, m.Name()):
+                self._visit_unannotated_target(node.asname.name)
+            elif m.matches(node.asname.name, m.List() | m.Tuple()):
+                self._visit_unpackable(node.asname.name)
 
-    @m.call_if_inside(m.AssignTarget() | m.AugAssign())
-    def visit_List(self, node: cst.List) -> bool | None:
-        self._visit_unpackable(node.elements)
+    def visit_For(self, node: cst.For) -> bool | None:
+        self._enter_loop(node)
 
-    def _visit_unpackable(self, elements: list[cst.BaseElement]) -> bool | None:
-        targets = map(lambda e: e.value, elements)
-        for target in filter(lambda e: not isinstance(e, (cst.Tuple, cst.List)), targets):
-            self._visit_unannotated_target(target)
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
+
+    def visit_CompFor(self, node: cst.CompFor) -> bool | None:
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
+
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> bool | None:
+        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
+            self._visit_unannotated_target(node.target)
+        elif m.matches(node.target, m.List() | m.Tuple()):
+            self._visit_unpackable(node.target)
+
+    def _visit_unpackable(self, unpackable: cst.List | cst.Tuple) -> bool | None:
+        targets = map(lambda e: e.value, unpackable.elements)
+        for target in targets:
+            if m.matches(target, m.Tuple() | m.List()):
+                self._visit_unpackable(target)
+            else:
+                self._visit_unannotated_target(target)
 
     def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
         name = get_full_name_for_node_or_raise(target)
