@@ -76,18 +76,37 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 
     @abc.abstractmethod
     def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation | None) -> None:
+        """
+        class C:
+            a: int      # triggers
+            a = ...     # triggers (libsa4py's instance attributes)
+            a = 5       # ignored
+
+        a: int          # ignored
+        """
         ...
 
     @abc.abstractmethod
     def annotated_assignment(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
     ) -> None:
+        """
+        a: int = 5      # triggers
+        a: int          # ignored
+        """
         ...
 
     @abc.abstractmethod
     def annotated_hint(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
     ) -> None:
+        """
+        a: int = 5      # ignored
+        a: int          # triggers
+
+        class C:
+            a: int      # ignored
+        """
         ...
 
     @abc.abstractmethod
@@ -95,6 +114,27 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         self,
         target: libcst.Name | libcst.Attribute,
     ) -> None:
+        """
+        class C:
+            a: int      # ignored
+            a = ...     # ignored
+            a = 5       # triggers
+
+        a = 10          # triggers
+        a: int          # ignored
+
+        a = b = 50          # triggers for both a and b
+
+        for x, y in zip([1, 2, 3], "abc"): # triggers for both x and y
+            ...
+
+        with p.open() as f:     # triggers for f
+            ...
+
+        [x.value for x in y]    # triggers for x
+
+        assert (x := 10) >= 5   # triggers for x
+        """
         ...
 
     @m.visit(m.AnnAssign())
