@@ -28,8 +28,8 @@ class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
 
 
 class HintableParameterVisitor(m.MatcherDecoratableVisitor, abc.ABC):
-    @m.call_if_inside(m.Param())
     @m.visit(m.Param())
+    @m.call_if_inside(m.Param())
     def __on_visit_param(self, param: libcst.Param) -> None:
         if param.annotation is not None:
             self.annotated_param(param, param.annotation)
@@ -46,8 +46,8 @@ class HintableParameterVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 
 
 class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
-    @m.call_if_inside(m.FunctionDef())
     @m.visit(m.FunctionDef())
+    @m.call_if_inside(m.FunctionDef())
     def __on_visit_function(self, function: libcst.FunctionDef) -> None:
         if function.returns is not None:
             self.annotated_function(function, function.returns)
@@ -71,8 +71,8 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
     """
 
-    @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     @m.visit(m.AnnAssign())
+    @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     def __on_visit_annassign(self, assignment: libcst.AnnAssign) -> None:
         if assignment.value is not None:
             self.annotated_assignment(assignment.target, assignment.annotation)
@@ -91,6 +91,9 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     ) -> None:
         ...
 
+    @m.visit(
+        m.AssignTarget() | m.AugAssign() | m.WithItem() | m.For() | m.CompFor() | m.NamedExpr()
+    )
     @m.call_if_inside(
         m.AssignTarget(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
         | m.AugAssign(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
@@ -98,9 +101,6 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         | m.For(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
         | m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
         | m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
-    )
-    @m.visit(
-        m.AssignTarget() | m.AugAssign() | m.WithItem() | m.For() | m.CompFor() | m.NamedExpr()
     )
     def __on_visit_target(
         self,
