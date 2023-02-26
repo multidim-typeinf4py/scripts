@@ -253,7 +253,7 @@ class TypeCollection:
 
         def attributes() -> dict[str, cst.ClassDef]:
             attrs: dict[str, cst.ClassDef] = {}
-            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.CLASS_ATTR]
+            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.INSTANCE_ATTR]
 
             sep_df = attr_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
             if sep_df.empty:
