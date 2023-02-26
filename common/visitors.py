@@ -1,5 +1,4 @@
 import abc
-import itertools
 import typing
 
 import libcst
