@@ -55,7 +55,6 @@ class ContextCategory(enum.IntEnum):
     CALLABLE_PARAMETER = enum.auto()
     VARIABLE = enum.auto()
     INSTANCE_ATTR = enum.auto()
-    CLASS_ATTR = enum.auto()
 
     def __str__(self) -> str:
         return self.name
