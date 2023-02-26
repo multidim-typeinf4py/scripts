@@ -74,6 +74,29 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
     """
 
+    @abc.abstractmethod
+    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation | None) -> None:
+        ...
+
+    @abc.abstractmethod
+    def annotated_assignment(
+        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+    ) -> None:
+        ...
+
+    @abc.abstractmethod
+    def annotated_hint(
+        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+    ) -> None:
+        ...
+
+    @abc.abstractmethod
+    def unannotated_target(
+        self,
+        target: libcst.Name | libcst.Attribute,
+    ) -> None:
+        ...
+
     @m.visit(m.AnnAssign())
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     def __on_visit_annassign(self, assignment: libcst.AnnAssign) -> None:
@@ -83,22 +106,6 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             self.instance_attribute_hint(assignment.target, assignment.annotation)
         else:
             self.annotated_hint(assignment.target, assignment.annotation)
-
-    @abc.abstractmethod
-    def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        ...
-
-    @abc.abstractmethod
-    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation,) -> None:
-        ...
-
-    @abc.abstractmethod
-    def annotated_hint(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        ...
 
     @m.visit(
         m.AssignTarget() | m.AugAssign() | m.WithItem() | m.For() | m.CompFor() | m.NamedExpr()
@@ -137,9 +144,9 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             for element in elements:
                 self.unannotated_target(element.value)
 
-    @abc.abstractmethod
-    def unannotated_target(
-        self,
-        target: libcst.Name | libcst.Attribute,
-    ) -> None:
-        ...
+    # Catch libsa4py's retainment of INSTANCE_ATTRs
+    @m.visit(m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis()))
+    @m.call_if_inside(m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis()))
+    def __on_visit_libsa4py_instance_attr(self, assignment: libcst.Assign) -> None:
+        if isinstance(self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope):
+            self.instance_attribute_hint(assignment.targets[0], None)
