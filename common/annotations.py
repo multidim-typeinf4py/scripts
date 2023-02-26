@@ -229,12 +229,32 @@ class MultiVarTypeCollector(
         # = propagation of type hint through scope
         self._cst_annassign_hinting[full_qual] = annotation_value
 
+
+    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation) -> None:
+        annotation_value = self._handle_Annotation(annotation=annotation)
+
+        # Mark as an instance attribute
+        scope = self.qualified_scope()
+        key = ".".join(scope)
+        *_, classname = scope
+
+        classdef = self.annotations.class_definitions.get(key, libcst.ClassDef(
+            name=libcst.Name(classname), body=libcst.IndentedBlock(body=[])
+        ))
+        classdef.body.body.append(libcst.AnnAssign(
+            target=libcst.Name(get_full_name_for_node_or_raise(target)),
+            annotation=annotation_value,
+            value=None,
+        ))
+        self.annotations.class_definitions[key] = classdef
+
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         # Reference stored hint if present
         full_qual = self.qualified_name(target)
         hint = self._cst_annassign_hinting.get(full_qual, None)
 
         self.annotations.attributes[full_qual].append(hint)
+
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))

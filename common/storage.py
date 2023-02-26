@@ -108,16 +108,17 @@ class TypeCollection:
 
         for cqname, cdef in annotations.class_definitions.items():
             for stmt in cdef.body.body:
+                print(type(stmt))
                 # NOTE: No need to check for validity of `annassign.annotation`
                 # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
-                if isinstance(annassign := stmt.body[0], cst.AnnAssign):
+                if isinstance(annassign := stmt, cst.AnnAssign):
                     qname = f"{cqname}.{_stringify(annassign.target)}"
                     assert (anno := _stringify(annassign.annotation)) is not None
 
                     contents.append(
                         (
                             filename,
-                            TypeCollectionCategory.CLASS_ATTR,
+                            TypeCollectionCategory.INSTANCE_ATTR,
                             qname,
                             anno,
                         )

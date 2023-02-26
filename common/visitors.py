@@ -14,6 +14,9 @@ class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
         super().__init__()
         self._qualifier: list[str] = []
 
+    def qualified_scope(self) -> tuple[str, ...]:
+        return tuple(self._qualifier)
+
     def qualified_name(self, name: libcst.CSTNode | str) -> str:
         name = h.get_full_name_for_node_or_raise(name)
         return ".".join((*self._qualifier, name))
@@ -76,6 +79,8 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def __on_visit_annassign(self, assignment: libcst.AnnAssign) -> None:
         if assignment.value is not None:
             self.annotated_assignment(assignment.target, assignment.annotation)
+        elif isinstance(self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope):
+            self.instance_attribute_hint(assignment.target, assignment.annotation)
         else:
             self.annotated_hint(assignment.target, assignment.annotation)
 
@@ -83,6 +88,10 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def annotated_assignment(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
     ) -> None:
+        ...
+
+    @abc.abstractmethod
+    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation,) -> None:
         ...
 
     @abc.abstractmethod
