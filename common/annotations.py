@@ -127,8 +127,6 @@ class MultiVarTypeCollector(
         existing_imports: Set[str],
         module_imports: Dict[str, ImportItem],
         context: CodemodContext,
-        handle_function_bodies: bool = False,
-        track_unannotated: bool = False,
     ) -> None:
         super().__init__()
         self.context = context
@@ -147,9 +145,6 @@ class MultiVarTypeCollector(
         self.annotations = MultiVarAnnotations.empty()
 
         self._cst_annassign_hinting: dict[str, libcst.Annotation] = {}
-
-        self.handle_function_bodies = handle_function_bodies
-        self.track_unannotated = track_unannotated
 
     def annotated_function(self, function: libcst.FunctionDef, _: libcst.Annotation) -> None:
         self._function(function)
@@ -179,15 +174,11 @@ class MultiVarTypeCollector(
     def unannotated_param(self, param: libcst.Param) -> None:
         ...
 
-    def visit_FunctionDef(self, node: libcst.FunctionDef) -> None:
-        return self.handle_function_bodies
-
     def visit_Assign(
         self,
         node: libcst.Assign,
     ) -> None:
         self.current_assign = node
-        return self.track_unannotated
 
     def leave_Assign(
         self,
@@ -239,9 +230,6 @@ class MultiVarTypeCollector(
         self._cst_annassign_hinting[full_qual] = annotation_value
 
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
-        if not self.track_unannotated:
-            return
-
         # Reference stored hint if present
         full_qual = self.qualified_name(target)
         hint = self._cst_annassign_hinting.get(full_qual, None)

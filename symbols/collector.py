@@ -77,9 +77,6 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
             existing_imports=existing_imports,
             module_imports=imports_visitor.symbol_mapping,
             context=self.context,
-            create_class_attributes=True,
-            handle_function_bodies=True,
-            track_unannotated=True,
         )
 
         metadataed.visit(type_collector)
