@@ -115,7 +115,7 @@ class TypeCollection:
                     anno = _stringify(stmt.annotation)
 
                 elif m.matches(stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())):
-                    qname = f"{cqname}.{_stringify(stmt.target)}"
+                    qname = f"{cqname}.{_stringify(stmt.targets[0].target)}"
                     anno = missing.NA
 
                 else:
