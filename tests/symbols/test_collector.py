@@ -495,3 +495,17 @@ class Test_HintTracking(AnnotationTracking):
                 (TypeCollectionCategory.VARIABLE, "x", "enum.Enum"),
             ],
         )
+
+    def test_libsa4py(self):
+        df = self.performTracking(
+            """
+            class C:
+                foo = ...
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
+            ],
+        )
