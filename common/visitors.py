@@ -75,7 +75,9 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     """
 
     @abc.abstractmethod
-    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation | None) -> None:
+    def instance_attribute_hint(
+        self, target: libcst.Name, annotation: libcst.Annotation | None
+    ) -> None:
         """
         class C:
             a: int      # triggers
@@ -137,9 +139,9 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         """
         ...
 
-    @m.visit(m.AnnAssign())
+    # @m.visit(m.AnnAssign())
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
-    def __on_visit_annassign(self, assignment: libcst.AnnAssign) -> None:
+    def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
         if assignment.value is not None:
             self.annotated_assignment(assignment.target, assignment.annotation)
         elif isinstance(self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope):
@@ -147,24 +149,60 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         else:
             self.annotated_hint(assignment.target, assignment.annotation)
 
-    @m.visit(
-        m.AssignTarget() | m.AugAssign() | m.WithItem() | m.For() | m.CompFor() | m.NamedExpr()
-    )
+    # Catch libsa4py's retainment of INSTANCE_ATTRs
+    @m.call_if_inside(m.ClassDef())
+    def visit_ClassDef_body(self, clazz: libcst.ClassDef) -> None:
+        for libsa4py_hint in filter(
+            lambda e: m.matches(
+                e,
+                m.SimpleStatementLine(
+                    body=[m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis())]
+                ),
+            ),
+            clazz.body.body,
+        ):
+            self.instance_attribute_hint(libsa4py_hint.body[0].targets[0].target, annotation=None)
+
+    @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    def visit_For_target(self, node: libcst.For) -> None:
+        return self.__on_visit_target(node)
+
+    @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    def visit_CompFor_target(self, node: libcst.CompFor) -> None:
+        return self.__on_visit_target(node)
+
     @m.call_if_inside(
-        m.AssignTarget(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
-        | m.AugAssign(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
-        | m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-        | m.For(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
-        | m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
-        | m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List())
+        m.Assign(
+            targets=[
+                m.ZeroOrMore(m.AssignTarget(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+            ],
+            value=~m.Ellipsis(),
+        )
     )
+    def visit_Assign_targets(self, node: libcst.Assign) -> None:
+        for target in node.targets:
+            if m.matches(target.target, NAME | INSTANCE_ATTR | m.Tuple() | m.List()):
+                self.__on_visit_target(target)
+
+    @m.call_if_inside(m.AugAssign(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    def visit_AugAssign_target(self, node: libcst.AugAssign) -> None:
+        return self.__on_visit_target(node)
+
+    @m.call_if_inside(m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | m.Tuple() | m.List())))
+    def visit_WithItem_item(self, node: libcst.WithItem) -> None:
+        return self.__on_visit_target(node)
+
+    @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    def visit_NamedExpr_target(self, node: libcst.NamedExpr) -> None:
+        return self.__on_visit_target(node)
+
     def __on_visit_target(
         self,
-        node: libcst.AssignTarget
+        node: libcst.For
+        | libcst.CompFor
+        | libcst.AssignTarget
         | libcst.AugAssign
         | libcst.WithItem
-        | libcst.For
-        | libcst.CompFor
         | libcst.NamedExpr,
     ) -> None:
         if hasattr(node, "target"):
@@ -178,15 +216,8 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         elif m.matches(target, m.Tuple() | m.List()):
             elements: typing.Sequence[libcst.BaseElement] = m.findall(
                 target,
-                m.StarredElement(NAME | INSTANCE_ATTR) | m.Element(NAME | INSTANCE_ATTR),
+                (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
             )
 
             for element in elements:
                 self.unannotated_target(element.value)
-
-    # Catch libsa4py's retainment of INSTANCE_ATTRs
-    @m.visit(m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis()))
-    @m.call_if_inside(m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis()))
-    def __on_visit_libsa4py_instance_attr(self, assignment: libcst.Assign) -> None:
-        if isinstance(self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope):
-            self.instance_attribute_hint(assignment.targets[0], None)
