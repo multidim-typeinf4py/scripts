@@ -117,11 +117,11 @@ def code_path() -> typing.Iterator[pathlib.Path]:
             ],
         ),
         (
-            TypeCollectionCategory.CLASS_ATTR,
+            TypeCollectionCategory.INSTANCE_ATTR,
             [("Clazz.a", "Clazz.a", "int")],
         ),
     ],
-    ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "CLASS_ATTR"],
+    ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "INSTANCE_ATTR"],
 )
 def test_hints_found(
     code_path: pathlib.Path,
@@ -146,8 +146,7 @@ def test_hints_found(
     )
 
     df = pd.merge(collection.df, hints_df, how="right", indicator=True)
-
-    m = df[df["_merge"] == "right_only"]
+    m = df[df["_merge"] != "both"]
     print(m)
 
     assert m.empty, f"Diff:\n{m}\n"
