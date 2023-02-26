@@ -11,7 +11,9 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionKey,
     FunctionAnnotation,
 )
+
 import libcst as cst
+import libcst.matchers as m
 
 
 import pandas as pd
@@ -108,14 +110,18 @@ class TypeCollection:
 
         for cqname, cdef in annotations.class_definitions.items():
             for stmt in cdef.body.body:
-                print(type(stmt))
-                # NOTE: No need to check for validity of `annassign.annotation`
-                # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
-                if isinstance(annassign := stmt, cst.AnnAssign):
-                    qname = f"{cqname}.{_stringify(annassign.target)}"
-                    assert (anno := _stringify(annassign.annotation)) is not None
+                if m.matches(stmt, m.AnnAssign()):
+                    qname = f"{cqname}.{_stringify(stmt.target)}"
+                    anno = _stringify(stmt.annotation)
 
-                    contents.append(
+                elif m.matches(stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())):
+                    qname = f"{cqname}.{_stringify(stmt.target)}"
+                    anno = missing.NA
+
+                else:
+                    continue
+
+                contents.append(
                         (
                             filename,
                             TypeCollectionCategory.INSTANCE_ATTR,
@@ -123,6 +129,8 @@ class TypeCollection:
                             anno,
                         )
                     )
+
+                    
 
         cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
         df = pd.DataFrame(contents, columns=cs)
