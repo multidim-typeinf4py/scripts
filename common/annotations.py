@@ -168,10 +168,10 @@ class MultiVarTypeCollector(
         )
 
     # no-op: handle parameters and function in one go
-    def annotated_param(self, param: libcst.Param, annotation: libcst.Annotation) -> None:
+    def annotated_param(self, _1: libcst.Param, _2: libcst.Annotation) -> None:
         ...
 
-    def unannotated_param(self, param: libcst.Param) -> None:
+    def unannotated_param(self, _: libcst.Param) -> None:
         ...
 
     def visit_Assign(
@@ -229,23 +229,36 @@ class MultiVarTypeCollector(
         # = propagation of type hint through scope
         self._cst_annassign_hinting[full_qual] = annotation_value
 
-
-    def instance_attribute_hint(self, target: libcst.Name, annotation: libcst.Annotation) -> None:
-        annotation_value = self._handle_Annotation(annotation=annotation)
+    def instance_attribute_hint(
+        self, target: libcst.Name, annotation: libcst.Annotation | None
+    ) -> None:
+        if annotation is not None:
+            annotation_value = self._handle_Annotation(annotation=annotation)
+        else:
+            annotation_value = None
 
         # Mark as an instance attribute
         scope = self.qualified_scope()
         key = ".".join(scope)
         *_, classname = scope
 
-        classdef = self.annotations.class_definitions.get(key, libcst.ClassDef(
-            name=libcst.Name(classname), body=libcst.IndentedBlock(body=[])
-        ))
-        classdef.body.body.append(libcst.AnnAssign(
-            target=libcst.Name(get_full_name_for_node_or_raise(target)),
-            annotation=annotation_value,
-            value=None,
-        ))
+        classdef = self.annotations.class_definitions.get(
+            key, libcst.ClassDef(name=libcst.Name(classname), body=libcst.IndentedBlock(body=[]))
+        )
+
+        if annotation_value is not None:
+            classdef.body.body.append(
+                libcst.AnnAssign(
+                    target=target,
+                    annotation=annotation_value,
+                    value=None,
+                )
+            )
+        else:
+            classdef.body.body.append(
+                libcst.Assign(targets=[libcst.AssignTarget(target=target)], value=libcst.Ellipsis())
+            )
+
         self.annotations.class_definitions[key] = classdef
 
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
@@ -254,7 +267,6 @@ class MultiVarTypeCollector(
         hint = self._cst_annassign_hinting.get(full_qual, None)
 
         self.annotations.attributes[full_qual].append(hint)
-
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))
@@ -1263,8 +1275,7 @@ class TypeAnnotationRemover(libcst.CSTTransformer):
             return updated_node
 
         # Remove hinting like 'a: int' and 'self.foo: str' if outside of a class' body;
-        # Otherwise, remove it entirely instead if it is not a hint in a class;
-        # in that case; replace it by 'a = ...'
+        # If it is a hint in a class, i.e. an INSTANCE_ATTR, ; replace it by 'a = ...'
         if m.matches(
             original_node,
             m.AnnAssign(
