@@ -1,4 +1,5 @@
 import abc
+import dataclasses
 import functools
 import typing
 
@@ -80,6 +81,26 @@ class HintableReturnTransformer(m.MatcherDecoratableTransformer, abc.ABC):
         libcst.BaseStatement
     ] | libcst.RemovalSentinel:
         ...
+
+
+@dataclasses.dataclass
+class Prepend:
+    node: libcst.CSTNode
+
+
+@dataclasses.dataclass
+class Append:
+    node: libcst.CSTNode
+
+
+@dataclasses.dataclass
+class Replace:
+    node: libcst.CSTNode
+
+
+@dataclasses.dataclass
+class Untouched:
+    ...
 
 
 class HintableDeclarationTransformer(m.MatcherDecoratableTransformer, abc.ABC):
