@@ -54,7 +54,7 @@ class _KeyWordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
             self.provider.set_metadata(node, KeywordContext.UNCHANGED)
 
     def visit_FunctionDef_body(self, node: libcst.FunctionDef) -> None:
-        self.active_scopes.append(self.provider.get_metadata(metadata.ScopeProvider, node.body))
+        self.active_scopes.append(self.provider.get_metadata(metadata.ScopeProvider, node.body.body[0]))
 
     def leave_FunctionDef_body(self, _: libcst.FunctionDef) -> None:
         self._scope2nonlocal.pop(self.active_scopes[-1], None)
@@ -63,7 +63,7 @@ class _KeyWordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
         self.active_scopes.pop()
 
     def visit_ClassDef_body(self, node: libcst.ClassDef) -> None:
-        self.active_scopes.append(self.provider.get_metadata(metadata.ScopeProvider, node.body))
+        self.active_scopes.append(self.provider.get_metadata(metadata.ScopeProvider, node.body.body[0]))
 
     def leave_ClassDef_body(self, _: libcst.ClassDef) -> None:
         self._scope2nonlocal.pop(self.active_scopes[-1], None)
