@@ -4,7 +4,6 @@ import enum
 
 import libcst
 from libcst import metadata, matchers as m
-from libcst import helpers as h
 
 
 from .matchers import NAME

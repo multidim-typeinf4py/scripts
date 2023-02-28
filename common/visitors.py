@@ -4,8 +4,8 @@ import typing
 import libcst
 from libcst import metadata, matchers as m, helpers as h
 
-NAME = m.Name()
-INSTANCE_ATTR = m.Attribute(m.Name("self"), m.Name())
+from .matchers import NAME, INSTANCE_ATTR, LIST, TUPLE
+from .metadata import KeywordModifiedScopeProvider, KeywordContext
 
 
 class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
@@ -73,6 +73,8 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
     """
 
+    METADATA_DEPENDENCIES = (KeywordModifiedScopeProvider,)
+
     @abc.abstractmethod
     def instance_attribute_hint(
         self, target: libcst.Name, annotation: libcst.Annotation | None
@@ -136,6 +138,14 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 
         assert (x := 10) >= 5   # triggers for x
         """
+        ...
+
+    @abc.abstractmethod
+    def nonlocal_target(self, target: libcst.Name) -> None:
+        ...
+
+    @abc.abstractmethod
+    def global_target(self, target: libcst.Name) -> None:
         ...
 
     # @m.visit(m.AnnAssign())
@@ -210,13 +220,26 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             target = node.asname.name
 
         if m.matches(target, NAME | INSTANCE_ATTR):
-            self.unannotated_target(target)
+            targets = [target]
 
         elif m.matches(target, m.Tuple() | m.List()):
-            elements: typing.Sequence[libcst.BaseElement] = m.findall(
-                target,
-                (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
-            )
+            targets = [
+                element.value
+                for element in m.findall(
+                    target,
+                    (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
+                )
+            ]
 
-            for element in elements:
-                self.unannotated_target(element.value)
+        for target in targets:
+            mod_scope = self.get_metadata(
+                KeywordModifiedScopeProvider, target, KeywordContext.UNCHANGED
+            )
+            if mod_scope is KeywordContext.UNCHANGED:
+                self.unannotated_target(target)
+
+            elif mod_scope is KeywordContext.NONLOCAL:
+                self.nonlocal_target(target)
+
+            elif mod_scope is KeywordContext.GLOBAL:
+                self.global_target(target)
