@@ -91,6 +91,13 @@ class ContextVectorVisitor(
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
+
+    def global_target(self, _: libcst.Name) -> None:
+        ...
+
+    def nonlocal_target(self, _: libcst.Name) -> None:
+        ...
+
     def annotated_function(
         self, function: libcst.FunctionDef, annotation: libcst.Annotation
     ) -> None:
@@ -238,7 +245,7 @@ class ContextVectorVisitor(
 
         # Each body's entrance and exit points can be triggered at any point; 
         # simply assume latest possible execution, i.e.
-        # propogate all symbols declared in bodies
+        # propagate all symbols declared in bodies
         self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
 
         self.full_scope_nodes.pop()
