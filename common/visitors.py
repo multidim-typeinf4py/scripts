@@ -1,10 +1,9 @@
 import abc
-import typing
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h
 
-from .matchers import NAME, INSTANCE_ATTR, LIST, TUPLE
+from .matchers import LIST, NAME, INSTANCE_ATTR, TUPLE
 from .metadata import KeywordModifiedScopeProvider, KeywordContext
 
 
@@ -226,7 +225,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         if m.matches(target, NAME | INSTANCE_ATTR):
             targets = [target]
 
-        elif m.matches(target, m.Tuple() | m.List()):
+        elif m.matches(target, TUPLE | LIST):
             targets = [
                 element.value
                 for element in m.findall(
