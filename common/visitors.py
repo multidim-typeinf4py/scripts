@@ -148,7 +148,6 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def global_target(self, target: libcst.Name) -> None:
         ...
 
-    # @m.visit(m.AnnAssign())
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
         if assignment.value is not None:
@@ -201,9 +200,14 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def visit_WithItem_item(self, node: libcst.WithItem) -> None:
         return self.__on_visit_target(node)
 
-    @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-    def visit_NamedExpr_target(self, node: libcst.NamedExpr) -> None:
-        return self.__on_visit_target(node)
+    # @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    # def visit_NamedExpr_target(self, node: libcst.NamedExpr) -> None:
+    #     return self.__on_visit_target(node)
+
+    # We cannot annotate anything inside of a lambda; and annotating
+    # variables from outside of a Lambda is an alternation to the scope
+    def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
+        return False
 
     def __on_visit_target(
         self,
