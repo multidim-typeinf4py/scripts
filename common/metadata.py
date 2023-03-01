@@ -15,7 +15,7 @@ class KeywordContext(enum.Enum):
     UNCHANGED = enum.auto()
 
 
-class _KeyWordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
+class _KeywordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
     def __init__(self, provider: KeywordModifiedScopeProvider) -> None:
         super().__init__()
         self.provider = provider
@@ -75,4 +75,4 @@ class KeywordModifiedScopeProvider(metadata.BatchableMetadataProvider[KeywordCon
     METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> bool | None:
-        node.visit(_KeyWordModifiedScopeVisitor(self))
+        node.visit(_KeywordModifiedScopeVisitor(self))
