@@ -34,12 +34,12 @@ class TestFeatures:
     def test_reassigned(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.one_positive_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
             ContextSymbolSchema.reassigned,
         )
         self.one_negative_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
             ContextSymbolSchema.reassigned,
         )
 
@@ -68,7 +68,6 @@ class TestFeatures:
                 "f.g",
                 "f.g.a",
                 "g",
-                "g.a",
                 "parammed",
                 "parammed.p",
                 "branching",
