@@ -86,17 +86,25 @@ class ContextVectorVisitor(
             tuple[str, ...], set[str]
         ] = collections.defaultdict(set)
 
+        self.keyword_modified_targets: set[str] = set()
+
         self.filepath = filepath
         self._annassign_hinting: dict[str, libcst.Annotation] = dict()
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
 
-    def global_target(self, _: libcst.Name) -> None:
-        ...
+    def global_target(self, target: libcst.Name) -> None:
+        self._handle_scope_modified_target(target)
 
-    def nonlocal_target(self, _: libcst.Name) -> None:
-        ...
+    def nonlocal_target(self, target: libcst.Name) -> None:
+        self._handle_scope_modified_target(target)
+
+    def _handle_scope_modified_target(self, annotatable: libcst.Name) -> None:
+        self.keyword_modified_targets.add(
+            get_full_name_for_node_or_raise(annotatable)
+        )
+        
 
     def annotated_function(
         self, function: libcst.FunctionDef, annotation: libcst.Annotation
@@ -285,7 +293,7 @@ class ContextVectorVisitor(
             )
         )
 
-    def _is_in_loop(self, annotatable: libcst.CSTNode) -> bool:
+    def _is_in_loop(self, _: libcst.CSTNode) -> bool:
         # Break out of unpackable
         # while isinstance((parent := self.get_metadata(metadata.ParentNodeProvider, annotatable)), libcst.Tuple | libcst.List):
         #    ...
@@ -410,4 +418,9 @@ class ContextVectorVisitor(
             .pipe(generate_qname_ssas_for_file)
             .pipe(pt.DataFrame[ContextSymbolSchema])
         )
+
+        # Update keyword modified scopage
+        reassigned_names = df[ContextSymbolSchema.qname].isin(self.keyword_modified_targets)
+        df.loc[reassigned_names, ContextSymbolSchema.reassigned] = 1
+
         return df
