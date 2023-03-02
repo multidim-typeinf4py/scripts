@@ -19,7 +19,7 @@ class _KeywordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
         super().__init__()
         self.provider = provider
 
-        self.active_scopes: list[metadata.FunctionScope] = []
+        self.active_scopes: list[metadata.Scope] = []
 
         self._scope2nonlocal: collections.defaultdict[
             metadata.Scope, set[str]
