@@ -1,20 +1,17 @@
 import textwrap
 
 
-from libcst import codemod, metadata
+from libcst import codemod
 
 from common.ast_helper import generate_qname_ssas_for_file
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from common.schemas import TypeCollectionCategory
 
 from infer.insertion import (
     QName2SSATransformer,
     SSA2QNameTransformer,
-    TypeAnnotationApplierTransformer,
 )
 
 import pandas as pd
-from pandas._libs import missing
-import pandera.typing as pt
 
 
 class Test_QName2SSA(codemod.CodemodTest):
@@ -61,11 +58,8 @@ class Test_QName2SSA(codemod.CodemodTest):
                     "qname": ["a"] * 2
                     + ["b", "c"]
                     + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": ["int", "str", "str", "int", "int", "str", "str"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
         )
 
     def test_tuple_assignment_transformed(self):
@@ -77,11 +71,8 @@ class Test_QName2SSA(codemod.CodemodTest):
                     "file": ["x.py"] * 3,
                     "category": [TypeCollectionCategory.VARIABLE] * 3,
                     "qname": ["a", "b", "c"],
-                    "anno": ["int", "int", "int"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
         )
 
     def test_list_assignment_transformed(self):
@@ -93,11 +84,27 @@ class Test_QName2SSA(codemod.CodemodTest):
                     "file": ["x.py"] * 3,
                     "category": [TypeCollectionCategory.VARIABLE] * 3,
                     "qname": ["a", "b", "c"],
-                    "anno": ["int", "int", "int"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
+        )
+
+    def test_withitem_transformed(self):
+        self.assertCodemod(
+            """
+            with open(file) as f:
+                ...
+            """,
+            """
+            with open(file) as fλ1:
+                ...
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 1,
+                    "category": [TypeCollectionCategory.VARIABLE] * 1,
+                    "qname": ["f"],
+                }
+            ).pipe(generate_qname_ssas_for_file),
         )
 
 
@@ -145,11 +152,8 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "qname": ["a"] * 2
                     + ["b", "c"]
                     + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": ["int", "str", "str", "int", "int", "str", "str"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
         )
 
     def test_tuple_assignment_transformed(self):
@@ -161,11 +165,8 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "file": ["x.py"] * 3,
                     "category": [TypeCollectionCategory.VARIABLE] * 3,
                     "qname": ["a", "b", "c"],
-                    "anno": ["int", "int", "int"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
         )
 
     def test_list_assignment_transformed(self):
@@ -177,9 +178,6 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "file": ["x.py"] * 3,
                     "category": [TypeCollectionCategory.VARIABLE] * 3,
                     "qname": ["a", "b", "c"],
-                    "anno": ["int", "int", "int"],
                 }
-            )
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            ).pipe(generate_qname_ssas_for_file),
         )
