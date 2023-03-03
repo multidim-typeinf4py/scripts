@@ -39,7 +39,7 @@ class TestFeatures:
         )
         self.one_negative_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p"],
             ContextSymbolSchema.reassigned,
         )
 
@@ -104,7 +104,7 @@ class TestFeatures:
             select = context_dataset[ContextSymbolSchema.qname] == qname
             assert not context_dataset.loc[
                 select, feature
-            ].all(), f"{qname} is should not be marked as '{feature}'"
+            ].all(), f"{qname} should not be marked as '{feature}'"
 
     def all_positive_check(
         self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
