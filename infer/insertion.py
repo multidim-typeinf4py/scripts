@@ -1,17 +1,17 @@
-import abc
+import logging
 import pathlib
 
-import libcst
-from libcst import codemod, metadata
+from libcst import codemod
+import libcst as cst
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
+from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
+import libcst.matchers as m
 
 import pandera.typing as pt
 
-from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
+from common.ast_helper import _stringify
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
-from common import transformers as t
-
 from symbols.collector import TypeCollectorVistor
 
 
@@ -19,12 +19,12 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
     def __init__(
         self,
         context: codemod.CodemodContext,
-        annotations: pt.DataFrame[TypeCollectionSchema],
+        tycol: TypeCollection | pt.DataFrame[TypeCollectionSchema],
     ) -> None:
         super().__init__(context)
-        self.annotations = annotations
+        self.tycol = tycol.df if isinstance(tycol, TypeCollection) else tycol
 
-    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
+    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
         assert self.context.filename is not None
         assert self.context.metadata_manager is not None
 
@@ -32,9 +32,9 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             self.context.metadata_manager.root_path
         )
 
-        module_tycol = self.annotations[
-            self.annotations[TypeCollectionSchema.file] == str(relative)
-        ].pipe(pt.DataFrame[TypeCollectionSchema])
+        module_tycol = self.tycol[self.tycol[TypeCollectionSchema.file] == str(relative)].pipe(
+            pt.DataFrame[TypeCollectionSchema]
+        )
 
         AddImportsVisitor.add_needed_import(self.context, "typing")
         # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
@@ -43,14 +43,16 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
 
         symbol_collector = TypeCollectorVistor.strict(context=self.context)
         symbol_collector.transform_module(removed)
-        annotations = TypeCollection.to_libcst_annotations(
-            module_tycol, symbol_collector.collection.df
-        )
 
         with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(removed)
 
+        annotations = TypeCollection.to_libcst_annotations(
+            module_tycol, symbol_collector.collection.df
+        )
+
+        # Due to renaming, it it safe to use LibCST's implementation for this!
         hinted = ApplyTypeAnnotationsVisitor(
             context=self.context,
             annotations=annotations,
@@ -63,132 +65,157 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         with_qnames = SSA2QNameTransformer(
             context=self.context, annotations=module_tycol
         ).transform_module(hinted)
+
         return with_qnames
 
 
-class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer, abc.ABC):
-    def instance_attribute_hint(
-        self, _1: libcst.AnnAssign, target: libcst.Name, _2: libcst.Annotation
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-    def transform_target(self, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        if (new_target := self.lookup(target)) is not None:
-            action = t.Replace(target, libcst.parse_expression(new_target))
-        else:
-            action = t.Untouched()
-
-        return t.Actions((action,))
-
-    @abc.abstractmethod
-    def lookup(self, target: libcst.Name | libcst.Attribute) -> str | None:
-        ...
-
-    # variations of INSTANCE_ATTR, globals and nonlocals, annotation hints remain untouched
-    def instance_attribute_hint(
-        self, _1: libcst.AnnAssign, _2: libcst.Name, _3: libcst.Annotation
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    def libsa4py_hint(self, _1: libcst.Assign, _2: libcst.Name) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    def global_target(
-        self, _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    def nonlocal_target(
-        self, _1: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    def annotated_hint(
-        self,
-        _1: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-        _2: libcst.Annotation,
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    # actual assignments; simply rename targets
-    def annotated_assignment(
-        self,
-        _1: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-        _2: libcst.Annotation,
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-    def unannotated_assign_single_target(
-        self, _1: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-    def unannotated_assign_multiple_targets(
-        self, _1: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-    def for_target(self, _1: libcst.For, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        return self.transform_target(target)
-
-    def compfor_target(
-        self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-    def withitem_target(
-        self, _1: libcst.With, _2: libcst.WithItem, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target)
-
-
-class QName2SSATransformer(_SSATransformer):
-    def __init__(
-        self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
-    ):
+class ScopeAwareTransformer(codemod.ContextAwareTransformer):
+    def __init__(self, context: codemod.CodemodContext) -> None:
         super().__init__(context)
-        self.annotations = annotations.assign(consumed=0)
+        self._scope: list[tuple[str, ...]] = []
 
-    def lookup(self, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        scope = self.qualified_scope()
-        qname = self.qualified_name(target)
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self._scope.append((*self.current_scope(), node.name.value))
 
-        cand_mask = (self.annotations[TypeCollectionSchema.qname] == qname) & (
-            self.annotations["consumed"] != 1
-        )
-        candidates = self.annotations.loc[cand_mask]
-        assert not candidates.empty, f"Unable to lookup: {qname}"
+    def leave_ClassDef(self, _: cst.ClassDef, updated: cst.ClassDef) -> cst.ClassDef:
+        self._scope.pop()
+        return updated
 
-        qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
-        qname_ssa = str(qname_ssa_ser.iloc[0])
-        self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        self._scope.append((*self.current_scope(), node.name.value))
 
-        if scope:
-            qname_ssa = qname_ssa.removeprefix(".".join(scope) + ".")
-        return qname_ssa
+    def leave_FunctionDef(self, _: cst.FunctionDef, updated: cst.FunctionDef) -> cst.FunctionDef:
+        self._scope.pop()
+        return updated
+
+    def current_scope(self) -> tuple[str, ...]:
+        return self._scope[-1] if self._scope else tuple()
 
 
-class SSA2QNameTransformer(_SSATransformer):
+class QName2SSATransformer(ScopeAwareTransformer):
     def __init__(
         self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
-    ):
+    ) -> None:
+        super().__init__(context)
+        self.annotations = annotations.copy().assign(consumed=0)
+        self.logger = logging.getLogger(QName2SSATransformer.__qualname__)
+
+    def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
+
+    def leave_AugAssign(self, _: cst.AugAssign, updated_node: cst.AugAssign) -> cst.AugAssign:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
+
+    def leave_AssignTarget(
+        self, _: cst.AssignTarget, updated_node: cst.AssignTarget
+    ) -> cst.AssignTarget:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
+
+    def _handle_assn_tgt(
+        self, node: cst.BaseAssignTargetExpression
+    ) -> cst.BaseAssignTargetExpression | None:
+        if m.matches(node, m.Name() | m.Attribute(value=m.Name("self"))):
+            s, name = ".".join(self.current_scope()), _stringify(node)
+            assert name is not None
+            full_qname = f"{s}.{name}" if s else name
+
+            cand_mask = (self.annotations[TypeCollectionSchema.qname] == full_qname) & (
+                self.annotations["consumed"] != 1
+            )
+            candidates = self.annotations.loc[cand_mask]
+            if candidates.empty:
+                # self.logger.warning(f"Could not lookup {full_qname}")
+                return None
+
+            qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
+            qname_ssa = str(qname_ssa_ser.iloc[0])
+            if s:
+                qname_ssa = qname_ssa.removeprefix(s + ".")
+            self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
+
+            e = cst.parse_expression(qname_ssa)
+            assert isinstance(e, cst.BaseAssignTargetExpression)
+
+            return e
+
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elem_ts = map(type, node.elements)
+            elements = [
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
+            ]
+            return ctor(elements)
+
+        else:
+            return None
+
+
+class SSA2QNameTransformer(ScopeAwareTransformer):
+    def __init__(
+        self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
+    ) -> None:
         super().__init__(context)
         self.annotations = annotations
+        self.logger = logging.getLogger(SSA2QNameTransformer.__qualname__)
 
-    def lookup(self, target: libcst.Name | libcst.Attribute) -> str:
-        scope = self.qualified_scope()
-        qname_ssa = self.qualified_name(target)
+    def leave_AnnAssign(self, _: cst.AnnAssign, updated_node: cst.AnnAssign) -> cst.AnnAssign:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
 
-        cand_mask = self.annotations[TypeCollectionSchema.qname] == qname_ssa
-        candidates = self.annotations.loc[cand_mask]
-        assert not candidates.empty, f"Unable to lookup: {qname_ssa}"
+    def leave_AssignTarget(
+        self, _: cst.AssignTarget, updated_node: cst.AssignTarget
+    ) -> cst.AssignTarget:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
 
-        qname_ser = candidates[TypeCollectionSchema.qname]
-        qname = str(qname_ser.iloc[0])
-        self.annotations.at[qname_ser.index[0], "consumed"] = 1
+    def leave_AugAssign(self, _: cst.AugAssign, updated_node: cst.AugAssign) -> cst.AugAssign:
+        if (qname_ssa := self._handle_assn_tgt(updated_node.target)) is not None:
+            return updated_node.with_changes(target=qname_ssa)
+        return updated_node
 
-        if scope:
-            qname = qname.removeprefix(".".join(scope) + ".")
-        return qname
+    def _handle_assn_tgt(
+        self, node: cst.BaseAssignTargetExpression
+    ) -> cst.BaseAssignTargetExpression | None:
+        if m.matches(node, m.Name() | m.Attribute(value=m.Name("self"))):
+            s, name = ".".join(self.current_scope()), _stringify(node)
+            assert name is not None
+            full_qname_ssa = f"{s}.{name}" if s else name
+
+            cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == full_qname_ssa
+            candidates = self.annotations.loc[cand_mask]
+            if candidates.empty:
+                # self.logger.warning(f"Could not lookup {full_qname_ssa}")
+                return
+
+            qname_ser = candidates[TypeCollectionSchema.qname]
+            qname = qname_ser.iloc[0]
+
+            if s:
+                qname = qname.removeprefix(s + ".")
+            e = cst.parse_expression(qname)
+            assert isinstance(e, cst.BaseAssignTargetExpression)
+
+            return e
+
+        elif isinstance(node, (cst.List, cst.Tuple)):
+            ctor = type(node)
+
+            elem_ts = map(type, node.elements)
+            elements = [
+                elem_t(self._handle_assn_tgt(element.value) or element.value)
+                for elem_t, element in zip(elem_ts, node.elements)
+            ]
+            return ctor(elements)
+
+        else:
+            return None

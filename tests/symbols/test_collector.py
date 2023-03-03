@@ -177,7 +177,7 @@ class AnnotationTracking(codemod.CodemodTest):
                 ),
             ),
         )
-        visitor.transform_module(module)
+        module.visit(visitor)
 
         return visitor.collection.df
 
