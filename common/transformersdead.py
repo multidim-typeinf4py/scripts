@@ -1,3 +1,5 @@
+# NOTE: This is currently UNUSED due to unsoundness of reference stability as required by LibCST
+
 import abc
 import dataclasses
 import itertools
@@ -5,13 +7,12 @@ import itertools
 import libcst
 from libcst import metadata, matchers as m, helpers as h, codemod as c
 
-from common.metadata import KeywordContext, KeywordModifiedScopeProvider
 from .matchers import NAME, INSTANCE_ATTR, LIST, TUPLE
 
 
-class ScopeAwareTransformer(m.MatcherDecoratableTransformer):
-    def __init__(self) -> None:
-        super().__init__()
+class ScopeAwareTransformer(c.ContextAwareTransformer):
+    def __init__(self, context: c.CodemodContext) -> None:
+        super().__init__(context)
         self._qualifier: list[str] = []
 
     def qualified_scope(self) -> tuple[str, ...]:
@@ -63,14 +64,14 @@ class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
 
 class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_FunctionDef(
-        self, function: libcst.FunctionDef
+        self, _: libcst.FunctionDef, updated_node: libcst.FunctionDef
     ) -> libcst.BaseStatement | libcst.FlattenSentinel[
         libcst.BaseStatement
     ] | libcst.RemovalSentinel:
-        if function.returns is not None:
-            return self.annotated_function(function, function.returns)
+        if updated_node.returns is not None:
+            return self.annotated_function(updated_node, updated_node.returns)
         else:
-            return self.unannotated_function(function)
+            return self.unannotated_function(updated_node)
 
     @abc.abstractmethod
     def annotated_function(
@@ -89,23 +90,23 @@ class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
         ...
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Prepend:
     node: libcst.BaseSmallStatement
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Append:
     node: libcst.BaseSmallStatement
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Replace:
     old_node: libcst.CSTNode
     new_node: libcst.CSTNode
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Untouched:
     ...
 
@@ -145,11 +146,10 @@ def _handle_actions(
 class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     """
     Provide hook methods for transforming hintable attributes (both a and self.a)
-    in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
+    in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops
     """
 
     METADATA_DEPENDENCIES = (
-        KeywordModifiedScopeProvider,
         metadata.ParentNodeProvider,
         metadata.ScopeProvider,
     )
@@ -328,7 +328,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
                     updated_node, targets_of_interest[0]
                 )
             else:
-                actions = Actions()
+                actions = Actions((Untouched(),))
 
         else:
             targets_of_interest = list(
@@ -392,7 +392,9 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         return _handle_actions(updated_node, actions)
 
     @m.call_if_inside(m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | TUPLE | LIST)))
-    def leave_WithItem(self, updated_node: libcst.WithItem) -> None:
+    def leave_WithItem(
+        self, _: libcst.WithItem, updated_node: libcst.WithItem
+    ) -> libcst.FlattenSentinel[libcst.CSTNode]:
         with_node = self.get_metadata(metadata.ParentNodeProvider, updated_node)
         targets_of_interest = self._access_targets(updated_node.asname.name)
         actions = list(
@@ -405,7 +407,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         return _handle_actions(updated_node, actions)
 
     # TODO: Can the prependable / appendable node for NamedExpr be found by
-    # TODO: using m.StatementLine(m.AtLeastN(m.NamedExpr(...), n=1))
+    # TODO: using m.StatementLine(m.AtLeastN(m.NamedExpr(...), n=1))?
     # @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
     # def leave_NamedExpr(self, updated_node: libcst.NamedExpr) -> None:
     #    targets_of_interest = self._access_targets(updated_node.target)
@@ -439,12 +441,10 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         else:
             targets = []
 
-        targets = list(
-            filter(
-                lambda t: self.get_metadata(KeywordModifiedScopeProvider, t)
-                is KeywordContext.UNCHANGED,
-                targets,
-            )
-        )
+        non_overwritten_targets = list()
+        for target in targets:
+            #scope = self.get_metadata(metadata.ScopeProvider, target)
+            #if h.get_full_name_for_node_or_raise(target) not in scope._scope_overwrites:
+            non_overwritten_targets.append(target)
 
         return targets
