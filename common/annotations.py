@@ -269,11 +269,7 @@ class MultiVarTypeCollector(
         self.annotations.attributes[full_qual].append(hint)
 
     # no-op, as these cannot ever be annotated
-    def global_target(self, _: libcst.Name) -> None:
-        ...
-
-    # no-op, as these cannot ever be annotated
-    def nonlocal_target(self, _: libcst.Name) -> None:
+    def scope_overwritten_target(self, target: libcst.Name) -> None:
         ...
 
     @m.call_if_inside(m.Assign())

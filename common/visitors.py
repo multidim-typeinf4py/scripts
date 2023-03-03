@@ -72,7 +72,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
     """
 
-    METADATA_DEPENDENCIES = (KeywordModifiedScopeProvider,)
+    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
 
     @abc.abstractmethod
     def instance_attribute_hint(
@@ -140,11 +140,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         ...
 
     @abc.abstractmethod
-    def nonlocal_target(self, target: libcst.Name) -> None:
-        ...
-
-    @abc.abstractmethod
-    def global_target(self, target: libcst.Name) -> None:
+    def scope_overwritten_target(self, target: libcst.Name) -> None:
         ...
 
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
@@ -235,14 +231,10 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             ]
 
         for target in targets:
-            mod_scope = self.get_metadata(
-                KeywordModifiedScopeProvider, target, KeywordContext.UNCHANGED
-            )
-            if mod_scope is KeywordContext.UNCHANGED:
+            mod_scope = self.get_metadata(metadata.ScopeProvider, target)
+            assert mod_scope is not None
+
+            if isinstance(mod_scope, metadata.FunctionScope) and h.get_full_name_for_node_or_raise(target) in mod_scope._scope_overwrites:
+                self.scope_overwritten_target(target)
+            else:
                 self.unannotated_target(target)
-
-            elif mod_scope is KeywordContext.NONLOCAL:
-                self.nonlocal_target(target)
-
-            elif mod_scope is KeywordContext.GLOBAL:
-                self.global_target(target)
