@@ -239,8 +239,8 @@ class TypeCollection:
 
             return fs
 
-        def variables() -> dict[str, list[cst.Annotation]]:
-            vs: dict[str, list[cst.Annotation]] = {}
+        def variables() -> dict[str, cst.Annotation]:
+            vs: dict[str, cst.Annotation] = {}
             var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
             for qname, anno in var_df[

@@ -53,7 +53,10 @@ class ContextVectorVisitor(
         ],
     )
 
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider, metadata.ParentNodeProvider)
+    METADATA_DEPENDENCIES = (
+        metadata.ScopeProvider,
+        metadata.ParentNodeProvider,
+    )
 
     def __init__(self, filepath: str, features: RelevantFeatures) -> None:
         super().__init__()
@@ -93,18 +96,8 @@ class ContextVectorVisitor(
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
-
-    def global_target(self, target: libcst.Name) -> None:
-        self._handle_scope_modified_target(target)
-
-    def nonlocal_target(self, target: libcst.Name) -> None:
-        self._handle_scope_modified_target(target)
-
-    def _handle_scope_modified_target(self, annotatable: libcst.Name) -> None:
-        self.keyword_modified_targets.add(
-            get_full_name_for_node_or_raise(annotatable)
-        )
-        
+    def scope_overwritten_target(self, target: libcst.Name) -> None:
+        self.keyword_modified_targets.add(get_full_name_for_node_or_raise(target))
 
     def annotated_function(
         self, function: libcst.FunctionDef, annotation: libcst.Annotation
@@ -242,16 +235,20 @@ class ContextVectorVisitor(
         self.full_scope_names.pop()
 
     @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
-    def _enter_exception_block(self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally):
+    def _enter_exception_block(
+        self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+    ):
         self.full_scope_nodes.append(block)
         self.full_scope_names.append(tuple((*self.scope_components(), block.__class__.__name__)))
         self.visible_symbols[self.scope_components()] = set()
 
     @m.leave(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
-    def _leave_exception_block(self, _: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally):
+    def _leave_exception_block(
+        self, _: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+    ):
         *outer, _ = leaving = self.scope_components()
 
-        # Each body's entrance and exit points can be triggered at any point; 
+        # Each body's entrance and exit points can be triggered at any point;
         # simply assume latest possible execution, i.e.
         # propagate all symbols declared in bodies
         self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
@@ -297,7 +294,6 @@ class ContextVectorVisitor(
         # Break out of unpackable
         # while isinstance((parent := self.get_metadata(metadata.ParentNodeProvider, annotatable)), libcst.Tuple | libcst.List):
         #    ...
-
 
         return any(isinstance(s, libcst.For | libcst.While) for s in self.full_scope_nodes)
 
@@ -363,7 +359,6 @@ class ContextVectorVisitor(
 
         self.visible_symbols[self.scope_components()] = set()
 
-
     @m.leave(m.While() | m.For() | m.CompFor())
     def _leave_loop(self, _: libcst.While | libcst.For | libcst.CompFor) -> None:
         # Symbols declared here persist into lower scope, merge them in
@@ -371,8 +366,7 @@ class ContextVectorVisitor(
         self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
 
         self.full_scope_nodes.pop()
-        self.full_scope_names.pop() 
-
+        self.full_scope_names.pop()
 
     def leave_If_body(self, _: libcst.If) -> None:
         self._leave_branch_body()
@@ -384,7 +378,6 @@ class ContextVectorVisitor(
         # Move newly tracked symbols to invisible symbols
         leaving = self.scope_components()
         self.invisible_symbols[leaving] = self.visible_symbols.pop(leaving, set())
-
 
     def scope_components(self) -> tuple[str, ...]:
         return self.full_scope_names[-1] if self.full_scope_names else tuple()
