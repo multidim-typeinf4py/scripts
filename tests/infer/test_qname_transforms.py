@@ -24,7 +24,7 @@ class Test_QName2SSA(codemod.CodemodTest):
                 a = 10
                 a = "Hello World"
 
-                (b, c) = "Hello", 5
+                b, c = "Hello", 5
 
                 def f(a, b, c): ...
                 
@@ -40,7 +40,7 @@ class Test_QName2SSA(codemod.CodemodTest):
                 aλ1 = 10
                 aλ2 = "Hello World"
 
-                (bλ1, cλ1) = "Hello", 5
+                bλ1, cλ1 = "Hello", 5
 
                 def f(a, b, c): ...
                 
@@ -65,7 +65,7 @@ class Test_QName2SSA(codemod.CodemodTest):
     def test_tuple_assignment_transformed(self):
         self.assertCodemod(
             "a, (b, c) = 1, 5, 20",
-            "(aλ1, (bλ1, cλ1)) = 1, 5, 20",
+            "aλ1, (bλ1, cλ1) = 1, 5, 20",
             annotations=pd.DataFrame(
                 {
                     "file": ["x.py"] * 3,
@@ -118,7 +118,7 @@ class Test_SSA2QName(codemod.CodemodTest):
                 aλ1 = 10
                 aλ2 = "Hello World"
 
-                (bλ1, cλ1) = "Hello", 5
+                bλ1, cλ1 = "Hello", 5
 
                 def f(a, b, c): ...
                 
@@ -134,7 +134,7 @@ class Test_SSA2QName(codemod.CodemodTest):
                 a = 10
                 a = "Hello World"
 
-                (b, c) = "Hello", 5
+                b, c = "Hello", 5
 
                 def f(a, b, c): ...
                 
@@ -158,8 +158,8 @@ class Test_SSA2QName(codemod.CodemodTest):
 
     def test_tuple_assignment_transformed(self):
         self.assertCodemod(
-            "(aλ1, (bλ1, cλ1)) = 1, 5, 20",
-            "(a, (b, c)) = 1, 5, 20",
+            "aλ1, (bλ1, cλ1) = 1, 5, 20",
+            "a, (b, c) = 1, 5, 20",
             annotations=pd.DataFrame(
                 {
                     "file": ["x.py"] * 3,
