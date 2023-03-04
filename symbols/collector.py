@@ -1,12 +1,13 @@
 from __future__ import annotations
+from dataclasses import replace
+
 import logging
 
 import pathlib
 
 import libcst as cst
-
-import libcst.codemod as codemod
-import libcst.metadata as metadata
+from libcst import helpers as h, codemod as codemod, metadata
+import tqdm
 
 from common import TypeCollection
 
@@ -19,20 +20,23 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
         else codemod.gather_files([str(root)], include_stubs=allow_stubs)
     )
 
-    visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
-    _ = codemod.parallel_exec_transform_with_prettyprint(
-        transform=visitor,
-        files=files,
-        jobs=1,
-        repo_root=repo_root,
-    )
+    visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext(metadata_manager=metadata.FullRepoManager(
+        repo_root_dir=repo_root,
+        paths=files,
+        providers=[],
+    )))
+
+    for file in (pbar := tqdm.tqdm(files)):
+        pbar.set_description(f"Building Annotation Collection from {file}")
+        visitor.context = replace(visitor.context, filename=file)
+
+        module = cst.parse_module(open(file).read())
+        module.visit(visitor)
 
     return visitor.collection
 
 
-# TODO: technically not accurate as this is a visitor, not a transformer
-# TODO: but there does not seem to be a nicer way to get context auto-injected
-class TypeCollectorVistor(codemod.ContextAwareTransformer):
+class TypeCollectorVistor(codemod.ContextAwareVisitor):
     collection: TypeCollection
 
     def __init__(
@@ -51,7 +55,7 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
     def lax(context: codemod.CodemodContext) -> TypeCollectorVistor:
         return TypeCollectorVistor(context=context, collection=TypeCollection.empty(), strict=False)
 
-    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
+    def visit_Module(self, tree: cst.Module) -> None:
         assert self.context.filename is not None
         assert self.context.metadata_manager is not None
 
@@ -66,10 +70,10 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
             GatherImportsVisitor,
         )
 
-        metadataed = metadata.MetadataWrapper(tree)
+        # metadataed = metadata.MetadataWrapper(tree)
 
         imports_visitor = GatherImportsVisitor(context=self.context)
-        metadataed.visit(imports_visitor)
+        tree.visit(imports_visitor)
 
         existing_imports = set(item.module for item in imports_visitor.symbol_mapping.values())
 
@@ -77,15 +81,11 @@ class TypeCollectorVistor(codemod.ContextAwareTransformer):
             existing_imports=existing_imports,
             module_imports=imports_visitor.symbol_mapping,
             context=self.context,
-            create_class_attributes=True,
-            handle_function_bodies=True,
-            track_unannotated=True,
         )
 
-        metadataed.visit(type_collector)
+        metadata.MetadataWrapper(tree).visit(type_collector)
         update = TypeCollection.from_annotations(
             file=file, annotations=type_collector.annotations, strict=self._strict
         )
 
         self.collection.merge_into(update)
-        return tree

@@ -149,7 +149,7 @@ def cli_entrypoint(
         # Retain top1 for annotating
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=TypeAnnotationApplierTransformer(
-                context=codemod.CodemodContext(), tycol=inference_df
+                context=codemod.CodemodContext(), annotations=inference_df
             ),
             files=codemod.gather_files([str(outdir)]),
             repo_root=str(outdir),

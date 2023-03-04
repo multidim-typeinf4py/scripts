@@ -48,3 +48,8 @@ def has_parameter(
 def has_variable(df: pt.DataFrame[InferredSchema], var_qname: str, anno: str | None = None) -> bool:
     single = _ctor_df(category=TypeCollectionCategory.VARIABLE, qname=var_qname, anno=anno)
     return _assert(single, df, check_anno=anno is not None)
+
+
+def has_instance_attr(df: pt.DataFrame[InferredSchema], var_qname: str, anno: str | None = None) -> bool:
+    single = _ctor_df(category=TypeCollectionCategory.INSTANCE_ATTR, qname=var_qname, anno=anno)
+    return _assert(single, df, check_anno=anno is not None)

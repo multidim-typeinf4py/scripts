@@ -2,12 +2,11 @@ import os
 import pathlib
 import re
 import shutil
-import weakref
 
 import pandas._libs.missing as missing
 import pandera.typing as pt
 
-import libcst as cst
+import libcst
 from libcst import metadata
 from libcst import matchers as m
 from libcst import helpers
@@ -18,7 +17,7 @@ from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
 
-from common import ast_helper
+from common import ast_helper, visitors
 from common.schemas import InferredSchema, TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
@@ -81,13 +80,17 @@ class PyreQuery(PerFileInference):
         return df.assign(method=self.method, topn=0).pipe(pt.DataFrame[InferredSchema])
 
 
-class _PyreQuery2Annotations(cst.CSTVisitor):
+class _PyreQuery2Annotations(
+    visitors.HintableDeclarationVisitor,
+    visitors.HintableParameterVisitor,
+    visitors.HintableReturnVisitor,
+    visitors.ScopeAwareVisitor,
+):
     _CALLABLE_RETTYPE_REGEX = re.compile(rf", ([^\]]+)\]$")
 
     METADATA_DEPENDENCIES = (
         metadata.TypeInferenceProvider,
         metadata.ScopeProvider,
-        metadata.QualifiedNameProvider,
     )
 
     def __init__(self, modpkg: helpers.ModuleNameAndPackage) -> None:
@@ -95,59 +98,56 @@ class _PyreQuery2Annotations(cst.CSTVisitor):
         self.modpkg = modpkg
         self.annotations: list[tuple[TypeCollectionCategory, str, str]] = []
 
-    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        self._handle_assgn_tgt(node.target)
+    def annotated_assignment(self, target: libcst.Name | libcst.Attribute, _: libcst.Annotation) -> None:
+        assgnty = self._infer_type(target)
+        qname = self.qualified_name(target)
+        self.annotations.append((TypeCollectionCategory.VARIABLE, qname, assgnty))
 
-    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
-        self._handle_assgn_tgt(node.target)
+    def instance_attribute_hint(self, target: libcst.Name, _: libcst.Annotation | None) -> None:
+        assgnty = self._infer_type(target)
+        qname = self.qualified_name(target)
+        self.annotations.append((TypeCollectionCategory.INSTANCE_ATTR, qname, assgnty))
 
-    def _handle_assgn_tgt(self, target: cst.BaseAssignTargetExpression) -> None:
-        if not m.matches(target, m.Name() | m.Attribute(m.Name("self"), m.Name())):
-            return None
+    def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
+        assgnty = self._infer_type(target)
+        qname = self.qualified_name(target)
+        self.annotations.append((TypeCollectionCategory.VARIABLE, qname, assgnty))
 
-        if (inferred := self._infer_type(target)) is None:
-            return None
+    # Ignore?
+    def annotated_hint(self, _1: libcst.Name | libcst.Attribute, _2: libcst.Annotation) -> None:
+        ...
 
-        qname, functy = inferred
-        match self.get_metadata(metadata.ScopeProvider, target):
-            case metadata.ClassScope():
-                self.annotations.append((TypeCollectionCategory.CLASS_ATTR, qname, functy))
-
-            case _:
-                self.annotations.append((TypeCollectionCategory.VARIABLE, qname, functy))
-
-    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
-        if (inferred := self._infer_rettype(node)) is None:
-            return None
-
-        qname, functy = inferred
-        self.annotations.append((TypeCollectionCategory.CALLABLE_RETURN, qname, functy))
-
-    def visit_Param(self, node: cst.Param) -> bool | None:
-        if (inferred := self._infer_type(node.name)) is None:
-            return None
-
-        qname, functy = inferred
+    def annotated_param(self, param: libcst.Param, _: libcst.Annotation) -> None:
+        qname = self.qualified_name(param.name.value)
+        functy = self._infer_type(param)
         self.annotations.append((TypeCollectionCategory.CALLABLE_PARAMETER, qname, functy))
 
-    def _infer_type(self, node: cst.CSTNode) -> tuple[str, str] | None:
+    def unannotated_param(self, param: libcst.Param) -> None:
+        qname = self.qualified_name(param.name.value)
+        functy = self._infer_type(param)
+        self.annotations.append((TypeCollectionCategory.CALLABLE_PARAMETER, qname, functy))
+
+    def annotated_function(self, function: libcst.FunctionDef, _: libcst.Annotation) -> None:
+        qname = self.qualified_name(function.name.value)
+        functy = self._infer_rettype(function)
+        self.annotations.append((TypeCollectionCategory.CALLABLE_RETURN, qname, functy))
+
+    def unannotated_function(self, function: libcst.FunctionDef) -> None:
+        qname = self.qualified_name(function.name.value)
+        functy = self._infer_rettype(function)
+        self.annotations.append((TypeCollectionCategory.CALLABLE_RETURN, qname, functy))
+
+    def _infer_type(self, node: libcst.Name | libcst.Attribute | libcst.Param) -> str | missing.NAType:
         if (anno := self.get_metadata(metadata.TypeInferenceProvider, node, None)) is None:
-            return None
-        if not (qname := self.get_metadata(metadata.QualifiedNameProvider, node)):
-            return None
+            return missing.NA
 
-        qname_s = next(iter(qname)).name.replace(".<locals>.", ".")
-        return qname_s, anno.removeprefix(self.modpkg.name + ".")
+        return anno.removeprefix(self.modpkg.name + ".")
 
-    def _infer_rettype(self, node: cst.FunctionDef) -> tuple[str, str] | None:
+    def _infer_rettype(self, node: libcst.FunctionDef) -> str | missing.NAType:
         if (anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)) is None:
-            return None
-        if not (qname := self.get_metadata(metadata.QualifiedNameProvider, node.name)):
-            return None
+            return missing.NA
 
         functy = re.findall(_PyreQuery2Annotations._CALLABLE_RETTYPE_REGEX, anno)
-        assert len(functy) <= 1
         functy = functy[0] if functy else missing.NA
 
-        qname_s = next(iter(qname)).name.replace(".<locals>.", ".")
-        return qname_s, functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy
+        return functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy

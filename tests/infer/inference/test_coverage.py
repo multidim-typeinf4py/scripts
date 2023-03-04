@@ -82,7 +82,7 @@ class TestCoverage:
             pytest.skip(f"{method} does not support vars!")
 
         # Body
-        assert dfassertions.has_variable(df, var_qname="Clazz.a")
+        assert dfassertions.has_instance_attr(df, var_qname="Clazz.a")
 
     def test_Clazz_init(self, methoddf: tuple[str, pt.DataFrame[InferredSchema]]):
         method, df = methoddf

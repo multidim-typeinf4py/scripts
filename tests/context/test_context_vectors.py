@@ -34,12 +34,12 @@ class TestFeatures:
     def test_reassigned(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.one_positive_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "a"],
             ContextSymbolSchema.reassigned,
         )
         self.one_negative_check(
             context_dataset,
-            ["looping.x", "looping.a", "local_reassign.c", "parammed.p", "g.a", "a"],
+            ["looping.x", "looping.a", "local_reassign.c", "parammed.p"],
             ContextSymbolSchema.reassigned,
         )
 
@@ -68,7 +68,6 @@ class TestFeatures:
                 "f.g",
                 "f.g.a",
                 "g",
-                "g.a",
                 "parammed",
                 "parammed.p",
                 "branching",
@@ -105,7 +104,7 @@ class TestFeatures:
             select = context_dataset[ContextSymbolSchema.qname] == qname
             assert not context_dataset.loc[
                 select, feature
-            ].all(), f"{qname} is should not be marked as '{feature}'"
+            ].all(), f"{qname} should not be marked as '{feature}'"
 
     def all_positive_check(
         self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str

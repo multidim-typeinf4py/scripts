@@ -2,7 +2,7 @@ import builtins
 import collections
 import pathlib
 
-import libcst as cst
+import libcst
 import libcst.metadata as metadata
 import pandas as pd
 import pandera.typing as pt
@@ -16,6 +16,7 @@ from common.schemas import (
     ContextSymbolSchema,
     TypeCollectionCategory,
 )
+from common import visitors
 from context.features import RelevantFeatures
 
 
@@ -23,7 +24,7 @@ def generate_context_vectors_for_file(
     features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path
 ) -> pt.DataFrame[ContextSymbolSchema]:
     visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
-    module = cst.parse_module(path.open().read())
+    module = libcst.parse_module(path.open().read())
 
     md = metadata.MetadataWrapper(module)
     md.visit(visitor)
@@ -31,7 +32,11 @@ def generate_context_vectors_for_file(
     return visitor.build()
 
 
-class ContextVectorVisitor(m.MatcherDecoratableVisitor):
+class ContextVectorVisitor(
+    visitors.HintableReturnVisitor,
+    visitors.HintableParameterVisitor,
+    visitors.HintableDeclarationVisitor,
+):
     ContextVector = collections.namedtuple(
         "ContextVector",
         [
@@ -48,7 +53,10 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         ],
     )
 
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
+    METADATA_DEPENDENCIES = (
+        metadata.ScopeProvider,
+        metadata.ParentNodeProvider,
+    )
 
     def __init__(self, filepath: str, features: RelevantFeatures) -> None:
         super().__init__()
@@ -57,7 +65,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         # parentage AST-tree; includes every node that can have children with bodies,
         # e.g. ClassDef, FunctionDef, For, If, etc.
-        self.full_scope_nodes: list[cst.CSTNode] = []
+        self.full_scope_nodes: list[libcst.CSTNode] = []
 
         # names of nodes that builds parentage; 1 to 1 index-based correspondence
         # to self.full_scope_nodes
@@ -65,7 +73,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         # scope AST-tree; includes every node that influences scope.
         # Limited to ClassDef, FunctionDef
-        self.real_scope_names: list[cst.CSTNode] = []
+        self.real_scope_names: list[libcst.CSTNode] = []
 
         # mapping of self.real_scope_names to symbols declared therein
         # used for reassignment checks
@@ -76,199 +84,195 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
         # mapping of self.real_scope_names to symbols declared therein;
         # this differs from self.visible_symbols in that it is NOT used for reassignment checking
         # this is useful for when symbols aren't visible to children of parents,
-        # e.g. cst.If -> cst.Else
+        # e.g. libcst.If -> libcst.Else
         self.invisible_symbols: collections.defaultdict[
             tuple[str, ...], set[str]
         ] = collections.defaultdict(set)
 
+        self.keyword_modified_targets: set[str] = set()
+
         self.filepath = filepath
-        self._annassign_hinting: dict[str, cst.Annotation] = dict()
+        self._annassign_hinting: dict[str, libcst.Annotation] = dict()
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
-    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
+    def scope_overwritten_target(self, target: libcst.Name) -> None:
+        self.keyword_modified_targets.add(get_full_name_for_node_or_raise(target))
+
+    def annotated_function(
+        self, function: libcst.FunctionDef, annotation: libcst.Annotation
+    ) -> None:
         self._handle_annotatable(
-            annotatable=node,
-            identifier=node.name.value,
-            annotation=node.returns,
+            annotatable=function,
+            identifier=function.name.value,
+            annotation=annotation,
             category=TypeCollectionCategory.CALLABLE_RETURN,
         )
 
-        self._enter_scope(node, node.name.value)
-
-    def visit_Param(self, node: cst.Param) -> bool | None:
+    def unannotated_function(self, function: libcst.FunctionDef) -> None:
         self._handle_annotatable(
-            annotatable=node,
-            identifier=node.name.value,
-            annotation=node.annotation,
+            annotatable=function,
+            identifier=function.name.value,
+            annotation=None,
+            category=TypeCollectionCategory.CALLABLE_RETURN,
+        )
+
+    def annotated_param(self, param: libcst.Param, annotation: libcst.Annotation) -> None:
+        self._handle_annotatable(
+            annotatable=param,
+            identifier=param.name.value,
+            annotation=annotation,
             category=TypeCollectionCategory.CALLABLE_PARAMETER,
         )
 
-    def leave_FunctionDef(self, _: "cst.FunctionDef") -> None:
-        self._leave_scope()
+    def unannotated_param(self, param: libcst.Param) -> None:
+        self._handle_annotatable(
+            annotatable=param,
+            identifier=param.name.value,
+            annotation=None,
+            category=TypeCollectionCategory.CALLABLE_PARAMETER,
+        )
 
-    def visit_ClassDef(self, node: cst.ClassDef) -> bool | None:
-        self._enter_scope(node, node.name.value)
+    def instance_attribute_hint(
+        self, target: libcst.Name, annotation: libcst.Annotation | None
+    ) -> None:
+        self._handle_annotatable(
+            annotatable=target,
+            identifier=target.value,
+            annotation=annotation,
+            category=TypeCollectionCategory.INSTANCE_ATTR,
+        )
 
-    def leave_ClassDef(self, _: cst.ClassDef) -> None:
-        self._leave_scope()
-
-    def visit_If(self, node: cst.If) -> None:
-        self._enter_branch(node)
-
-    def leave_If_body(self, _: cst.If) -> None:
-        self._leave_branch_body()
-
-    def leave_If(self, node: cst.If) -> None:
-        self._leave_branch(node)
-
-    def visit_Else(self, node: cst.Else) -> None:
-        self._enter_branch(node)
-
-    def leave_Else_body(self, _: cst.Else) -> None:
-        self._leave_branch_body()
-
-    def leave_Else(self, node: cst.Else) -> None:
-        self._leave_branch(node)
-
-    def visit_While(self, node: cst.While) -> bool | None:
-        self._enter_loop(node)
-
-    def leave_While(self, _: cst.While) -> None:
-        self._leave_loop()
-
-    @m.call_if_inside(
-        m.AnnAssign(target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()))
-    )
-    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
-        ident = _stringify(node.target)
+    def annotated_assignment(
+        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+    ) -> None:
+        ident = get_full_name_for_node_or_raise(target)
         fullqual = self.qname_within_scope(ident)
 
-        if node.value is not None:
-            match self.get_metadata(metadata.ScopeProvider, node):
-                case metadata.ClassScope():
-                    category = TypeCollectionCategory.CLASS_ATTR
+        self._annassign_hinting.pop(fullqual, None)
 
-                case _:
-                    category = TypeCollectionCategory.VARIABLE
-
-            if fullqual in self._annassign_hinting:
-                self._annassign_hinting.pop(fullqual)
-
-            self._handle_annotatable(
-                annotatable=node.target,
-                identifier=ident,
-                annotation=node.annotation,
-                category=category,
-            )
-
-        else:
-            self._annassign_hinting[fullqual] = node.annotation
-    
-    
-    @m.call_if_inside(
-        m.AssignTarget(
-            target=m.Name()
-            | m.Attribute(value=m.Name("self"), attr=m.Name())
-            | m.List()
-            | m.Tuple()
+        self._handle_annotatable(
+            annotatable=target,
+            identifier=ident,
+            annotation=annotation,
+            category=TypeCollectionCategory.VARIABLE,
         )
-    )
-    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
-            self._visit_unannotated_target(node.target)
-        elif m.matches(node.target, m.List() | m.Tuple()):
-            self._visit_unpackable(node.target)
 
+    def annotated_hint(
+        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+    ) -> None:
+        ident = get_full_name_for_node_or_raise(target)
+        fullqual = self.qname_within_scope(ident)
 
-    @m.call_if_inside(
-        m.AugAssign(
-            target=m.Name()
-            | m.Attribute(value=m.Name("self"), attr=m.Name())
-            | m.List()
-            | m.Tuple()
-        )
-    )
-    def visit_AugAssign(self, node: cst.AugAssign) -> bool | None:
-        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
-            self._visit_unannotated_target(node.target)
-        elif m.matches(node.target, m.List() | m.Tuple()):
-            self._visit_unpackable(node.target)
+        self._annassign_hinting[fullqual] = annotation
 
-    def visit_WithItem(self, node: cst.WithItem) -> bool | None:
-        if node.asname is not None:
-            if m.matches(node.asname.name, m.Name()):
-                self._visit_unannotated_target(node.asname.name)
-            elif m.matches(node.asname.name, m.List() | m.Tuple()):
-                self._visit_unpackable(node.asname.name)
-
-    def visit_For(self, node: cst.For) -> bool | None:
-        self._enter_loop(node)
-
-        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
-            self._visit_unannotated_target(node.target)
-        elif m.matches(node.target, m.List() | m.Tuple()):
-            self._visit_unpackable(node.target)
-
-    def leave_For(self, _: cst.For) -> None:
-        self._leave_loop()
-
-    def visit_CompFor(self, node: cst.CompFor) -> bool | None:
-        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
-            self._visit_unannotated_target(node.target)
-        elif m.matches(node.target, m.List() | m.Tuple()):
-            self._visit_unpackable(node.target)
-
-    def visit_NamedExpr(self, node: cst.NamedExpr) -> bool | None:
-        if m.matches(node.target, m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name())):
-            self._visit_unannotated_target(node.target)
-        elif m.matches(node.target, m.List() | m.Tuple()):
-            self._visit_unpackable(node.target)
-
-    def _visit_unpackable(self, unpackable: cst.List | cst.Tuple) -> bool | None:
-        targets = map(lambda e: e.value, unpackable.elements)
-        for target in targets:
-            if m.matches(target, m.Tuple() | m.List()):
-                self._visit_unpackable(target)
-            else:
-                self._visit_unannotated_target(target)
-
-    def _visit_unannotated_target(self, target: cst.CSTNode) -> bool | None:
+    def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         name = get_full_name_for_node_or_raise(target)
         fullqual = self.qname_within_scope(name)
 
         # Reference stored hint if present
         hint = self._annassign_hinting.get(fullqual, None)
-
-        match self.get_metadata(metadata.ScopeProvider, target):
-            case metadata.ClassScope():
-                category = TypeCollectionCategory.CLASS_ATTR
-
-            case _:
-                category = TypeCollectionCategory.VARIABLE
-
         self._handle_annotatable(
-            annotatable=target, identifier=_stringify(target), annotation=hint, category=category
+            annotatable=target,
+            identifier=name,
+            annotation=hint,
+            category=TypeCollectionCategory.VARIABLE,
         )
+
+    @m.visit(m.If() | m.Else())
+    def _enter_branch(self, branch: libcst.If | libcst.Else):
+        self.full_scope_nodes.append(branch)
+        self.full_scope_names.append(tuple((*self.scope_components(), branch.__class__.__name__)))
+        self.visible_symbols[self.scope_components()] = set()
+
+    @m.leave(m.If() | m.Else())
+    def _leave_branch(self, branch: libcst.If | libcst.Else):
+        *outer, _ = leaving = self.scope_components()
+
+        # Branches attached to non-branching nodes
+        if (
+            len(self.full_scope_nodes) >= 2  # access safety, should be guaranteed though
+            and m.matches(
+                self.full_scope_nodes[-2], (m.While | m.For | m.Try | m.TryStar)(orelse=m.Else())
+            )  # is and if with a child branch
+            and self.full_scope_nodes[-2].orelse
+            is branch  # this node's orelse child is precisely this branch
+        ):
+            # Assume else-execution is guaranteed at some point -> set-union;
+            # otherwise not much point for it to exist
+            self.visible_symbols[tuple(outer)] |= self.invisible_symbols.pop(leaving, set())
+
+        # "Real" branching begins here:
+
+        # propagate set-intersection of invisible symbols upwards to parent branch, i.e.
+        # if True
+        #   ...
+        # else: <--
+        #   ...
+        elif (
+            len(self.full_scope_nodes) >= 2  # access safety
+            and m.matches(
+                self.full_scope_nodes[-2], m.If(orelse=m.If() | m.Else())
+            )  # is and if with a child branch
+            and self.full_scope_nodes[-2].orelse
+            is branch  # this if's child is precisely this branch
+        ):
+            self.invisible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
+
+        # Initiating branch; move invisible symbols to visible symbols
+        # Single If; set-intersection; symbol may be unbound
+        elif m.matches(branch, m.If(orelse=~(m.If() | m.Else()))):
+            self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
+
+        # If with further branches; set-union of intersected symbols
+        elif m.matches(branch, m.If(orelse=m.If() | m.Else())):
+            self.visible_symbols[tuple(outer)] |= self.invisible_symbols.pop(leaving, set())
+
+        else:
+            assert False, libcst.Module([branch]).code
+
+        self.full_scope_nodes.pop()
+        self.full_scope_names.pop()
+
+    @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
+    def _enter_exception_block(
+        self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+    ):
+        self.full_scope_nodes.append(block)
+        self.full_scope_names.append(tuple((*self.scope_components(), block.__class__.__name__)))
+        self.visible_symbols[self.scope_components()] = set()
+
+    @m.leave(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
+    def _leave_exception_block(
+        self, _: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+    ):
+        *outer, _ = leaving = self.scope_components()
+
+        # Each body's entrance and exit points can be triggered at any point;
+        # simply assume latest possible execution, i.e.
+        # propagate all symbols declared in bodies
+        self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
+
+        self.full_scope_nodes.pop()
+        self.full_scope_names.pop()
 
     def _handle_annotatable(
         self,
-        annotatable: cst.CSTNode,
+        annotatable: libcst.CSTNode,
         identifier: str,
-        annotation: cst.Annotation | None,
+        annotation: libcst.Annotation | None,
         category: TypeCollectionCategory,
     ) -> None:
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
 
-        if not isinstance(annotatable, cst.FunctionDef | cst.ClassDef):
-            self.visible_symbols[self.scope_components()].add(identifier)
+        self.visible_symbols[self.scope_components()].add(identifier)
 
-        loopf = int(self.features.loop and self._is_in_loop())
+        loopf = int(self.features.loop and self._is_in_loop(annotatable))
         nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
         user_definedf = int(self.features.user_defined and self._is_userdefined(annotation))
         branching = int(self.features.branching and self._is_in_branch())
 
-        categoryf = self._ctxt_category(annotatable, category)
+        categoryf = self._ctxt_category(category)
         qname = self.qname_within_scope(identifier)
 
         self.dfrs.append(
@@ -286,8 +290,12 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             )
         )
 
-    def _is_in_loop(self) -> bool:
-        return any(isinstance(s, cst.For | cst.While) for s in self.full_scope_nodes)
+    def _is_in_loop(self, _: libcst.CSTNode) -> bool:
+        # Break out of unpackable
+        # while isinstance((parent := self.get_metadata(metadata.ParentNodeProvider, annotatable)), libcst.Tuple | libcst.List):
+        #    ...
+
+        return any(isinstance(s, libcst.For | libcst.While) for s in self.full_scope_nodes)
 
     def _is_reassigned(self, identifier: str) -> bool:
         scope = self.scope_components()
@@ -297,12 +305,12 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             if identifier in self.visible_symbols.get(window_scope, set()):
                 return True
 
-            if isinstance(self.full_scope_nodes[window], cst.FunctionDef | cst.ClassDef):
+            if isinstance(self.full_scope_nodes[window], libcst.FunctionDef | libcst.ClassDef):
                 return False
 
-        return False
+        return identifier in self.visible_symbols.get((), set())
 
-    def _is_nested_scope(self, node: cst.CSTNode) -> bool:
+    def _is_nested_scope(self, node: libcst.CSTNode) -> bool:
         # Detect class in class or function in function
         scopes = [scope := self.get_metadata(metadata.ScopeProvider, node)]
         while not (scope is None or isinstance(scope, metadata.BuiltinScope)):
@@ -310,14 +318,14 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         counted = collections.Counter(map(type, scopes))
 
-        fncount = counted.get(metadata.FunctionScope, 0) + isinstance(node, cst.FunctionDef)
+        fncount = counted.get(metadata.FunctionScope, 0) + isinstance(node, libcst.FunctionDef)
         czcount = counted.get(metadata.ClassScope, 0) + isinstance(node, metadata.ClassScope)
         return fncount >= 2 or czcount >= 2
 
     def _is_in_branch(self) -> bool:
-        return any(isinstance(s, cst.If | cst.Else) for s in self.full_scope_nodes)
+        return any(isinstance(s, libcst.If | libcst.Else) for s in self.full_scope_nodes)
 
-    def _is_userdefined(self, annotation: cst.Annotation | None) -> bool:
+    def _is_userdefined(self, annotation: libcst.Annotation | None) -> bool:
         if annotation is None:
             return False
 
@@ -327,88 +335,49 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
 
         return any(u not in dir(builtins) for u in unions)
 
-    def _enter_scope(self, node: cst.CSTNode, name: str) -> None:
+    @m.visit(m.FunctionDef() | m.ClassDef())
+    def _enter_scope(self, node: libcst.FunctionDef | libcst.ClassDef) -> None:
         self.full_scope_nodes.append(node)
 
-        self.full_scope_names.append(tuple((*self.scope_components(), name)))
-        if m.matches(node, m.FunctionDef() | m.ClassDef()):
-            self.real_scope_names.append(tuple((*self.real_scope_components(), name)))
+        self.full_scope_names.append(tuple((*self.scope_components(), node.name.value)))
+        self.real_scope_names.append(tuple((*self.real_scope_components(), node.name.value)))
 
         self.visible_symbols[self.scope_components()] = set()
 
-    def _enter_branch(self, node: cst.If | cst.Else) -> None:
-        self.full_scope_nodes.append(node)
-        self.full_scope_names.append(tuple((*self.scope_components(), node.__class__.__name__)))
-        self.visible_symbols[self.scope_components()] = set()
-
-    def _enter_loop(self, node: cst.While | cst.For) -> None:
-        self.full_scope_nodes.append(node)
-        self.full_scope_names.append(tuple((*self.scope_components(), node.__class__.__name__)))
-        self.visible_symbols[self.scope_components()] = set()
-
-    def _leave_scope(self) -> None:
+    @m.leave(m.FunctionDef() | m.ClassDef())
+    def _leave_scope(self, _: libcst.FunctionDef | libcst.ClassDef) -> None:
         del self.visible_symbols[self.scope_components()]
+        self.full_scope_nodes.pop()
 
+        self.full_scope_names.pop()
         self.real_scope_names.pop()
-        self.full_scope_nodes.pop()
-        self.full_scope_names.pop()
 
-    def _leave_branch_body(self) -> None:
-        # Move newly tracked symbols to invisible symbols
-        leaving = self.scope_components()
-        self.invisible_symbols[leaving] = self.visible_symbols.pop(leaving, set())
+    @m.visit(m.While() | m.For() | m.CompFor())
+    def _enter_loop(self, node: libcst.While | libcst.For | libcst.CompFor) -> None:
+        self.full_scope_nodes.append(node)
+        self.full_scope_names.append(tuple((*self.scope_components(), node.__class__.__name__)))
 
-    def _leave_branch(self, branch: cst.If | cst.Else) -> None:
-        *outer, _ = leaving = self.scope_components()
+        self.visible_symbols[self.scope_components()] = set()
 
-        # Special-case: For-Else; set-intersection; symbol may be unbound
-        if (
-            len(self.full_scope_nodes) >= 2  # access safety
-            and m.matches(
-                self.full_scope_nodes[-2], m.For(orelse=m.Else())
-            )  # is and if with a child branch
-            and self.full_scope_nodes[-2].orelse
-            is branch  # this if's child is precisely this branch
-        ):
-            self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
-
-        # propagate set-intersection of invisible symbols upwards to parent branch, i.e.
-        # if True
-        #   ...
-        # else: <--
-        #   ...
-        elif (
-            len(self.full_scope_nodes) >= 2  # access safety
-            and m.matches(
-                self.full_scope_nodes[-2], m.If(orelse=m.If() | m.Else())
-            )  # is and if with a child branch
-            and self.full_scope_nodes[-2].orelse
-            is branch  # this if's child is precisely this branch
-        ):
-            self.invisible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
-
-        # otherwise we reached first branch; move invisible symbols to visible symbols
-        # Single If; set-intersection; symbol may be unbound
-        elif m.matches(self.full_scope_nodes[-1], m.If(orelse=~(m.If() | m.Else()))):
-            self.visible_symbols[tuple(outer)] &= self.invisible_symbols.pop(leaving, set())
-
-        # If with further branches; set-union of intersected symbols
-        elif m.matches(self.full_scope_nodes[-1], m.If(orelse=m.If() | m.Else())):
-            self.visible_symbols[tuple(outer)] |= self.invisible_symbols.pop(leaving, set())
-
-        else:
-            assert False, cst.Module([branch]).code
-
-        self.full_scope_nodes.pop()
-        self.full_scope_names.pop()
-
-    def _leave_loop(self) -> None:
+    @m.leave(m.While() | m.For() | m.CompFor())
+    def _leave_loop(self, _: libcst.While | libcst.For | libcst.CompFor) -> None:
         # Symbols declared here persist into lower scope, merge them in
         *outer, _ = leaving = self.scope_components()
         self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
 
         self.full_scope_nodes.pop()
         self.full_scope_names.pop()
+
+    def leave_If_body(self, _: libcst.If) -> None:
+        self._leave_branch_body()
+
+    def leave_Else_body(self, _: libcst.Else) -> None:
+        self._leave_branch_body()
+
+    def _leave_branch_body(self) -> None:
+        # Move newly tracked symbols to invisible symbols
+        leaving = self.scope_components()
+        self.invisible_symbols[leaving] = self.visible_symbols.pop(leaving, set())
 
     def scope_components(self) -> tuple[str, ...]:
         return self.full_scope_names[-1] if self.full_scope_names else tuple()
@@ -419,9 +388,7 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
     def qname_within_scope(self, identifier: str) -> str:
         return ".".join((*self.real_scope_components(), identifier))
 
-    def _ctxt_category(
-        self, annotatable: cst.CSTNode, category: TypeCollectionCategory
-    ) -> ContextCategory:
+    def _ctxt_category(self, category: TypeCollectionCategory) -> ContextCategory:
         match category:
             case TypeCollectionCategory.CALLABLE_RETURN:
                 return ContextCategory.CALLABLE_RETURN
@@ -429,15 +396,11 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             case TypeCollectionCategory.CALLABLE_PARAMETER:
                 return ContextCategory.CALLABLE_PARAMETER
 
-            case TypeCollectionCategory.CLASS_ATTR:
-                return ContextCategory.CLASS_ATTR
+            case TypeCollectionCategory.INSTANCE_ATTR:
+                return ContextCategory.INSTANCE_ATTR
 
             case TypeCollectionCategory.VARIABLE:
-                return (
-                    ContextCategory.VARIABLE
-                    if isinstance(annotatable, cst.Name)
-                    else ContextCategory.INSTANCE_ATTR
-                )
+                return ContextCategory.VARIABLE
 
     def build(self) -> pt.DataFrame[ContextSymbolSchema]:
         if not self.dfrs:
@@ -448,4 +411,9 @@ class ContextVectorVisitor(m.MatcherDecoratableVisitor):
             .pipe(generate_qname_ssas_for_file)
             .pipe(pt.DataFrame[ContextSymbolSchema])
         )
+
+        # Update keyword modified scopage
+        reassigned_names = df[ContextSymbolSchema.qname].isin(self.keyword_modified_targets)
+        df.loc[reassigned_names, ContextSymbolSchema.reassigned] = 1
+
         return df

@@ -11,7 +11,9 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionKey,
     FunctionAnnotation,
 )
+
 import libcst as cst
+import libcst.matchers as m
 
 
 import pandas as pd
@@ -108,20 +110,27 @@ class TypeCollection:
 
         for cqname, cdef in annotations.class_definitions.items():
             for stmt in cdef.body.body:
-                # NOTE: No need to check for validity of `annassign.annotation`
-                # NOTE: as cst.AnnAssign exists precisely so that the Annotation exists
-                if isinstance(annassign := stmt.body[0], cst.AnnAssign):
-                    qname = f"{cqname}.{_stringify(annassign.target)}"
-                    assert (anno := _stringify(annassign.annotation)) is not None
+                if m.matches(stmt, m.AnnAssign()):
+                    qname = f"{cqname}.{_stringify(stmt.target)}"
+                    anno = _stringify(stmt.annotation)
 
-                    contents.append(
+                elif m.matches(stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())):
+                    qname = f"{cqname}.{_stringify(stmt.targets[0].target)}"
+                    anno = missing.NA
+
+                else:
+                    continue
+
+                contents.append(
                         (
                             filename,
-                            TypeCollectionCategory.CLASS_ATTR,
+                            TypeCollectionCategory.INSTANCE_ATTR,
                             qname,
                             anno,
                         )
                     )
+
+                    
 
         cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
         df = pd.DataFrame(contents, columns=cs)
@@ -230,8 +239,8 @@ class TypeCollection:
 
             return fs
 
-        def variables() -> dict[str, list[cst.Annotation]]:
-            vs: dict[str, list[cst.Annotation]] = {}
+        def variables() -> dict[str, cst.Annotation]:
+            vs: dict[str, cst.Annotation] = {}
             var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
             for qname, anno in var_df[
@@ -244,7 +253,7 @@ class TypeCollection:
 
         def attributes() -> dict[str, cst.ClassDef]:
             attrs: dict[str, cst.ClassDef] = {}
-            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.CLASS_ATTR]
+            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.INSTANCE_ATTR]
 
             sep_df = attr_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
             if sep_df.empty:
