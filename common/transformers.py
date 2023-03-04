@@ -353,12 +353,12 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         targets = self._access_targets(updated_node.target)
         return _execute_and_handle_actions(updated_node, self.for_target, targets)
 
-    @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
-    def leave_CompFor(
-        self, _: libcst.CompFor, updated_node: libcst.CompFor
-    ) -> libcst.FlattenSentinel[libcst.CSTNode]:
-        targets = self._access_targets(updated_node.target)
-        return _execute_and_handle_actions(updated_node, self.compfor_target, targets)
+    # @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
+    # def leave_CompFor(
+    #     self, _: libcst.CompFor, updated_node: libcst.CompFor
+    # ) -> libcst.FlattenSentinel[libcst.CSTNode]:
+    #     targets = self._access_targets(updated_node.target)
+    #     return _execute_and_handle_actions(updated_node, self.compfor_target, targets)
 
     @m.call_if_inside(m.With(items=[m.AtLeastN(m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | TUPLE | LIST)), n=1)]))
     def leave_With(

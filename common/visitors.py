@@ -170,9 +170,9 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def visit_For_target(self, node: libcst.For) -> None:
         return self.__on_visit_target(node)
 
-    @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-    def visit_CompFor_target(self, node: libcst.CompFor) -> None:
-        return self.__on_visit_target(node)
+    # @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+    # def visit_CompFor_target(self, node: libcst.CompFor) -> None:
+    #     return self.__on_visit_target(node)
 
     @m.call_if_inside(
         m.Assign(
@@ -207,7 +207,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     def __on_visit_target(
         self,
         node: libcst.For
-        | libcst.CompFor
+        # | libcst.CompFor
         | libcst.AssignTarget
         | libcst.AugAssign
         | libcst.WithItem
