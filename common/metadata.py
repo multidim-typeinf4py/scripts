@@ -3,7 +3,7 @@ import collections
 import enum
 
 import libcst
-from libcst import metadata, matchers as m
+from libcst import metadata, matchers as m, helpers as h
 
 from .matchers import NAME, INSTANCE_ATTR, TUPLE, LIST
 
@@ -38,42 +38,33 @@ class _KeywordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
             nameitem.name.value for nameitem in node.names
         )
 
-    @m.visit(
-        m.AssignTarget(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
-        | m.AugAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
-        | m.AnnAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
-    )
-    def __visit_targetable(
-        self, node: libcst.AssignTarget | libcst.AugAssign | libcst.AnnAssign
-    ) -> None:
-        if m.matches(node.target, NAME | INSTANCE_ATTR):
-            targets = [node.target]
+    @m.call_if_not_inside(m.Attribute())
+    def visit_Name(self, node: libcst.Name) -> bool | None:
+        if (
+            self.provider.get_metadata(metadata.ExpressionContextProvider, node)
+            is not metadata.ExpressionContext.STORE
+        ):
+            return
 
-        elif m.matches(node.target, TUPLE | LIST):
-            targets = [
-                element.value
-                for element in m.findall(
-                    node.target,
-                    (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
-                )
-            ]
+        if not self.active_scopes:
+            self.provider.set_metadata(node, KeywordContext.UNCHANGED)
+            return
 
+        name = h.get_full_name_for_node_or_raise(node)
+        if name in self._scope2nonlocal.get(self.active_scopes[-1], set()):
+            self.provider.set_metadata(node, KeywordContext.NONLOCAL)
+        elif name in self._scope2global.get(self.active_scopes[-1], set()):
+            self.provider.set_metadata(node, KeywordContext.GLOBAL)
         else:
-            targets = []
+            self.provider.set_metadata(node, KeywordContext.UNCHANGED)
 
-        for target in targets:
-            if (
-                not self.active_scopes
-                or m.matches(target, INSTANCE_ATTR)
-                or isinstance(self.active_scopes[-1], metadata.ClassScope)
-            ):
-                self.provider.set_metadata(target, KeywordContext.UNCHANGED)
-            elif target.value in self._scope2nonlocal.get(self.active_scopes[-1], set()):
-                self.provider.set_metadata(target, KeywordContext.NONLOCAL)
-            elif target.value in self._scope2global.get(self.active_scopes[-1], set()):
-                self.provider.set_metadata(target, KeywordContext.GLOBAL)
-            else:
-                self.provider.set_metadata(target, KeywordContext.UNCHANGED)
+    def visit_Attribute(self, node: libcst.Attribute) -> bool | None:
+        if (
+            self.provider.get_metadata(metadata.ExpressionContextProvider, node)
+            is not metadata.ExpressionContext.STORE
+        ):
+            return
+        self.provider.set_metadata(node, KeywordContext.UNCHANGED)
 
     def visit_FunctionDef_body(self, node: libcst.FunctionDef) -> None:
         self.active_scopes.append(
@@ -99,7 +90,10 @@ class _KeywordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
 
 
 class KeywordModifiedScopeProvider(metadata.BatchableMetadataProvider[KeywordContext]):
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
+    METADATA_DEPENDENCIES = (
+        metadata.ScopeProvider,
+        metadata.ExpressionContextProvider,
+    )
 
     def visit_Module(self, node: libcst.Module) -> bool | None:
         node.visit(_KeywordModifiedScopeVisitor(self))
