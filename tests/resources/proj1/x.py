@@ -14,7 +14,7 @@ def function_with_multiline_parameters(a: str, b: int, c: str) -> int:
 
 
 class Clazz(dict):
-    a: int
+    a: int = ...
 
     def __init__(self, a: int) -> None:
         self.a: int = a

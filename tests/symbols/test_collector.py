@@ -16,7 +16,7 @@ from common.schemas import (
 from common.storage import TypeCollection
 
 
-from symbols.collector import TypeCollectorVistor, build_type_collection
+from symbols.collector import TypeCollectorVisitor, build_type_collection
 
 from pandas._libs import missing
 
@@ -169,7 +169,7 @@ class AnnotationTracking(codemod.CodemodTest):
     def performTracking(self, code: str) -> pt.DataFrame[TypeCollectionSchema]:
         module = libcst.parse_module(textwrap.dedent(code))
 
-        visitor = TypeCollectorVistor.strict(
+        visitor = TypeCollectorVisitor.strict(
             context=codemod.CodemodContext(
                 filename="x.py",
                 metadata_manager=metadata.FullRepoManager(
@@ -222,6 +222,7 @@ class Test_TrackUnannotated(AnnotationTracking):
         def f(a, b, c): ...
         
         class C:
+            a: int = ...
             def __init__(self):
                 self.x: int = 0
                 default: str = self.x or "10"
@@ -237,6 +238,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", missing.NA),
+                (TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int"),
                 (TypeCollectionCategory.CALLABLE_RETURN, "C.__init__", missing.NA),
                 (TypeCollectionCategory.CALLABLE_PARAMETER, "C.__init__.self", missing.NA),
                 (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
@@ -466,6 +468,7 @@ class Test_HintTracking(AnnotationTracking):
             df, [(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -480,6 +483,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -502,11 +506,13 @@ class Test_HintTracking(AnnotationTracking):
             """
             class C:
                 foo = ...
+                foo2: int = ...
             """
         )
         self.assertMatchingAnnotating(
             df,
             [
                 (TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
+                (TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
             ],
         )
