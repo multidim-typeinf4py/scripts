@@ -10,7 +10,7 @@ import pandas as pd
 
 
 from common.storage import MergedAnnotations
-from symbols.collector import TypeCollectorVistor
+from symbols.collector import TypeCollectorVisitor
 
 from . import coverage, hintstat
 
@@ -84,7 +84,7 @@ def _collect(
     assert deviating.empty, f"Differing folder structures, cannot compute hintdiff!"
 
     for root in roots:
-        visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext())
+        visitor = TypeCollectorVisitor.strict(context=codemod.CodemodContext())
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=visitor,
             files=cstcli.gather_files([str(root)]),

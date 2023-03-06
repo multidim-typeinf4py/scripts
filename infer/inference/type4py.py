@@ -3,7 +3,7 @@ import requests
 
 
 from common.schemas import InferredSchema
-from symbols.collector import TypeCollectorVistor
+from symbols.collector import TypeCollectorVisitor
 from ._base import PerFileInference
 
 import libcst as cst
@@ -51,7 +51,7 @@ class Type4Py(PerFileInference):
         # anno_maker = Type4Py2Annotations(answer=answer)
         inferred = module.visit(TypeApplier(f_processeed_dict=answer.response, apply_nlp=False))
 
-        collector = TypeCollectorVistor.strict(
+        collector = TypeCollectorVisitor.strict(
             context=codemod.CodemodContext(
                 filename=str(self.project / relative),
                 metadata_manager=metadata.FullRepoManager(

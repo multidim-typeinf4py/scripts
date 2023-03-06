@@ -2,6 +2,7 @@ import textwrap
 
 
 from libcst import codemod, metadata
+import libcst
 import pytest
 
 from common.ast_helper import generate_qname_ssas_for_file
@@ -13,8 +14,14 @@ import pandas as pd
 from pandas._libs import missing
 import pandera.typing as pt
 
+from symbols.collector import TypeCollectorVisitor
+
 
 class AnnotationTesting(codemod.CodemodTest):
+    def __init__(self, methodName: str = ...) -> None:
+        super().__init__(methodName)
+        self.maxDiff = None
+
     HINTLESS = textwrap.dedent(
         """
         a = 10
@@ -33,20 +40,68 @@ class AnnotationTesting(codemod.CodemodTest):
         """
     )
 
+    HINTED = textwrap.dedent(
+        """
+        a: int = 10
+        a: str = "Hello World"
+
+        b: str; c: int
+        (b, c) = "Hello", 5
+
+        def f(a: amod.A, b: bmod.B, c: cmod.C) -> int: ...
+        
+        class C:
+            a: int = ...
+            def __init__(self: "C") -> None:
+                self.x: int = 0
+                default: str = self.x or "10"
+                self.x: str = default
+    """
+    )
+
 
 class Test_CustomAnnotator(AnnotationTesting):
     TRANSFORM = TypeAnnotationApplierTransformer
 
-    def assertBuildCodemod(self, before: str, after: str, annotations: pd.DataFrame):
-        before = textwrap.dedent(before)
-        after = textwrap.dedent(after)
+    def assertBuildCodemod(
+        self,
+        before: str,
+        after: str,
+        annotations: pd.DataFrame | list[TypeCollectionCategory],
+    ):
+        visitor = TypeCollectorVisitor.strict(
+            context=codemod.CodemodContext(
+                filename="x.py",
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=".", paths=["x.py"], providers=[]
+                ),
+            )
+        )
+
+        if isinstance(annotations, pd.DataFrame):
+            annotations = (
+                annotations.assign(file="x.py")
+                .pipe(generate_qname_ssas_for_file)
+                .pipe(pt.DataFrame[TypeCollectionSchema])
+            )
+
+        elif isinstance(annotations, list):
+            libcst.parse_module(self.HINTED).visit(visitor)
+
+            df = visitor.collection.df
+            masked = ~df[TypeCollectionSchema.category].isin(annotations)
+            df.loc[masked, TypeCollectionSchema.anno] = missing.NA
+
+            annotations = df
+
+        else:
+            assert False, f"Unsupported {annotations=}"
+
 
         self.assertCodemod(
             before,
             after,
-            annotations=annotations.assign(file="x.py")
-            .pipe(generate_qname_ssas_for_file)
-            .pipe(pt.DataFrame[TypeCollectionSchema]),
+            annotations=annotations,
             context_override=codemod.CodemodContext(
                 filename="x.py",
                 metadata_manager=metadata.FullRepoManager(
@@ -60,7 +115,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
-            
             import typing
 
             a: int = 10
@@ -77,15 +131,7 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default: str = self.x or "10"
                     self.x: str = default
             """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE] * 7,
-                    "qname": ["a"] * 2
-                    + ["b", "c"]
-                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": ["int", "str", "str", "int", "int", "str", "str"],
-                }
-            ),
+            annotations=[TypeCollectionCategory.VARIABLE],
         )
 
     def test_skip_unannotated_variables(self):
@@ -141,13 +187,7 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default = self.x or "10"
                     self.x = default
             """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.CALLABLE_PARAMETER] * 4,
-                    "qname": [f"f.{v}" for v in "abc"] + ["C.__init__.self"],
-                    "anno": ["amod.A", "bmod.B", "cmod.C", "C"],
-                }
-            ),
+            annotations=[TypeCollectionCategory.CALLABLE_PARAMETER],
         )
 
     def test_rettype(self):
@@ -171,13 +211,7 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default = self.x or "10"
                     self.x = default
             """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.CALLABLE_RETURN] * 2,
-                    "qname": ["f", "C.__init__"],
-                    "anno": ["int", "None"],
-                }
-            ),
+            annotations=[TypeCollectionCategory.CALLABLE_RETURN],
         )
 
     def test_instance_attribute(self):
@@ -201,13 +235,7 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default = self.x or "10"
                     self.x = default
             """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.INSTANCE_ATTR] * 1,
-                    "qname": ["C.a"],
-                    "anno": ["int"],
-                }
-            ),
+            annotations=[TypeCollectionCategory.INSTANCE_ATTR],
         )
 
     def test_assign_hinting(self):
@@ -222,15 +250,15 @@ class Test_CustomAnnotator(AnnotationTesting):
             import typing
 
             a: int = 10
-            b: int; (b, _) = 10, None
+            b: int; b, _ = 10, None
             c: str; c += "Hello"
             """,
             annotations=(
                 pd.DataFrame(
                     {
-                        "category": [TypeCollectionCategory.VARIABLE] * 3,
-                        "qname": list("abc"),
-                        "anno": ["int"] * 2 + ["str"],
+                        "category": [TypeCollectionCategory.VARIABLE] * 4,
+                        "qname": list("ab_c"),
+                        "anno": ["int"] * 2 + [missing.NA, "str"],
                     }
                 )
             ),

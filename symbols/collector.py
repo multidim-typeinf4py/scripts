@@ -1,13 +1,12 @@
 from __future__ import annotations
-from dataclasses import replace
 
 import logging
-
 import pathlib
+from dataclasses import replace
 
 import libcst as cst
-from libcst import helpers as h, codemod as codemod, metadata
 import tqdm
+from libcst import codemod as codemod, metadata
 
 from common import TypeCollection
 
@@ -20,11 +19,15 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
         else codemod.gather_files([str(root)], include_stubs=allow_stubs)
     )
 
-    visitor = TypeCollectorVistor.strict(context=codemod.CodemodContext(metadata_manager=metadata.FullRepoManager(
-        repo_root_dir=repo_root,
-        paths=files,
-        providers=[],
-    )))
+    visitor = TypeCollectorVisitor.strict(
+        context=codemod.CodemodContext(
+            metadata_manager=metadata.FullRepoManager(
+                repo_root_dir=repo_root,
+                paths=files,
+                providers=[],
+            )
+        )
+    )
 
     for file in (pbar := tqdm.tqdm(files)):
         pbar.set_description(f"Building Annotation Collection from {file}")
@@ -36,7 +39,7 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
     return visitor.collection
 
 
-class TypeCollectorVistor(codemod.ContextAwareVisitor):
+class TypeCollectorVisitor(codemod.ContextAwareVisitor):
     collection: TypeCollection
 
     def __init__(
@@ -48,12 +51,12 @@ class TypeCollectorVistor(codemod.ContextAwareVisitor):
         self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
-    def strict(context: codemod.CodemodContext) -> TypeCollectorVistor:
-        return TypeCollectorVistor(context=context, collection=TypeCollection.empty(), strict=True)
+    def strict(context: codemod.CodemodContext) -> TypeCollectorVisitor:
+        return TypeCollectorVisitor(context=context, collection=TypeCollection.empty(), strict=True)
 
     @staticmethod
-    def lax(context: codemod.CodemodContext) -> TypeCollectorVistor:
-        return TypeCollectorVistor(context=context, collection=TypeCollection.empty(), strict=False)
+    def lax(context: codemod.CodemodContext) -> TypeCollectorVisitor:
+        return TypeCollectorVisitor(context=context, collection=TypeCollection.empty(), strict=False)
 
     def visit_Module(self, tree: cst.Module) -> None:
         assert self.context.filename is not None

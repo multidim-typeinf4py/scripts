@@ -10,7 +10,7 @@ from common import transformers as t
 from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
-from symbols.collector import TypeCollectorVistor
+from symbols.collector import TypeCollectorVisitor
 
 
 class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
@@ -39,7 +39,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
 
         removed = tree.visit(TypeAnnotationRemover())
 
-        symbol_collector = TypeCollectorVistor.strict(context=self.context)
+        symbol_collector = TypeCollectorVisitor.strict(context=self.context)
         removed.visit(symbol_collector)
         annotations = TypeCollection.to_libcst_annotations(
             module_tycol, symbol_collector.collection.df
@@ -114,13 +114,6 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
-    def annotated_hint(
-        self,
-        _1: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
     # actual assignments; simply rename targets
     def annotated_assignment(
         self,
@@ -142,10 +135,10 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
     def for_target(self, _1: libcst.For, target: libcst.Name | libcst.Attribute) -> t.Actions:
         return self.transform_target(target)
 
-    def compfor_target(
-        self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target)
+    #def compfor_target(
+    #    self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
+    #) -> t.Actions:
+    #    return self.transform_target(target)
 
     def withitem_target(self, _1: libcst.With, target: libcst.Name | libcst.Attribute) -> t.Actions:
         return self.transform_target(target)
@@ -157,6 +150,14 @@ class QName2SSATransformer(_SSATransformer):
     ):
         super().__init__(context)
         self.annotations = annotations.assign(consumed=0)
+
+    def annotated_hint(
+        self,
+        _1: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        # Ignore existing annotation hints
+        return t.Actions((t.Untouched(),))
 
     def lookup(
         self, target: libcst.Name | libcst.Attribute, scope: tuple[str], qname: str
@@ -184,6 +185,14 @@ class SSA2QNameTransformer(_SSATransformer):
     ):
         super().__init__(context)
         self.annotations = annotations
+
+    def annotated_hint(
+        self,
+        _1: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        # Ignore existing annotation hints
+        return self.transform_target(target)
 
     def lookup(self, target: libcst.Name | libcst.Attribute, scope: tuple[str], qname: str) -> str:
         cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == qname
