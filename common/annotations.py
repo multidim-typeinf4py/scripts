@@ -247,17 +247,17 @@ class MultiVarTypeCollector(
         )
 
         if annotation_value is not None:
-            classdef.body.body.append(
-                libcst.AnnAssign(
-                    target=target,
-                    annotation=annotation_value,
-                    value=None,
-                )
+            update = libcst.AnnAssign(
+                target=target,
+                annotation=annotation_value,
+                value=None,
             )
         else:
-            classdef.body.body.append(
-                libcst.Assign(targets=[libcst.AssignTarget(target=target)], value=libcst.Ellipsis())
+            update = libcst.Assign(
+                targets=[libcst.AssignTarget(target=target)], value=libcst.Ellipsis()
             )
+
+        classdef.body.body.append(update)
 
         self.annotations.class_definitions[key] = classdef
 
@@ -318,9 +318,11 @@ class MultiVarTypeCollector(
         module, target = self._module_and_target(qualified_name)
         if module in ("", "builtins"):
             return False
-        elif qualified_name not in self.existing_imports:
+
+        if qualified_name not in self.existing_imports:
             if module in self.existing_imports:
                 return True
+
             elif module in self.module_imports:
                 m = self.module_imports[module]
                 if m.obj_name is None:
@@ -329,18 +331,13 @@ class MultiVarTypeCollector(
                     asname = None
                 AddImportsVisitor.add_needed_import(self.context, m.module_name, asname=asname)
                 return True
+
             else:
-                if node and isinstance(node, libcst.Name) and node.value != target:
-                    asname = node.value
-                else:
-                    asname = None
                 AddImportsVisitor.add_needed_import(
                     self.context,
                     module,
-                    target,
-                    asname=asname,
                 )
-                return False
+                return True
         return False
 
     # Handler functions.
@@ -770,18 +767,28 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         body: libcst.BaseSuite,
         hint: libcst.AnnAssign,
     ) -> libcst.BaseSuite:
-        for member in body.body:
-            if m.matches(
-                member,
-                m.AnnAssign(value=m.Name(hint.target.value)),
-            ):
-                if self.overwrite_existing_annotations:
-                    member = member.with_changes(annotation=hint.annotation)
-                    self.annotation_counts.attribute_annotations += 1
-                return body
+
+        plain_matcher = m.Assign(
+            targets=[m.AssignTarget(m.Name(hint.target.value))], value=m.Ellipsis()
+        )
+        replace_hint_matcher = m.AnnAssign(target=m.Name(hint.target.value), value=m.Ellipsis())
+
+        replacement = libcst.SimpleStatementLine(body=[hint])
+
+        hint_exists = any(
+            m.matches(
+                match := member, m.SimpleStatementLine([plain_matcher | replace_hint_matcher])
+            )
+            for member in body.body
+        )
+        if hint_exists:
+            updated_body = body.deep_replace(match, replacement)
+
+        else:
+            updated_body = body.with_changes(body=(replacement, *body.body))
 
         self.annotation_counts.attribute_annotations += 1
-        return body.with_changes(body=(libcst.SimpleStatementLine(body=[hint]), *body.body))
+        return updated_body
 
     # private methods used in the visit and leave methods
 
