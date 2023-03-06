@@ -29,7 +29,6 @@ from .schemas import (
 )
 
 
-
 class TypeCollection:
     @pa.check_types
     def __init__(self, df: pt.DataFrame[TypeCollectionSchema]) -> None:
@@ -114,7 +113,9 @@ class TypeCollection:
                     qname = f"{cqname}.{_stringify(stmt.target)}"
                     anno = _stringify(stmt.annotation)
 
-                elif m.matches(stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())):
+                elif m.matches(
+                    stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())
+                ):
                     qname = f"{cqname}.{_stringify(stmt.targets[0].target)}"
                     anno = missing.NA
 
@@ -122,15 +123,13 @@ class TypeCollection:
                     continue
 
                 contents.append(
-                        (
-                            filename,
-                            TypeCollectionCategory.INSTANCE_ATTR,
-                            qname,
-                            anno,
-                        )
+                    (
+                        filename,
+                        TypeCollectionCategory.INSTANCE_ATTR,
+                        qname,
+                        anno,
                     )
-
-                    
+                )
 
         cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
         df = pd.DataFrame(contents, columns=cs)
@@ -267,6 +266,7 @@ class TypeCollection:
                     cst.AnnAssign(
                         target=cst.Name(aname),
                         annotation=cst.Annotation(cst.parse_expression(hint)),
+                        value=cst.Ellipsis(),
                     )
                     for aname, hint in group[["attrname", TypeCollectionSchema.anno]].itertuples(
                         index=False
