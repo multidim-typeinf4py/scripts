@@ -145,10 +145,12 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
-        if assignment.value is not None:
-            self.annotated_assignment(assignment.target, assignment.annotation)
-        elif isinstance(self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope):
+        if isinstance(
+            self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope
+        ) and m.matches(assignment.value, m.Ellipsis()):
             self.instance_attribute_hint(assignment.target, assignment.annotation)
+        elif assignment.value is not None:
+            self.annotated_assignment(assignment.target, assignment.annotation)
         else:
             self.annotated_hint(assignment.target, assignment.annotation)
 
@@ -208,10 +210,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         self,
         node: libcst.For
         # | libcst.CompFor
-        | libcst.AssignTarget
-        | libcst.AugAssign
-        | libcst.WithItem
-        | libcst.NamedExpr,
+        | libcst.AssignTarget | libcst.AugAssign | libcst.WithItem | libcst.NamedExpr,
     ) -> None:
         if hasattr(node, "target"):
             target = node.target
@@ -234,7 +233,10 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             mod_scope = self.get_metadata(metadata.ScopeProvider, target)
             assert mod_scope is not None
 
-            if isinstance(mod_scope, metadata.FunctionScope) and h.get_full_name_for_node_or_raise(target) in mod_scope._scope_overwrites:
+            if (
+                isinstance(mod_scope, metadata.FunctionScope)
+                and h.get_full_name_for_node_or_raise(target) in mod_scope._scope_overwrites
+            ):
                 self.scope_overwritten_target(target)
             else:
                 self.unannotated_target(target)
