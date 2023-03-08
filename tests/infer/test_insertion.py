@@ -115,6 +115,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
+
             import typing
 
             a: int = 10
@@ -139,6 +140,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after=f"""
             from __future__ import annotations
+
             import typing
         
             a = 10
@@ -171,6 +173,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
+
             import typing
             
             a = 10
@@ -195,6 +198,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
+
             import typing
 
             a = 10
@@ -219,6 +223,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
+
             import typing
 
             a = 10
@@ -247,6 +252,7 @@ class Test_CustomAnnotator(AnnotationTesting):
             """,
             after="""
             from __future__ import annotations
+
             import typing
 
             a: int = 10
@@ -262,6 +268,31 @@ class Test_CustomAnnotator(AnnotationTesting):
                     }
                 )
             ),
+        )
+
+    def test_for_loop(self):
+        self.assertBuildCodemod(
+            before="""
+            for indexi, valuei in enumerate("Hello World"):
+                for indexj, valuej in enumerate([[1, 2, 3]]):
+                    ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            import typing
+            indexi: int; valuei: str
+
+            for indexi, valuei in enumerate("Hello World"):
+                indexj: int; valuej: list
+                for indexj, valuej in enumerate([[1, 2, 3]]):
+                    ...
+            """,
+            annotations=pd.DataFrame({
+                "category": [TypeCollectionCategory.VARIABLE] * 4,
+                "qname": ["indexi", "valuei", "indexj", "valuej"],
+                "anno": ["int", "str", "int", "list"]
+            })
         )
 
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
