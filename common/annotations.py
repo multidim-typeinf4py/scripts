@@ -6,35 +6,29 @@
 import collections
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
-import functools
 
 import libcst
 import libcst.matchers as m
-from libcst import metadata
+from libcst import metadata, helpers as h
 
 from libcst.codemod._context import CodemodContext
-from libcst.codemod._visitor import ContextAwareTransformer
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisitor
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
 from libcst.codemod.visitors._imports import ImportItem
-from libcst.helpers import get_full_name_for_node, get_full_name_for_node_or_raise
-from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider, ClassScope
+from libcst.helpers import get_full_name_for_node
+from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider
 
 from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
     NAME_OR_ATTRIBUTE,
     StarParamType,
-    _module_and_target,
     _get_unique_qualified_name,
-    _get_import_alias_names,
     _get_imported_names,
     _is_non_sentinel,
     _get_string_value,
-    _find_generic_base,
     FunctionKey,
     FunctionAnnotation,
-    ImportedSymbol,
     ImportedSymbolCollector,
     TypeCollector,
     AnnotationCounts,
@@ -46,6 +40,8 @@ from common.visitors import (
     HintableReturnVisitor,
     ScopeAwareVisitor,
 )
+
+from common import transformers as t
 
 
 @dataclass
@@ -155,7 +151,7 @@ class MultiVarTypeCollector(
     def _function(
         self,
         node: libcst.FunctionDef,
-    ) -> bool:
+    ) -> None:
         returns = node.returns
         return_annotation = (
             self._handle_Annotation(annotation=returns) if returns is not None else None
@@ -168,10 +164,10 @@ class MultiVarTypeCollector(
         )
 
     # no-op: handle parameters and function in one go
-    def annotated_param(self, _1: libcst.Param, _2: libcst.Annotation) -> None:
+    def annotated_param(self, param: libcst.Param, annotation: libcst.Annotation) -> None:
         ...
 
-    def unannotated_param(self, _: libcst.Param) -> None:
+    def unannotated_param(self, param: libcst.Param) -> None:
         ...
 
     def visit_Assign(
@@ -459,9 +455,14 @@ class MultiVarTypeCollector(
 from libcst.codemod.visitors._apply_type_annotations import Annotations
 
 
-class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
+class ApplyTypeAnnotationsVisitor(
+    t.HintableParameterTransformer,
+    t.HintableReturnTransformer,
+    t.HintableDeclarationTransformer,
+    t.ScopeAwareTransformer,
+):
     """
-    Apply type annotations to a source module using the given stub mdules.
+    Apply type annotations to a source module using the given stub modules.
     You can also pass in explicit annotations for functions and attributes and
     pass in new class definitions that need to be added to the source module.
 
@@ -508,31 +509,19 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         strict_posargs_matching: bool = True,
         strict_annotation_matching: bool = False,
         always_qualify_annotations: bool = False,
-        handle_function_bodies: bool = False,
-        create_class_attributes: bool = False,
     ) -> None:
         super().__init__(context)
-        # Qualifier for storing the canonical name of the current function.
-        self.qualifier: List[str] = []
         self.annotations: Annotations = Annotations.empty() if annotations is None else annotations
-        self.toplevel_annotations: Dict[str, libcst.Annotation] = {}
         self.visited_classes: Set[str] = set()
         self.overwrite_existing_annotations = overwrite_existing_annotations
         self.use_future_annotations = use_future_annotations
         self.strict_posargs_matching = strict_posargs_matching
         self.strict_annotation_matching = strict_annotation_matching
         self.always_qualify_annotations = always_qualify_annotations
-        self.handle_function_bodies = handle_function_bodies
-        self.create_class_attributes = create_class_attributes
 
         # We use this to determine the end of the import block so that we can
         # insert top-level annotations.
         self.import_statements: List[libcst.ImportFrom] = []
-
-        # We use this to report annotations added, as well as to determine
-        # whether to abandon the codemod in edge cases where we may have
-        # only made changes to the imports.
-        self.annotation_counts: AnnotationCounts = AnnotationCounts()
 
         # We use this to collect typevars, to avoid importing existing ones from the pyi file
         self.current_assign: Optional[libcst.Assign] = None
@@ -628,13 +617,10 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             AddImportsVisitor.add_needed_import(self.context, "__future__", "annotations")
 
         tree_with_imports = AddImportsVisitor(self.context).transform_module(tree)
-        tree_with_changes = tree_with_imports.visit(self)
+        tree_with_changes = libcst.MetadataWrapper(tree_with_imports).visit(self)
 
         # don't modify the imports if we didn't actually add any type information
-        if self.annotation_counts.any_changes_applied():
-            return tree_with_changes
-        else:
-            return tree
+        return tree_with_changes
 
     # helpers for collecting type information from the stub files
 
@@ -725,29 +711,11 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
 
     # smart constructors: all applied annotations happen via one of these
 
-    def _apply_annotation_to_attribute_or_global(
-        self,
-        name: str,
-        annotation: libcst.Annotation,
-        value: Optional[libcst.BaseExpression],
-    ) -> libcst.AnnAssign:
-        if len(self.qualifier) == 0:
-            self.annotation_counts.global_annotations += 1
-        else:
-            self.annotation_counts.attribute_annotations += 1
-
-        return libcst.AnnAssign(
-            libcst.parse_expression(name),
-            self._quote_future_annotations(annotation),
-            value,
-        )
-
     def _apply_annotation_to_parameter(
         self,
         parameter: libcst.Param,
         annotation: libcst.Annotation,
     ) -> libcst.Param:
-        self.annotation_counts.parameter_annotations += 1
         return parameter.with_changes(
             annotation=self._quote_future_annotations(annotation),
         )
@@ -757,88 +725,9 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         function_def: libcst.FunctionDef,
         annotation: libcst.Annotation,
     ) -> libcst.FunctionDef:
-        self.annotation_counts.return_annotations += 1
         return function_def.with_changes(
             returns=self._quote_future_annotations(annotation),
         )
-
-    def _add_annotated_attr_to_class_body(
-        self,
-        body: libcst.BaseSuite,
-        hint: libcst.AnnAssign,
-    ) -> libcst.BaseSuite:
-
-        plain_matcher = m.Assign(
-            targets=[m.AssignTarget(m.Name(hint.target.value))], value=m.Ellipsis()
-        )
-        replace_hint_matcher = m.AnnAssign(target=m.Name(hint.target.value), value=m.Ellipsis())
-
-        replacement = libcst.SimpleStatementLine(body=[hint])
-
-        hint_exists = any(
-            m.matches(
-                match := member, m.SimpleStatementLine([plain_matcher | replace_hint_matcher])
-            )
-            for member in body.body
-        )
-        if hint_exists:
-            updated_body = body.deep_replace(match, replacement)
-
-        else:
-            updated_body = body.with_changes(body=(replacement, *body.body))
-
-        self.annotation_counts.attribute_annotations += 1
-        return updated_body
-
-    # private methods used in the visit and leave methods
-
-    def _qualifier_name(self) -> str:
-        return ".".join(self.qualifier)
-
-    def _annotate_single_target(
-        self,
-        node: libcst.Assign,
-        updated_node: libcst.Assign,
-    ) -> Union[libcst.Assign, libcst.AnnAssign]:
-        only_target = node.targets[0].target
-        if isinstance(only_target, (libcst.Tuple, libcst.List)):
-            outside_annos: list[libcst.AnnAssign] = []
-            for element in only_target.elements:
-                value = element.value
-                name = get_full_name_for_node(value)
-                if name is not None and name != "_":
-
-                    self.qualifier.append(name)
-                    if self._qualifier_name() in self.annotations.attributes:
-                        annotation = self.annotations.attributes[self._qualifier_name()]
-                        outside_annos.append(
-                            libcst.AnnAssign(
-                                target=libcst.Name(name), annotation=annotation, value=None
-                            )
-                        )
-                    self.qualifier.pop()
-
-            updated_node = libcst.FlattenSentinel((*outside_annos, updated_node))
-
-        elif isinstance(only_target, (libcst.Subscript)):
-            pass
-        else:
-            name = get_full_name_for_node(only_target)
-            if name is not None:
-                self.qualifier.append(name)
-                if self._qualifier_name() in self.annotations.attributes and not isinstance(
-                    only_target, libcst.Subscript
-                ):
-                    annotation = self.annotations.attributes[self._qualifier_name()]
-                    self.qualifier.pop()
-                    return self._apply_annotation_to_attribute_or_global(
-                        name=name,
-                        annotation=annotation,
-                        value=node.value,
-                    )
-                else:
-                    self.qualifier.pop()
-        return updated_node
 
     def _split_module(
         self,
@@ -865,6 +754,60 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             list(updated_module.body[:import_add_location]),
             list(updated_module.body[import_add_location:]),
         )
+
+    def unannotated_param(
+        self, param: libcst.Param
+    ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
+        libcst.Param
+    ] | libcst.RemovalSentinel:
+        return param
+
+    def annotated_param(
+        self, param: libcst.Param, annotation: libcst.Annotation
+    ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
+        libcst.Param
+    ] | libcst.RemovalSentinel:
+        return param
+
+    def annotated_function(
+        self, function: libcst.FunctionDef, _: libcst.Annotation
+    ) -> libcst.BaseStatement | libcst.FlattenSentinel[
+        libcst.BaseStatement
+    ] | libcst.RemovalSentinel:
+        return self._handle_function(function)
+
+    def unannotated_function(
+        self, function: libcst.FunctionDef
+    ) -> libcst.BaseStatement | libcst.FlattenSentinel[
+        libcst.BaseStatement
+    ] | libcst.RemovalSentinel:
+        return self._handle_function(function)
+
+    def _handle_function(
+        self,
+        updated_node: libcst.FunctionDef,
+    ) -> libcst.FunctionDef:
+        key = FunctionKey.make(".".join(self.qualified_scope()), updated_node.params)
+        if key in self.annotations.functions:
+            function_annotation = self.annotations.functions[key]
+            # Only add new annotation if:
+            # * we have matching function signatures and
+            # * we are explicitly told to overwrite existing annotations or
+            # * there is no existing annotation
+            if not self._match_signatures(updated_node, function_annotation):
+                return updated_node
+            set_return_annotation = (
+                self.overwrite_existing_annotations or updated_node.returns is None
+            )
+            if set_return_annotation and function_annotation.returns is not None:
+                updated_node = self._apply_annotation_to_return(
+                    function_def=updated_node,
+                    annotation=function_annotation.returns,
+                )
+            # Don't override default values when annotating functions
+            new_parameters = self._update_parameters(function_annotation, updated_node)
+            return updated_node.with_changes(params=new_parameters)
+        return updated_node
 
     def _update_parameters(
         self,
@@ -1020,85 +963,79 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
 
     # transform API methods
 
-    def visit_ClassDef(
+    def instance_attribute_hint(
+        self, updated_node: libcst.AnnAssign, target: libcst.Name
+    ) -> t.Actions:
+        return self._handle_instance_attr(updated_node, target)
+
+    def libsa4py_hint(self, updated_node: libcst.Assign, target: libcst.Name) -> t.Actions:
+        return self._handle_instance_attr(updated_node, target)
+
+    def _handle_instance_attr(
+        self, updated_node: libcst.AnnAssign | libcst.Assign, target: libcst.Name
+    ) -> t.Actions:
+        clazz_def = self.annotations.class_definitions.get(".".join(self.qualified_scope()))
+        if clazz_def is None:
+            return t.Actions((t.Untouched(),))
+
+        attr = m.SimpleStatementLine([m.AnnAssign(target=m.Name(target.value), value=m.Ellipsis())])
+        clazz_def_hint: libcst.SimpleStatementLine | None = next(
+            filter(lambda a: m.matches(a, attr), clazz_def.body.body), None
+        )
+        if clazz_def_hint is None:
+            return t.Actions((t.Untouched(),))
+
+        if isinstance(updated_node, libcst.AnnAssign):
+            matcher = m.AnnAssign(updated_node.target, updated_node.annotation, updated_node.value)
+        else:
+            matcher = m.Assign(updated_node.targets, updated_node.value)
+
+        return t.Actions(
+            (
+                t.Replace(
+                    matcher=matcher,
+                    replacement=libcst.AnnAssign(
+                        target=target,
+                        annotation=clazz_def_hint.body[0].annotation,
+                        value=updated_node.value,
+                    ),
+                ),
+            ),
+        )
+
+    def annotated_assignment(
         self,
-        node: libcst.ClassDef,
-    ) -> None:
-        self.qualifier.append(node.name.value)
+        updated_node: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        annotation = self.annotations.attributes.get(self.qualified_name(target))
+        if annotation is None:
+            return t.Actions((t.Untouched(),))
+        matcher = m.Annotation(annotation=updated_node.annotation.annotation)
 
-    def leave_ClassDef(
+        return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
+
+    def annotated_hint(
         self,
-        original_node: libcst.ClassDef,
-        updated_node: libcst.ClassDef,
-    ) -> libcst.ClassDef:
-        self.visited_classes.add(original_node.name.value)
-        cls_name = ".".join(self.qualifier)
-        self.qualifier.pop()
-        definition = self.annotations.class_definitions.get(cls_name)
-        if definition:
-            b1 = _find_generic_base(definition)
-            b2 = _find_generic_base(updated_node)
-            if b1 and not b2:
-                new_bases = list(updated_node.bases) + [b1]
-                self.annotation_counts.typevars_and_generics_added += 1
-                updated_node = updated_node.with_changes(bases=new_bases)
-
-            if self.create_class_attributes:
-                hint_matcher = m.AnnAssign(target=m.Name())
-                flt_stmts = (b for body in definition.body.body for b in body.body)
-                attr_hints = list(
-                    filter(
-                        lambda attr: m.matches(attr, hint_matcher),
-                        flt_stmts,
-                    )
-                )
-
-                updated_node = updated_node.with_changes(
-                    body=functools.reduce(
-                        self._add_annotated_attr_to_class_body,
-                        attr_hints,
-                        updated_node.body,
-                    )
-                )
-
-        return updated_node
-
-    def visit_FunctionDef(
-        self,
-        node: libcst.FunctionDef,
-    ) -> bool:
-        self.qualifier.append(node.name.value)
-        return self.handle_function_bodies
-
-    def leave_FunctionDef(
-        self,
-        original_node: libcst.FunctionDef,
-        updated_node: libcst.FunctionDef,
-    ) -> libcst.FunctionDef:
-        key = FunctionKey.make(self._qualifier_name(), updated_node.params)
-        self.qualifier.pop()
-        if key in self.annotations.functions:
-            function_annotation = self.annotations.functions[key]
-            # Only add new annotation if:
-            # * we have matching function signatures and
-            # * we are explicitly told to overwrite existing annotations or
-            # * there is no existing annotation
-            if not self._match_signatures(updated_node, function_annotation):
-                return updated_node
-            set_return_annotation = (
-                self.overwrite_existing_annotations or updated_node.returns is None
+        updated_node: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        return t.Actions(
+            (
+                t.Replace(
+                    m.AnnAssign(
+                        target=updated_node.target,
+                        annotation=updated_node.annotation,
+                        value=updated_node.value,
+                    ),
+                    replacement=libcst.EmptyLine(),
+                ),
             )
-            if set_return_annotation and function_annotation.returns is not None:
-                updated_node = self._apply_annotation_to_return(
-                    function_def=updated_node,
-                    annotation=function_annotation.returns,
-                )
-            # Don't override default values when annotating functions
-            new_parameters = self._update_parameters(function_annotation, updated_node)
-            return updated_node.with_changes(params=new_parameters)
-        return updated_node
+        )
 
-    def visit_Assign(
+    @m.call_if_inside(m.Assign())
+    @m.visit(m.Assign())
+    def _visit_Assign(
         self,
         node: libcst.Assign,
     ) -> None:
@@ -1106,7 +1043,7 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Call(func=m.Name("TypeVar")))
-    def record_typevar(
+    def _record_typevar(
         self,
         node: libcst.Call,
     ) -> None:
@@ -1121,64 +1058,69 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             self.typevars[name] = self.current_assign
             self.current_assign = None
 
-    def leave_AugAssign(
-        self, original_node: libcst.AugAssign, updated_node: libcst.AugAssign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
-
-        outside_annos: list[libcst.AnnAssign] = []
-        target = updated_node.target
-
-        if isinstance(target, (libcst.Name, libcst.Attribute)):
-            name = get_full_name_for_node(target)
-
-            if name is not None and name != "_":
-                # Add separate top-level annotations for `a = b = 1`
-                # as `a: int` and `b: int`.
-                self.qualifier.append(name)
-
-                if self._qualifier_name() in self.annotations.attributes:
-                    annotation = self.annotations.attributes[self._qualifier_name()]
-                    outside_annos.append(
-                        libcst.AnnAssign(
-                            target=libcst.Name(name),
-                            annotation=annotation,
-                            value=None,
-                        )
-                    )
-                self.qualifier.pop()
-        return libcst.FlattenSentinel((*outside_annos, updated_node))
-
-    def leave_Assign(
+    def unannotated_assign_single_target(
         self,
-        original_node: libcst.Assign,
         updated_node: libcst.Assign,
-    ) -> Union[libcst.Assign, libcst.AnnAssign, libcst.FlattenSentinel[libcst.BaseSmallStatement]]:
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        annotation = self.annotations.attributes.get(self.qualified_name(target))
+        if annotation is None:
+            return t.Actions((t.Untouched(),))
 
-        self.current_assign = None
+        matcher = m.Assign(updated_node.targets, value=updated_node.value)
+        return t.Actions(
+            (
+                t.Replace(
+                    matcher=matcher,
+                    replacement=libcst.AnnAssign(
+                        target=target, annotation=annotation, value=updated_node.value
+                    ),
+                ),
+            )
+        )
 
-        if len(original_node.targets) > 1:
-            outside_annos: list[libcst.AnnAssign] = []
-            for assign in original_node.targets:
-                target = assign.target
-                if isinstance(target, (libcst.Name, libcst.Attribute)):
-                    name = get_full_name_for_node(target)
-                    if name is not None and name != "_":
-                        # Add separate top-level annotations for `a = b = 1`
-                        # as `a: int` and `b: int`.
-                        self.qualifier.append(name)
-                        if self._qualifier_name() in self.annotations.attributes:
-                            annotation = self.annotations.attributes[self._qualifier_name()]
-                            outside_annos.append(
-                                libcst.AnnAssign(
-                                    target=libcst.Name(name),
-                                    annotation=annotation,
-                                    value=None,
-                                )
-                            )
-                        self.qualifier.pop()
-            return libcst.FlattenSentinel((*outside_annos, updated_node))
+    def unannotated_assign_multiple_targets(
+        self,
+        updated_node: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        return self._hint_as_prepend(updated_node, target)
+
+    def withitem_target(
+        self,
+        updated_node: libcst.With,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        return self._hint_as_prepend(updated_node, target)
+
+    def for_target(
+        self, updated_node: libcst.For, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        return self._hint_as_prepend(updated_node, target)
+
+    def _hint_as_prepend(
+        self, _: libcst.CSTNode, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        annotation = self.annotations.attributes.get(self.qualified_name(target))
+
+        if annotation is None:
+            action = t.Untouched()
+
         else:
-            return self._annotate_single_target(original_node, updated_node)
+            action = t.Prepend(libcst.AnnAssign(target=target, annotation=annotation))
+
+        return t.Actions((action,))
+
+    # no-op; do not annotate these targets
+    def global_target(
+        self, _1: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
+    ) -> t.Actions:
+        return t.Actions((t.Untouched(),))
+
+    def nonlocal_target(
+        self, _1: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
+    ) -> t.Actions:
+        return t.Actions((t.Untouched(),))
 
     def leave_ImportFrom(
         self,
@@ -1193,18 +1135,6 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         original_node: libcst.Module,
         updated_node: libcst.Module,
     ) -> libcst.Module:
-        fresh_class_definitions = [
-            definition
-            for name, definition in self.annotations.class_definitions.items()
-            if name not in self.visited_classes
-        ]
-
-        # NOTE: The entire change will also be abandoned if
-        # self.annotation_counts is all 0s, so if adding any new category make
-        # sure to record it there.
-        if not (self.toplevel_annotations or fresh_class_definitions or self.annotations.typevars):
-            return updated_node
-
         toplevel_statements = []
         # First, find the insertion point for imports
         statements_before_imports, statements_after_imports = self._split_module(
@@ -1214,14 +1144,6 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
         # Make sure there's at least one empty line before the first non-import
         statements_after_imports = self._insert_empty_line(statements_after_imports)
 
-        for name, annotation in self.toplevel_annotations.items():
-            annotated_assign = self._apply_annotation_to_attribute_or_global(
-                name=name,
-                annotation=annotation,
-                value=None,
-            )
-            toplevel_statements.append(libcst.SimpleStatementLine([annotated_assign]))
-
         # TypeVar definitions could be scattered through the file, so do not
         # attempt to put new ones with existing ones, just add them at the top.
         typevars = {k: v for k, v in self.annotations.typevars.items() if k not in self.typevars}
@@ -1229,11 +1151,9 @@ class ApplyTypeAnnotationsVisitor(ContextAwareTransformer):
             for var, stmt in typevars.items():
                 toplevel_statements.append(libcst.Newline())
                 toplevel_statements.append(stmt)
-                self.annotation_counts.typevars_and_generics_added += 1
             toplevel_statements.append(libcst.Newline())
 
-        self.annotation_counts.classes_added = len(fresh_class_definitions)
-        toplevel_statements.extend(fresh_class_definitions)
+        # toplevel_statements.extend(fresh_class_definitions)
 
         return updated_node.with_changes(
             body=[
