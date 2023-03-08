@@ -295,6 +295,28 @@ class Test_CustomAnnotator(AnnotationTesting):
             })
         )
 
+    def test_with_items(self):
+        self.assertBuildCodemod(
+            before="""
+            with scratchpad(path) as s, open(file) as f:
+                ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            import typing
+            s: scratchpad.ScratchPad; f: _io.TextFileWrapper
+
+            with scratchpad(path) as s, open(file) as f:
+                ...
+            """,
+            annotations=pd.DataFrame({
+                "category": [TypeCollectionCategory.VARIABLE] * 2,
+                "qname": ["s", "f"],
+                "anno": ["scratchpad.ScratchPad", "_io.TextFileWrapper"]
+            })
+        )
+
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
     def test_walrus(self):
         self.assertBuildCodemod(
