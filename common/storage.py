@@ -263,11 +263,11 @@ class TypeCollection:
             for cqname, group in attr_df.groupby(by="cqname"):
                 *_, cname = cqname.split(".")
                 hints = [
-                    cst.AnnAssign(
+                    cst.SimpleStatementLine([cst.AnnAssign(
                         target=cst.Name(aname),
                         annotation=cst.Annotation(cst.parse_expression(hint)),
                         value=cst.Ellipsis(),
-                    )
+                    )])
                     for aname, hint in group[["attrname", TypeCollectionSchema.anno]].itertuples(
                         index=False
                     )
@@ -275,7 +275,7 @@ class TypeCollection:
                 ]
                 attrs[cqname] = cst.ClassDef(
                     name=cst.Name(cname),
-                    body=cst.IndentedBlock(body=[cst.SimpleStatementSuite(body=hints)]),
+                    body=cst.IndentedBlock(body=hints),
                 )
 
             return attrs

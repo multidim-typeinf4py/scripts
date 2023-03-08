@@ -116,10 +116,10 @@ Actions = list[Untouched | Prepend | Append | Replace]
 
 def _apply_actions(
     actions: Actions,
-    updated_node: libcst.CSTNode,
-) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
-    prepends: list[libcst.BaseSmallStatement] = []
-    appends: list[libcst.BaseSmallStatement] = []
+    updated_node: libcst.BaseSmallStatement | libcst.BaseStatement,
+) -> libcst.FlattenSentinel:
+    prepends = []
+    appends = []
 
     for action in actions:
         match action:
@@ -135,13 +135,29 @@ def _apply_actions(
             case Replace(matcher, replacement):
                 updated_node = m.replace(updated_node, matcher, replacement)
 
-    return libcst.FlattenSentinel(
-        (
+    # module = h.parse_template_module(
+    #     "{ps}\n{un}\n{ap}",
+    #     ps=libcst.SimpleStatementLine(body=prepends),
+    #     un=updated_node,
+    #     ap=libcst.SimpleStatementLine(body=appends),
+    # )
+
+    if isinstance(updated_node, libcst.BaseSmallStatement):
+        # Must return libcst.FlattenSentinel[BaseSmallStatement]
+        return libcst.FlattenSentinel((
             *prepends,
+            #libcst.EmptyLine(),
             updated_node,
+            #libcst.EmptyLine(),
             *appends,
-        )
-    )
+        ))
+    else:
+        # Must return libcst.FlattenSentinel[BaseStatement]
+        return libcst.FlattenSentinel((
+            libcst.SimpleStatementLine(body=prepends),
+            updated_node,
+            libcst.SimpleStatementLine(body=appends)
+        ))
 
 
 class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
@@ -255,10 +271,10 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     ) -> Actions:
         ...
 
-    #@abc.abstractmethod
-    #def compfor_target(
+    # @abc.abstractmethod
+    # def compfor_target(
     #    self, updated_node: libcst.CompFor, target: libcst.Name | libcst.Attribute
-    #) -> Actions:
+    # ) -> Actions:
     #    ...
 
     @abc.abstractmethod
@@ -285,7 +301,9 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
     ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
-        if isinstance(self.get_metadata(metadata.ScopeProvider, original_node.target), metadata.ClassScope) and m.matches(updated_node.value, m.Ellipsis()):
+        if isinstance(
+            self.get_metadata(metadata.ScopeProvider, original_node.target), metadata.ClassScope
+        ) and m.matches(updated_node.value, m.Ellipsis()):
             transformer = self.instance_attribute_hint
 
         elif updated_node.value is not None:
