@@ -379,7 +379,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
     def leave_For(
         self, original_node: libcst.For, updated_node: libcst.For
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseStatement]:
         targets = self._access_targets(original_node.target)
         actions = list(
             itertools.chain.from_iterable(
@@ -404,7 +404,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     )
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
-    ) -> libcst.FlattenSentinel[libcst.CSTNode]:
+    ) -> libcst.FlattenSentinel[libcst.BaseStatement]:
         targets = list(
             itertools.chain.from_iterable(
                 self._access_targets(item.asname.name)
