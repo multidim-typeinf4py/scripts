@@ -54,8 +54,6 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             annotations=annotations,
             overwrite_existing_annotations=True,
             use_future_annotations=True,
-            handle_function_bodies=True,
-            create_class_attributes=True,
         ).transform_module(with_ssa_qnames)
 
         with_qnames = SSA2QNameTransformer(
