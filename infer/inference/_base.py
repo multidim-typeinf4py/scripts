@@ -1,16 +1,10 @@
 import abc
-from contextlib import contextmanager
-import os
 import pathlib
-import tempfile
-import typing
-import shutil
 
 from common.schemas import (
     InferredSchema,
     InferredSchemaColumns,
     TypeCollectionSchema,
-    TypeCollectionCategory,
 )
 
 import logging
