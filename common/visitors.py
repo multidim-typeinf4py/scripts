@@ -210,7 +210,8 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         self,
         node: libcst.For
         # | libcst.CompFor
-        | libcst.AssignTarget | libcst.AugAssign | libcst.WithItem | libcst.NamedExpr,
+        | libcst.AssignTarget | libcst.AugAssign | libcst.WithItem,
+        # | libcst.NamedExpr,
     ) -> None:
         if hasattr(node, "target"):
             target = node.target
