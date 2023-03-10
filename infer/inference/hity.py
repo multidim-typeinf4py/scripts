@@ -1,28 +1,30 @@
 import collections
-from dataclasses import dataclass
 import enum
 import pathlib
-import shutil
-
-from ._base import PerFileInference
-from common.schemas import (
-    InferredSchema,
-    InferredSchemaColumns,
-    TypeCollectionCategory,
-    TypeCollectionSchema,
-    TypeCollectionSchemaColumns,
-)
+from dataclasses import dataclass
 
 import hityper.__main__ as hityper
-import libcst as cst
-import libcst.metadata as metadata
-
+import libcst
+from libcst import metadata, matchers as m
 import pandas as pd
-from pandas._libs import missing
 import pandera.typing as pt
 import pydantic
+from libcst import codemod, helpers as h
+from libcst.codemod.visitors._apply_type_annotations import (
+    Annotations,
+    FunctionKey,
+    FunctionAnnotation,
+)
 
-from common import ast_helper
+from common import transformers as t
+from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
+from common.schemas import (
+    InferredSchema,
+)
+from common.transformers import Actions
+from symbols.collector import TypeCollectorVisitor
+from ._base import PerFileInference
+from ..insertion import TypeAnnotationApplierTransformer
 
 
 @dataclass
@@ -69,7 +71,7 @@ class _HiTyperPredictionCategory(str, enum.Enum):
 class _HiTyperPrediction(pydantic.BaseModel):
     category: _HiTyperPredictionCategory
     name: str
-    type: list[str]
+    type: list[str | None]
 
     class Config:
         use_enum_values = True
@@ -80,15 +82,6 @@ _HiTyperScope2Prediction = dict[str, list[_HiTyperPrediction]]
 
 class _HiTyperPredictions(pydantic.BaseModel):
     __root__: dict[pathlib.Path, _HiTyperScope2Prediction]
-
-
-# NOTE: Similarly to Type4Py...
-# NOTE: The returned JSON does not discriminate between attributes and variables,
-# NOTE: meaning one prediction is overwritten by the other.
-# NOTE: Unlike Type4Py, there are no line numbers...
-
-# NOTE: Another bug:
-# NOTE: Functions in functions are not recognised, and are marked as func@global
 
 
 class HiTyper(PerFileInference):
@@ -147,172 +140,119 @@ class HiTyper(PerFileInference):
     def _predictions2df(
         self, predictions: _HiTyperPredictions, file: pathlib.Path
     ) -> pt.DataFrame[InferredSchema]:
-        df_updates: list[tuple[str, TypeCollectionCategory, str, str, int]] = []
+        prediction_batches = []
 
         scopes = predictions.__root__.get(self.project / file, None)
         if scopes is None:
             return InferredSchema.example(size=0)
 
-        src = cst.parse_module(open(self.project / file).read())
-        module = metadata.MetadataWrapper(src)
+        src = libcst.parse_module(open(self.project / file).read())
 
-        visitor = HiTyperLocalDisambig(predictions=scopes)
-        module.visit(visitor)
+        for topn, batch in enumerate(self._batchify_scopes(scopes), start=1):
+            annotations = Annotations.empty()
 
-        for scope, scope_predictions in visitor.retained.items():
-            qname_prefix = scope
+            for scope, predictions in batch.items():
+                scope_components = _derive_qname(scope)
+                for prediction in filter(
+                    lambda p: p.category == _HiTyperPredictionCategory.LOCAL, predictions
+                ):
+                    if (ty := prediction.type[0]) is None:
+                        continue
+                    annotation = libcst.Annotation(libcst.parse_expression(ty))
 
-            for scope_pred in scope_predictions:
-                for n, ty in enumerate(scope_pred.type[: self.topn] or [None]):
-                    ty = ty or missing.NA
+                    scope_key = ".".join((*scope_components, prediction.name))
+                    annotations.attributes[scope_key] = annotation
 
-                    match scope_pred.category:
-                        case _HiTyperPredictionCategory.ARG:
-                            # Parameters are never global, simply join
-                            df_updates.append(
-                                (
-                                    str(file),
-                                    TypeCollectionCategory.CALLABLE_PARAMETER,
-                                    f"{qname_prefix}.{scope_pred.name}",
-                                    ty,
-                                    n,
+                    scope_key = ".".join((*scope_components, "self", prediction.name))
+                    annotations.attributes[scope_key] = annotation
+
+                if scope != "global@global":
+                    # hityper does not infer self, so add it manually for non-global functions
+                    if not scope.endswith("@global"):
+                        parameters: list[libcst.Param] = [libcst.Param(name=libcst.Name("self"))]
+                    else:
+                        parameters = []
+                    returns: libcst.Annotation | None = None
+
+                    for prediction in filter(
+                        lambda p: p.category != _HiTyperPredictionCategory.LOCAL, predictions
+                    ):
+                        ty = prediction.type[0]
+                        if prediction.category == _HiTyperPredictionCategory.ARG:
+                            parameters.append(
+                                libcst.Param(
+                                    name=libcst.Name(prediction.name),
+                                    annotation=(
+                                        libcst.Annotation(libcst.parse_expression(ty))
+                                        if ty is not None
+                                        else None
+                                    ),
                                 )
                             )
 
-                        case _HiTyperPredictionCategory.RET:
-                            # Returns are never global, simply join
-                            df_updates.append(
-                                (
-                                    str(file),
-                                    TypeCollectionCategory.CALLABLE_RETURN,
-                                    qname_prefix,
-                                    ty,
-                                    n,
-                                )
+                        else:
+                            returns = (
+                                libcst.Annotation(libcst.parse_expression(ty))
+                                if ty is not None
+                                else None
                             )
 
-                        case _HiTyperPredictionCategory.LOCAL:
-                            qname = (
-                                scope_pred.name
-                                if not qname_prefix
-                                else f"{qname_prefix}.{scope_pred.name}"
-                            )
-                            df_updates.append(
-                                (
-                                    str(file),
-                                    TypeCollectionCategory.VARIABLE,
-                                    qname,
-                                    ty,
-                                    n,
-                                )
-                            )
+                    scope_key = ".".join(scope_components)
 
-        if not df_updates:
-            return InferredSchema.example(size=0)
+                    ps = libcst.Parameters(parameters)
+                    fkey = FunctionKey.make(scope_key, ps)
+                    annotations.functions[fkey] = FunctionAnnotation(ps, returns)
 
-        wout_ssa = [
-            c
-            for c in InferredSchemaColumns
-            if c not in (InferredSchema.qname_ssa, InferredSchema.method)
-        ]
-        df = pd.DataFrame(df_updates, columns=wout_ssa)
+            context = codemod.CodemodContext(
+                filename=str(self.project / file),
+                metadata_manager=metadata.FullRepoManager(
+                    repo_root_dir=str(self.project),
+                    paths=[str(self.project / file)],
+                    providers=[],
+                ),
+            )
+
+            clean = src.visit(TypeAnnotationRemover())
+
+            annotated = ApplyTypeAnnotationsVisitor(
+                context=context,
+                annotations=annotations,
+                use_future_annotations=True,
+            ).transform_module(clean)
+
+            collector = TypeCollectorVisitor.strict(context)
+            annotated.visit(collector)
+
+            prediction_batches.append(collector.collection.df.assign(topn=topn))
 
         return (
-            df.assign(method=self.method)
-            .pipe(ast_helper.generate_qname_ssas_for_file)
+            pd.concat(prediction_batches)
+            .assign(method=self.method)
             .pipe(pt.DataFrame[InferredSchema])
         )
 
+    def _batchify_scopes(self, scopes: _HiTyperScope2Prediction) -> list[_HiTyperScope2Prediction]:
+        batches: list[_HiTyperScope2Prediction] = []
 
-class HiTyperLocalDisambig(cst.CSTVisitor):
-    METADATA_DEPENDENCIES = (metadata.QualifiedNameProvider, metadata.ScopeProvider)
+        for n in range(self.topn):
+            batch = _HiTyperScope2Prediction()
 
-    def __init__(self, predictions: _HiTyperScope2Prediction) -> None:
-        super().__init__()
+            for scope, predictions in scopes.items():
+                batch_predictions: list = []
+                for prediction in predictions:
+                    batch_predictions.append(
+                        _HiTyperPrediction(
+                            category=prediction.category,
+                            name=prediction.name,
+                            type=[prediction.type[n] if n < len(prediction.type) else None],
+                        )
+                    )
 
-        self._local_preds: _HiTyperScope2Prediction = collections.defaultdict(list)
-        self.retained: _HiTyperScope2Prediction = collections.defaultdict(list)
+                batch[scope] = batch_predictions
+            batches.append(batch)
 
-        for scope, preds in predictions.items():
-            for pred in preds:
-                if pred.category == _HiTyperPredictionCategory.LOCAL:
-                    self._local_preds[scope].append(pred)
-                else:
-                    derived = ".".join(_derive_qname(scope))
-                    self.retained[derived].append(pred)
-
-        """ self._local_preds = {
-            scope: pred
-            for scope, preds in predictions.items()
-            for pred in preds
-            if pred.category == _HiTyperPredictionCategory.LOCAL
-        }
-
-        self.retained: _HiTyperScope2Prediction = collections.defaultdict(
-            list,
-            (
-                (".".join(_derive_qname(scope)), preds)
-                for scope, preds in predictions.items()
-                for pred in preds
-                if pred.category != _HiTyperPredictionCategory.LOCAL
-            ),
-        ) """
-        ...
-
-    def visit_AnnAssign(self, node: cst.AnnAssign) -> bool | None:
-        return self._handle_assn_tgt(node.target)
-
-    def visit_AssignTarget(self, node: cst.AssignTarget) -> bool | None:
-        return self._handle_assn_tgt(node.target)
-
-    def _handle_assn_tgt(self, node: cst.BaseAssignTargetExpression) -> bool | None:
-        match node:
-            case cst.Name(name):
-                full = name
-
-            case cst.Attribute(cst.Name("self"), cst.Name(name)):
-                full = f"self.{name}"
-
-            case cst.Tuple(elements) | cst.List(elements):
-                for e in elements:
-                    self._handle_assn_tgt(e)
-
-                return False
-
-            case _:
-                return None
-
-        ast_scope = self.get_metadata(metadata.ScopeProvider, node)
-        match ast_scope:
-            case metadata.GlobalScope():
-                scope = "global@global"
-
-            case metadata.FunctionScope():
-                qname = next(
-                    iter(self.get_metadata(metadata.QualifiedNameProvider, ast_scope.node))
-                )
-                cleaned = qname.name.replace(".<locals>.", ".")
-                if isinstance(ast_scope.parent, metadata.GlobalScope):
-                    scope = f"{cleaned}@global"
-
-                else:
-                    *prelude, fname = cleaned.split(".")
-                    scope = f"{fname}@{','.join(prelude)}"
-
-            case metadata.ClassScope():
-                # Do not handle class attributes
-                return None
-
-            case _:
-                print(f"Unhandled scope {ast_scope}, {ast_scope.name} for {name}")
-                return None
-
-        if hints := self._local_preds.get(scope):
-            pred = next(filter(lambda p: p.name == name, hints), None)
-            if pred is not None:
-                pred.name = full
-                # self._local_preds.pop(scope)
-                self.retained[".".join(_derive_qname(scope))].append(pred)
+        print(batches[0])
+        return batches
 
 
 def _derive_qname(scope: str) -> list[str]:
