@@ -161,7 +161,6 @@ class TypeCollection:
         )
 
         # Make sure symbols that are not in the baseline, but could be inferred
-        # Example: CLASS_ATTRs, which are dropped during HintRemoval
         df = pd.concat([ordered, df], ignore_index=True).drop_duplicates(
             subset=[
                 TypeCollectionSchema.file,
