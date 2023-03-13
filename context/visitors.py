@@ -17,6 +17,7 @@ from common.schemas import (
     TypeCollectionCategory,
 )
 from common import visitors
+from common.metadata import anno4inst
 from context.features import RelevantFeatures
 
 
@@ -56,6 +57,7 @@ class ContextVectorVisitor(
     METADATA_DEPENDENCIES = (
         metadata.ScopeProvider,
         metadata.ParentNodeProvider,
+        anno4inst.Annotation4InstanceProvider,
     )
 
     def __init__(self, filepath: str, features: RelevantFeatures) -> None:
@@ -92,7 +94,6 @@ class ContextVectorVisitor(
         self.keyword_modified_targets: set[str] = set()
 
         self.filepath = filepath
-        self._annassign_hinting: dict[str, libcst.Annotation] = dict()
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
@@ -144,38 +145,28 @@ class ContextVectorVisitor(
         )
 
     def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+        self, target: libcst.Name | libcst.Attribute, _: libcst.Annotation
     ) -> None:
         ident = get_full_name_for_node_or_raise(target)
-        fullqual = self.qname_within_scope(ident)
-
-        self._annassign_hinting.pop(fullqual, None)
 
         self._handle_annotatable(
             annotatable=target,
             identifier=ident,
-            annotation=annotation,
+            annotation=self.get_metadata(anno4inst.Annotation4InstanceProvider, target),
             category=TypeCollectionCategory.VARIABLE,
         )
 
-    def annotated_hint(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        ident = get_full_name_for_node_or_raise(target)
-        fullqual = self.qname_within_scope(ident)
-
-        self._annassign_hinting[fullqual] = annotation
+    def annotated_hint(self, _1: libcst.Name | libcst.Attribute, _2: libcst.Annotation) -> None:
+        ...
 
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         name = get_full_name_for_node_or_raise(target)
-        fullqual = self.qname_within_scope(name)
 
         # Reference stored hint if present
-        hint = self._annassign_hinting.get(fullqual, None)
         self._handle_annotatable(
             annotatable=target,
             identifier=name,
-            annotation=hint,
+            annotation=self.get_metadata(anno4inst.Annotation4InstanceProvider, target),
             category=TypeCollectionCategory.VARIABLE,
         )
 
