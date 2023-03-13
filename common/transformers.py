@@ -7,7 +7,7 @@ from libcst import metadata, matchers as m, helpers as h, codemod as c
 
 from .matchers import NAME, INSTANCE_ATTR, LIST, TUPLE
 
-from common.metadata import KeywordModifiedScopeProvider, KeywordContext
+from common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
 
 
 class ScopeAwareTransformer(c.ContextAwareTransformer):

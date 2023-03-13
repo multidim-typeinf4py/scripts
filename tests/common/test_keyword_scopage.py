@@ -4,7 +4,7 @@ import libcst
 from libcst import metadata
 from libcst import matchers as m
 
-from common.metadata import KeywordModifiedScopeProvider, KeywordContext
+from common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
 
 
 def test_nonlocal():
@@ -91,42 +91,3 @@ def test_global():
 
     assert mapping[xs[4].target] is KeywordContext.UNCHANGED
     assert mapping[xs[5].target] is KeywordContext.UNCHANGED
-
-
-
-def test_wat():
-    from libcst.metadata import ScopeProvider
-
-    code = textwrap.dedent(
-        """
-        a = 10
-        b, _ = 10, None
-        c += "Hello"
-    """
-    )
-
-    module = libcst.parse_module(code)
-    wrapper = metadata.MetadataWrapper(module)
-    mapping = wrapper.resolve(ScopeProvider)
-
-    xs = m.findall(
-        wrapper,
-        m.Name(),
-    )
-
-    assert xs[0] in mapping
-    assert xs[1] in mapping
-    assert xs[2] in mapping
-
-
-    wrapper2 = metadata.MetadataWrapper(module)
-    mapping2 = wrapper2.resolve(ScopeProvider)
-
-    xs2 = m.findall(
-        wrapper2,
-        m.Name(),
-    )
-
-    assert xs2[0] in mapping2
-    assert xs2[1] in mapping2
-    assert xs2[2] in mapping2

@@ -4,7 +4,7 @@ import libcst
 from libcst import metadata, matchers as m, helpers as h
 
 from .matchers import LIST, NAME, INSTANCE_ATTR, TUPLE
-from .metadata import KeywordModifiedScopeProvider, KeywordContext
+from common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
 
 
 class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
@@ -69,10 +69,13 @@ class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
     """
     Provide hook methods for visiting hintable attributes (both a and self.a)
-    in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
+    in Assign, AnnAssign and AugAssign, as well as WithItems and For Loops usages
     """
 
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
+    METADATA_DEPENDENCIES = (
+        KeywordModifiedScopeProvider,
+        metadata.ScopeProvider,
+    )
 
     @abc.abstractmethod
     def instance_attribute_hint(
