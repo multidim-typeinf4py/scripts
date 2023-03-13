@@ -34,7 +34,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             self.annotations[TypeCollectionSchema.file] == str(relative)
         ].pipe(pt.DataFrame[TypeCollectionSchema])
 
-        AddImportsVisitor.add_needed_import(self.context, "typing")
+        # AddImportsVisitor.add_needed_import(self.context, "typing")
         # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
         removed = tree.visit(TypeAnnotationRemover(context=self.context))

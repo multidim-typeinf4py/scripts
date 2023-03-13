@@ -116,8 +116,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
-
             a: int = 10
             a: str = "Hello World"
 
@@ -141,8 +139,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after=f"""
             from __future__ import annotations
 
-            import typing
-        
             a = 10
             a: str = "Hello World"
 
@@ -174,8 +170,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
-            
             a = 10
             a = "Hello World"
 
@@ -199,8 +193,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
-
             a = 10
             a = "Hello World"
 
@@ -223,8 +215,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             before=AnnotationTesting.HINTLESS,
             after="""
             from __future__ import annotations
-
-            import typing
 
             a = 10
             a = "Hello World"
@@ -253,8 +243,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
-
             a: int = 10
             b: int; b, _ = 10, None
             c: str; c += "Hello"
@@ -280,7 +268,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
             indexi: int; valuei: str
 
             for indexi, valuei in enumerate("Hello World"):
@@ -304,7 +291,6 @@ class Test_CustomAnnotator(AnnotationTesting):
             after="""
             from __future__ import annotations
 
-            import typing
             s: scratchpad.ScratchPad; f: _io.TextFileWrapper
 
             with scratchpad(path) as s, open(file) as f:
