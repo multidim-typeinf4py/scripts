@@ -4,7 +4,6 @@ import pathlib
 import libcst
 import pandera.typing as pt
 from libcst import codemod, helpers as h, matchers as m
-from libcst.codemod.visitors._add_imports import AddImportsVisitor
 
 from common import transformers as t
 from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
@@ -37,22 +36,22 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         # AddImportsVisitor.add_needed_import(self.context, "typing")
         # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
-        removed = tree.visit(TypeAnnotationRemover(context=self.context))
+        # removed = tree.visit(TypeAnnotationRemover(context=self.context))
 
         symbol_collector = TypeCollectorVisitor.strict(context=self.context)
-        removed.visit(symbol_collector)
+        tree.visit(symbol_collector)
         annotations = TypeCollection.to_libcst_annotations(
             module_tycol, symbol_collector.collection.df
         )
 
         with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
-        ).transform_module(removed)
+        ).transform_module(tree)
 
         hinted = ApplyTypeAnnotationsVisitor(
             context=self.context,
             annotations=annotations,
-            overwrite_existing_annotations=True,
+            overwrite_existing_annotations=False,
             use_future_annotations=True,
         ).transform_module(with_ssa_qnames)
 
