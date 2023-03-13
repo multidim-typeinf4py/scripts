@@ -41,6 +41,7 @@ from common.visitors import (
 )
 
 from common import transformers as t
+from common.metadata.anno4inst import Annotation4InstanceProvider
 
 
 @dataclass
@@ -113,6 +114,7 @@ class MultiVarTypeCollector(
         ScopeProvider,
         PositionProvider,
         QualifiedNameProvider,
+        Annotation4InstanceProvider,
     )
 
     annotations: MultiVarAnnotations
@@ -138,8 +140,6 @@ class MultiVarTypeCollector(
         self.current_assign: Optional[libcst.Assign] = None  # used to collect typevars
         # Store the annotations.
         self.annotations = MultiVarAnnotations.empty()
-
-        self._cst_annassign_hinting: dict[str, libcst.Annotation] = {}
 
     def annotated_function(self, function: libcst.FunctionDef, _: libcst.Annotation) -> None:
         self._function(function)
@@ -177,21 +177,18 @@ class MultiVarTypeCollector(
 
     def leave_Assign(
         self,
-        original_node: libcst.Assign,
+        _: libcst.Assign,
     ) -> None:
         self.current_assign = None
 
     def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+        self, target: libcst.Name | libcst.Attribute, _: libcst.Annotation
     ) -> None:
         full_qual = self.qualified_name(target)
+        annotation = self.get_metadata(Annotation4InstanceProvider, target)
         annotation_value = self._handle_Annotation(annotation=annotation)
 
-        # Track annotation
         self.annotations.attributes[full_qual].append(annotation_value)
-
-        # Delete hinting if previously given
-        self._cst_annassign_hinting.pop(full_qual, None)
 
         # NOTE: Debatedly, propagation can be achieved using this
         # NOTE: However, we expect tools to annotate "aggressively"
@@ -209,28 +206,12 @@ class MultiVarTypeCollector(
         #     if full_qual in self._cst_annassign_hinting:
         #         self._cst_annassign_hinting.pop(full_qual)
 
-        # # Otherwise AnnAssign is used purely for hinting; track this,
-        # # but do not store hint in attributes
-        # else:
-        #     self._cst_annassign_hinting[full_qual] = annotation_value
+    def annotated_hint(self, _1: libcst.Name | libcst.Attribute, _2: libcst.Annotation) -> None:
+        ...
 
-    def annotated_hint(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        full_qual = self.qualified_name(target)
+    def instance_attribute_hint(self, target: libcst.Name, _: libcst.Annotation | None) -> None:
+        annotation = self.get_metadata(Annotation4InstanceProvider, target)
         annotation_value = self._handle_Annotation(annotation=annotation)
-
-        # Track hint for unannotated variables used thereafter
-        # = propagation of type hint through scope
-        self._cst_annassign_hinting[full_qual] = annotation_value
-
-    def instance_attribute_hint(
-        self, target: libcst.Name, annotation: libcst.Annotation | None
-    ) -> None:
-        if annotation is not None:
-            annotation_value = self._handle_Annotation(annotation=annotation)
-        else:
-            annotation_value = None
 
         # Mark as an instance attribute
         scope = self.qualified_scope()
@@ -259,12 +240,12 @@ class MultiVarTypeCollector(
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         # Reference stored hint if present
         full_qual = self.qualified_name(target)
-        hint = self._cst_annassign_hinting.get(full_qual, None)
+        hint = self.get_metadata(Annotation4InstanceProvider, target)
 
-        self.annotations.attributes[full_qual].append(hint)
+        self.annotations.attributes[full_qual].append(self._handle_Annotation(annotation=hint))
 
     # no-op, as these cannot ever be annotated
-    def scope_overwritten_target(self, target: libcst.Name) -> None:
+    def scope_overwritten_target(self, _: libcst.Name) -> None:
         ...
 
     @m.call_if_inside(m.Assign())
@@ -283,7 +264,7 @@ class MultiVarTypeCollector(
 
     def leave_Module(
         self,
-        original_node: libcst.Module,
+        _: libcst.Module,
     ) -> None:
         self.annotations.finish()
 
@@ -410,8 +391,11 @@ class MultiVarTypeCollector(
 
     def _handle_Annotation(
         self,
-        annotation: libcst.Annotation,
-    ) -> libcst.Annotation:
+        annotation: libcst.Annotation | None,
+    ) -> libcst.Annotation | None:
+        if annotation is None:
+            return annotation
+
         node = annotation.annotation
         if isinstance(node, libcst.SimpleString):
             self.annotations.names.add(_get_string_value(node))
