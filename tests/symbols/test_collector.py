@@ -516,3 +516,25 @@ class Test_HintTracking(AnnotationTracking):
                 (TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
             ],
         )
+
+    def test_qualification(self):
+        df = self.performTracking(
+            """
+            from typing import Callable
+            import amod
+
+            a: int = 5
+            b: amod.B = amod.B(10)
+            c: Callable = lambda: _
+            d: notimported.buthereanyway = 10
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "b", "amod.B"),
+                (TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
+                (TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+            ],
+        )
