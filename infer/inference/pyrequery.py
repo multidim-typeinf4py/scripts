@@ -133,7 +133,7 @@ class _PyreQuery2Annotations(
         self.annotations.append((TypeCollectionCategory.INSTANCE_ATTR, qname, assgnty))
 
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
-        assgnty = self._infer_type(target if isinstance(target, libcst.Name) else target.value)
+        assgnty = self._infer_type(target)
         qname = self.qualified_name(target)
         self.annotations.append((TypeCollectionCategory.VARIABLE, qname, assgnty))
 
