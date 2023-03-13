@@ -212,13 +212,11 @@ class HiTyper(PerFileInference):
                 ),
             )
 
-            clean = src.visit(TypeAnnotationRemover())
-
             annotated = ApplyTypeAnnotationsVisitor(
                 context=context,
                 annotations=annotations,
                 use_future_annotations=True,
-            ).transform_module(clean)
+            ).transform_module(src)
 
             collector = TypeCollectorVisitor.strict(context)
             annotated.visit(collector)
