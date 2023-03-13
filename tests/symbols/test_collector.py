@@ -535,6 +535,6 @@ class Test_HintTracking(AnnotationTracking):
                 (TypeCollectionCategory.VARIABLE, "a", "int"),
                 (TypeCollectionCategory.VARIABLE, "b", "amod.B"),
                 (TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
-                (TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanywayg"),
+                (TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
             ],
         )
