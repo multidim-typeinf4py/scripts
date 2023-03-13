@@ -166,7 +166,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             ),
             clazz.body.body,
         ):
-            self.instance_attribute_hint(libsa4py_hint.body[0].targets[0].target, annotation=None)
+            self.instance_attribute_hint(libsa4py_hint.body[0].targets[0].target, None)
 
     @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
     def visit_For_target(self, node: libcst.For) -> None:
