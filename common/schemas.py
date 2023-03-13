@@ -32,22 +32,10 @@ TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys
 
 class InferredSchema(TypeCollectionSchema):
     method: pt.Series[str] = pa.Field()
-    topn: pt.Series[int] = pa.Field(ge=0)
+    topn: pt.Series[int] = pa.Field(ge=1)
 
 
 InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
-
-
-class MergedAnnotationSchema(pa.SchemaModel):
-    file: pt.Series[str] = pa.Field()
-    category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
-    qname: pt.Series[str] = pa.Field()
-
-    # TODO: anno will be prefixed by the repositories' respective naming
-    # TODO: can this be schematised?
-
-
-MergedAnnotationSchemaColumns = list(MergedAnnotationSchema.to_schema().columns.keys())
 
 
 class ContextCategory(enum.IntEnum):
@@ -69,7 +57,6 @@ class ContextSymbolSchema(TypeCollectionSchema):
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 
 
-
 class ContextDatasetSchema(pa.SchemaModel):
     method: pt.Series[str] = pa.Field()
     file: pt.Series[str] = pa.Field()
@@ -84,6 +71,5 @@ class ContextDatasetSchema(pa.SchemaModel):
     user_defined: pt.Series[int] = pa.Field()
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 
+
 ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())
-
-
