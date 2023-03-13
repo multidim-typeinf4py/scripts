@@ -6,9 +6,8 @@ from . import _adaptors
 
 from ._base import ProjectWideInference
 from utils import scratchpad, working_dir
-from common.schemas import InferredSchema, TypeCollectionSchema
+from common.schemas import InferredSchema
 
-from libcst.codemod import _cli as cstcli
 
 
 class PyreInfer(ProjectWideInference):
@@ -43,6 +42,6 @@ class PyreInfer(ProjectWideInference):
 
             return (
                 _adaptors.hints2df(sp)
-                .assign(method=self.method, topn=0)
+                .assign(method=self.method, topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )

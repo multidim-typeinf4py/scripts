@@ -63,6 +63,6 @@ class Type4Py(PerFileInference):
         )
         inferred = collector.transform_module(inferred)
 
-        return collector.collection.df.assign(method="type4py", topn=0).pipe(
+        return collector.collection.df.assign(method="type4py", topn=1).pipe(
             pt.DataFrame[InferredSchema]
         )
