@@ -1,5 +1,3 @@
-import logging
-import os
 
 import click
 
@@ -8,7 +6,7 @@ import logregr
 import harness
 import infer
 import srcdiff
-import hintdiff
+# import hintdiff
 import symbols
 
 
@@ -23,7 +21,7 @@ if __name__ == "__main__":
             context.cli_entrypoint,
             infer.cli_entrypoint,
             harness.cli_entrypoint,
-            hintdiff.cli_entrypoint,
+            # hintdiff.cli_entrypoint,
             symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
             logregr.cli_entrypoint,
