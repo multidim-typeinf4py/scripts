@@ -37,7 +37,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         AddImportsVisitor.add_needed_import(self.context, "typing")
         # AddImportsVisitor.add_needed_import(self.context, "typing", "*")
 
-        removed = tree.visit(TypeAnnotationRemover())
+        removed = tree.visit(TypeAnnotationRemover(context=self.context))
 
         symbol_collector = TypeCollectorVisitor.strict(context=self.context)
         removed.visit(symbol_collector)

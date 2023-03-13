@@ -49,7 +49,7 @@ from libcst import codemod
     "--overwrite",
     is_flag=True,
     default=False,
-    help="Overwrite the output folder. Has no effect if --output was not given",
+    help="Overwrite an existing output folder from previous run",
 )
 @click.option(
     "-rv",
@@ -81,9 +81,10 @@ def cli_entrypoint(
         print(f"Using {sc} as a scratchpad for inference!")
 
         if remove_var_annos or remove_param_annos or remove_ret_annos:
-            print(f"--remove-annos provided, removing annotations on '{sc}'")
+            print(f"annotation removal flag provided, removing annotations on '{sc}'")
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationRemover(
+                    context=codemod.CodemodContext(),
                     variables=remove_var_annos, parameters=remove_param_annos, rets=remove_ret_annos
                 ),
                 files=codemod.gather_files([str(sc)]),

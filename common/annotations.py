@@ -9,9 +9,8 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import libcst
 import libcst.matchers as m
-from libcst import metadata, helpers as h
+from libcst import metadata, helpers as h, codemod as c
 
-from libcst.codemod._context import CodemodContext
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisitor
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
@@ -122,7 +121,7 @@ class MultiVarTypeCollector(
         self,
         existing_imports: Set[str],
         module_imports: Dict[str, ImportItem],
-        context: CodemodContext,
+        context: c.CodemodContext,
     ) -> None:
         super().__init__()
         self.context = context
@@ -502,7 +501,7 @@ class ApplyTypeAnnotationsVisitor(
 
     def __init__(
         self,
-        context: CodemodContext,
+        context: c.CodemodContext,
         annotations: Optional[Annotations] = None,
         overwrite_existing_annotations: bool = False,
         use_future_annotations: bool = False,
@@ -534,7 +533,7 @@ class ApplyTypeAnnotationsVisitor(
 
     @staticmethod
     def store_stub_in_context(
-        context: CodemodContext,
+        context: c.CodemodContext,
         stub: libcst.Module,
         overwrite_existing_annotations: bool = False,
         use_future_annotations: bool = False,
@@ -573,11 +572,11 @@ class ApplyTypeAnnotationsVisitor(
 
         Gather global names from ``tree`` so forward references are quoted.
         """
-        import_gatherer = GatherImportsVisitor(CodemodContext())
+        import_gatherer = GatherImportsVisitor(c.CodemodContext())
         tree.visit(import_gatherer)
         existing_import_names = _get_imported_names(import_gatherer.all_imports)
 
-        global_names_gatherer = GatherGlobalNamesVisitor(CodemodContext())
+        global_names_gatherer = GatherGlobalNamesVisitor(c.CodemodContext())
         tree.visit(global_names_gatherer)
         self.global_names = global_names_gatherer.global_names.union(
             global_names_gatherer.class_names
@@ -641,7 +640,7 @@ class ApplyTypeAnnotationsVisitor(
         # annotation visitor hits `quux.X` it will retrieve the canonical name
         # `foo.X` and then note that `foo` is in the module imports map, so it will
         # leave the symbol qualified.
-        import_gatherer = GatherImportsVisitor(CodemodContext())
+        import_gatherer = GatherImportsVisitor(c.CodemodContext())
         stub.visit(import_gatherer)
         symbol_map = import_gatherer.symbol_mapping
         existing_import_names = _get_imported_names(existing_import_gatherer.all_imports)
@@ -1164,14 +1163,20 @@ class ApplyTypeAnnotationsVisitor(
         )
 
 
-class TypeAnnotationRemover(libcst.CSTTransformer):
+class TypeAnnotationRemover(c.ContextAwareTransformer):
     """
     Configurable type annotation removal.
     Based on LibSA4Py implementation
     """
 
-    def __init__(self, variables: bool = True, parameters: bool = True, rets: bool = True) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        context: c.CodemodContext,
+        variables: bool = True,
+        parameters: bool = True,
+        rets: bool = True,
+    ) -> None:
+        super().__init__(context)
 
         self.variables = variables
         self.parameters = parameters
