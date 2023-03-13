@@ -177,8 +177,8 @@ class AnnotationTracking(codemod.CodemodTest):
                 ),
             ),
         )
-        module.visit(visitor)
 
+        metadata.MetadataWrapper(module).visit(visitor)
         return visitor.collection.df
 
     def assertMatchingAnnotating(
@@ -383,8 +383,12 @@ class Test_HintTracking(AnnotationTracking):
         )
         self.assertMatchingAnnotating(
             df,
-            [(TypeCollectionCategory.VARIABLE, "a", "int")] * 2
-            + [(TypeCollectionCategory.VARIABLE, "a", "str")] * 2,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", "int"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "a", "str"),
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+            ],
         )
 
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
@@ -517,7 +521,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    def test_qualification(self):
+    def test_annotation_qualification(self):
         df = self.performTracking(
             """
             from typing import Callable
