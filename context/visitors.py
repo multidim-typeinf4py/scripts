@@ -75,7 +75,7 @@ class ContextVectorVisitor(
 
         # scope AST-tree; includes every node that influences scope.
         # Limited to ClassDef, FunctionDef
-        self.real_scope_names: list[libcst.CSTNode] = []
+        self.real_scope_names: list[tuple[str, ...]] = []
 
         # mapping of self.real_scope_names to symbols declared therein
         # used for reassignment checks
