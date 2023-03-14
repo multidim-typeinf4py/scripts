@@ -22,47 +22,6 @@ class AnnotationTesting(codemod.CodemodTest):
         super().__init__(methodName)
         self.maxDiff = None
 
-    HINTLESS = textwrap.dedent(
-        """
-        a = 10
-        a = "Hello World"
-
-        (b, c) = "Hello", 5
-
-        def f(a, b, c): ...
-        
-        class C:
-            a = ...
-            def __init__(self):
-                self.x = 0
-                default = self.x or "10"
-                self.x = default
-        """
-    )
-
-    HINTED = textwrap.dedent(
-        """
-        a: int = 10
-        a: str = "Hello World"
-
-        b: str; c: int
-        (b, c) = "Hello", 5
-
-        def f(a: amod.A, b: bmod.B, c: cmod.C) -> int: ...
-        
-        class C:
-            a: int = ...
-            def __init__(self: "C") -> None:
-                self.x: int = 0
-                default: str = self.x or "10"
-                self.x: str = default
-    """
-    )
-
-
-class Test_CustomAnnotator(AnnotationTesting):
-    TRANSFORM = TypeAnnotationApplierTransformer
-
     def assertBuildCodemod(
         self,
         before: str,
@@ -97,7 +56,6 @@ class Test_CustomAnnotator(AnnotationTesting):
         else:
             assert False, f"Unsupported {annotations=}"
 
-
         self.assertCodemod(
             before,
             after,
@@ -109,6 +67,47 @@ class Test_CustomAnnotator(AnnotationTesting):
                 ),
             ),
         )
+
+    HINTLESS = textwrap.dedent(
+        """
+        a = 10
+        a = "Hello World"
+
+        (b, c) = "Hello", 5
+
+        def f(a, b, c): ...
+
+        class C:
+            a = ...
+            def __init__(self):
+                self.x = 0
+                default = self.x or "10"
+                self.x = default
+        """
+    )
+
+    HINTED = textwrap.dedent(
+        """
+        a: int = 10
+        a: str = "Hello World"
+
+        b: str; c: int
+        (b, c) = "Hello", 5
+
+        def f(a: amod.A, b: bmod.B, c: cmod.C) -> int: ...
+
+        class C:
+            a: int = ...
+            def __init__(self: "C") -> None:
+                self.x: int = 0
+                default: str = self.x or "10"
+                self.x: str = default
+    """
+    )
+
+
+class Test_CustomAnnotator(AnnotationTesting):
+    TRANSFORM = TypeAnnotationApplierTransformer
 
     def test_attributes(self):
         self.assertBuildCodemod(
@@ -275,11 +274,13 @@ class Test_CustomAnnotator(AnnotationTesting):
                 for indexj, valuej in enumerate([[1, 2, 3]]):
                     ...
             """,
-            annotations=pd.DataFrame({
-                "category": [TypeCollectionCategory.VARIABLE] * 4,
-                "qname": ["indexi", "valuei", "indexj", "valuej"],
-                "anno": ["int", "str", "int", "list"]
-            })
+            annotations=pd.DataFrame(
+                {
+                    "category": [TypeCollectionCategory.VARIABLE] * 4,
+                    "qname": ["indexi", "valuei", "indexj", "valuej"],
+                    "anno": ["int", "str", "int", "list"],
+                }
+            ),
         )
 
     def test_with_items(self):
@@ -296,11 +297,13 @@ class Test_CustomAnnotator(AnnotationTesting):
             with scratchpad(path) as s, open(file) as f:
                 ...
             """,
-            annotations=pd.DataFrame({
-                "category": [TypeCollectionCategory.VARIABLE] * 2,
-                "qname": ["s", "f"],
-                "anno": ["scratchpad.ScratchPad", "_io.TextFileWrapper"]
-            })
+            annotations=pd.DataFrame(
+                {
+                    "category": [TypeCollectionCategory.VARIABLE] * 2,
+                    "qname": ["s", "f"],
+                    "anno": ["scratchpad.ScratchPad", "_io.TextFileWrapper"],
+                }
+            ),
         )
 
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
@@ -316,6 +319,80 @@ class Test_CustomAnnotator(AnnotationTesting):
                     "category": [TypeCollectionCategory.VARIABLE],
                     "qname": ["x"],
                     "anno": ["int"],
+                }
+            ),
+        )
+
+
+class Test_NotOverwriting(AnnotationTesting):
+    TRANSFORM = TypeAnnotationApplierTransformer
+
+    def __init__(self, methodName: str = ...) -> None:
+        super().__init__(methodName)
+
+    def test_function(self):
+        self.assertBuildCodemod(
+            before="""
+            def f() -> int:
+                return 42
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f() -> int:
+                return 42
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "category": [TypeCollectionCategory.CALLABLE_RETURN],
+                    "qname": ["f"],
+                    "anno": ["str"],
+                }
+            ),
+        )
+
+    def test_parameter(self):
+        self.assertBuildCodemod(
+            before="""
+            def f(a: int, b):
+                return a
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f(a: int, b: int):
+                return a
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "category": [
+                        TypeCollectionCategory.CALLABLE_RETURN,
+                        TypeCollectionCategory.CALLABLE_PARAMETER,
+                        TypeCollectionCategory.CALLABLE_PARAMETER,
+                    ],
+                    "qname": ["f", "f.a", "f.b"],
+                    "anno": [missing.NA, "int", "int"],
+                }
+            ),
+        )
+
+    def test_implictly_annotated(self):
+        self.assertBuildCodemod(
+            before="""
+            a: int
+            a = 5
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int
+            a = 5
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
+                    "anno": ["str"],
                 }
             ),
         )
