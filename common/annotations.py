@@ -1003,18 +1003,12 @@ class ApplyTypeAnnotationsVisitor(
         updated_node: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
-        return t.Actions(
-            (
-                t.Replace(
-                    m.AnnAssign(
-                        target=updated_node.target,
-                        annotation=updated_node.annotation,
-                        value=updated_node.value,
-                    ),
-                    replacement=libcst.EmptyLine(),
-                ),
-            )
-        )
+        annotation = self.annotations.attributes.get(self.qualified_name(target))
+        if annotation is None:
+            return t.Actions((t.Untouched(),))
+        matcher = m.Annotation(annotation=updated_node.annotation.annotation)
+
+        return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
