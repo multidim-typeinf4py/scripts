@@ -2,11 +2,12 @@ import abc
 import pathlib
 
 import libcst
+
 import pandera.typing as pt
 from libcst import codemod, helpers as h, matchers as m
 
 from common import transformers as t
-from common.annotations import ApplyTypeAnnotationsVisitor, TypeAnnotationRemover
+from common.annotations import ApplyTypeAnnotationsVisitor
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
 from symbols.collector import TypeCollectorVisitor
@@ -62,11 +63,13 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
 
 
 class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer, abc.ABC):
-    def transform_target(self, target: libcst.Name | libcst.Attribute) -> t.Actions:
+    def transform_target(
+        self, target: libcst.Name | libcst.Attribute, parent_node: libcst.CSTNode
+    ) -> t.Actions:
         scope = self.qualified_scope()
         qname = self.qualified_name(target)
 
-        if (new_target := self.lookup(target, scope, qname)) is not None:
+        if (new_target := self.lookup(target, parent_node, scope, qname)) is not None:
             assert isinstance(
                 replacement := libcst.parse_expression(new_target), libcst.Name | libcst.Attribute
             )
@@ -86,7 +89,11 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
 
     @abc.abstractmethod
     def lookup(
-        self, target: libcst.Name | libcst.Attribute, scope: tuple[str], qname: str
+        self,
+        target: libcst.Name | libcst.Attribute,
+        parent_node: libcst.CSTNode,
+        scope: tuple[str],
+        qname: str,
     ) -> str | None:
         ...
 
@@ -111,34 +118,41 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
+    def annotated_hint(
+        self, annassign: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        return self.transform_target(target, parent_node=annassign)
+
     # actual assignments; simply rename targets
     def annotated_assignment(
         self,
-        _1: libcst.AnnAssign,
+        annassign: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, parent_node=annassign)
 
     def unannotated_assign_single_target(
-        self, _1: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
+        self, assign: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, parent_node=assign)
 
     def unannotated_assign_multiple_targets(
-        self, _1: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
+        self, assign: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, parent_node=assign)
 
-    def for_target(self, _1: libcst.For, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        return self.transform_target(target)
+    def for_target(self, forloop: libcst.For, target: libcst.Name | libcst.Attribute) -> t.Actions:
+        return self.transform_target(target, parent_node=forloop)
 
-    #def compfor_target(
+    # def compfor_target(
     #    self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
-    #) -> t.Actions:
+    # ) -> t.Actions:
     #    return self.transform_target(target)
 
-    def withitem_target(self, _1: libcst.With, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        return self.transform_target(target)
+    def withitem_target(
+        self, withstmt: libcst.With, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        return self.transform_target(target, parent_node=withstmt)
 
 
 class QName2SSATransformer(_SSATransformer):
@@ -148,16 +162,12 @@ class QName2SSATransformer(_SSATransformer):
         super().__init__(context)
         self.annotations = annotations.assign(consumed=0)
 
-    def annotated_hint(
-        self,
-        _1: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> t.Actions:
-        # Ignore existing annotation hints
-        return t.Actions((t.Untouched(),))
-
     def lookup(
-        self, target: libcst.Name | libcst.Attribute, scope: tuple[str], qname: str
+        self,
+        target: libcst.Name | libcst.Attribute,
+        parent_node: libcst.CSTNode,
+        scope: tuple[str],
+        qname: str,
     ) -> t.Actions:
         cand_mask = (self.annotations[TypeCollectionSchema.qname] == qname) & (
             self.annotations["consumed"] != 1
@@ -169,7 +179,11 @@ class QName2SSATransformer(_SSATransformer):
 
         qname_ssa_ser = candidates[TypeCollectionSchema.qname_ssa]
         qname_ssa = str(qname_ssa_ser.iloc[0])
-        self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
+
+        # annotations hints do not consume, but must still be renamed
+        # so that it is visible that a target is implicitly annotated
+        if not self.matches(parent_node, m.AnnAssign(value=None)):
+            self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
 
         if scope:
             qname_ssa = qname_ssa.removeprefix(".".join(scope) + ".")
@@ -183,15 +197,13 @@ class SSA2QNameTransformer(_SSATransformer):
         super().__init__(context)
         self.annotations = annotations
 
-    def annotated_hint(
+    def lookup(
         self,
-        _1: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
-    ) -> t.Actions:
-        # Ignore existing annotation hints
-        return self.transform_target(target)
-
-    def lookup(self, target: libcst.Name | libcst.Attribute, scope: tuple[str], qname: str) -> str:
+        parent_node: libcst.CSTNode,
+        scope: tuple[str],
+        qname: str,
+    ) -> str:
         cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == qname
         candidates = self.annotations.loc[cand_mask]
         assert (

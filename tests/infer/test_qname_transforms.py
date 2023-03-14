@@ -107,6 +107,25 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
+    def test_hinting_transformed(self):
+        self.assertCodemod(
+            """
+            a: int
+            a, = 10, None
+            """,
+            """
+            aλ1: int
+            aλ1, = 10, None
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 1,
+                    "category": [TypeCollectionCategory.VARIABLE] * 1,
+                    "qname": ["a"],
+                }
+            ).pipe(generate_qname_ssas_for_file),
+        )
+
 
 class Test_SSA2QName(codemod.CodemodTest):
     TRANSFORM = SSA2QNameTransformer
@@ -178,6 +197,25 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "file": ["x.py"] * 3,
                     "category": [TypeCollectionCategory.VARIABLE] * 3,
                     "qname": ["a", "b", "c"],
+                }
+            ).pipe(generate_qname_ssas_for_file),
+        )
+
+    def test_hinting_transformed(self):
+        self.assertCodemod(
+            """
+            aλ1: int
+            aλ1, = 10, None
+            """,
+            """
+            a: int
+            a, = 10, None
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 1,
+                    "category": [TypeCollectionCategory.VARIABLE] * 1,
+                    "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file),
         )
