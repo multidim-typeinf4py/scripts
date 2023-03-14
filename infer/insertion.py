@@ -4,9 +4,10 @@ import pathlib
 import libcst
 
 import pandera.typing as pt
-from libcst import codemod, helpers as h, matchers as m
+from libcst import codemod, helpers as h, matchers as m, metadata
 
 from common import transformers as t
+from common.metadata.anno4inst import Annotation4InstanceProvider
 from common.annotations import ApplyTypeAnnotationsVisitor
 from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
@@ -62,36 +63,45 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
         return with_qnames
 
 
-class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer, abc.ABC):
-    def transform_target(
-        self, target: libcst.Name | libcst.Attribute, parent_node: libcst.CSTNode
-    ) -> t.Actions:
+class _SSATransformer(
+    t.HintableDeclarationTransformer, t.ScopeAwareTransformer, abc.ABC
+):
+    METADATA_DEPENDENCIES = (Annotation4InstanceProvider, metadata.ParentNodeProvider)
+
+    def transform_target(self, target: libcst.Name | libcst.Attribute) -> t.Actions:
         scope = self.qualified_scope()
         qname = self.qualified_name(target)
 
-        if (new_target := self.lookup(target, parent_node, scope, qname)) is not None:
+        if (new_target := self.lookup(target, scope, qname)) is not None:
             assert isinstance(
-                replacement := libcst.parse_expression(new_target), libcst.Name | libcst.Attribute
+                replacement := libcst.parse_expression(new_target),
+                libcst.Name | libcst.Attribute,
             )
 
             if isinstance(target, libcst.Name):
                 matcher = m.Name(target.value)
+
             else:
                 instance, attr = h.get_full_name_for_node_or_raise(target).split(".")
                 matcher = m.Attribute(value=m.Name(instance), attr=m.Name(attr))
 
             action = t.Replace(matcher, replacement)
 
-        else:
-            action = t.Untouched()
+            parent = self.get_metadata(metadata.ParentNodeProvider, target)
+            if not m.matches(parent, m.AnnAssign(value=None)):
+                if (anno := self.get_metadata(Annotation4InstanceProvider, target)) is not None:
+                    hint = t.Prepend(libcst.AnnAssign(target=replacement, annotation=anno))
+                    return t.Actions((hint, action))
 
-        return t.Actions((action,))
+            return t.Actions((action,))
+
+        else:
+            return t.Actions((t.Untouched(),))
 
     @abc.abstractmethod
     def lookup(
         self,
         target: libcst.Name | libcst.Attribute,
-        parent_node: libcst.CSTNode,
         scope: tuple[str],
         qname: str,
     ) -> str | None:
@@ -104,6 +114,11 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
         _2: libcst.Name,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
+
+    def annotated_hint(
+        self, _1: libcst.AnnAssign, _2: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        return t.Actions((t.Remove(),))
 
     def libsa4py_hint(self, _1: libcst.Assign, _2: libcst.Name) -> t.Actions:
         return t.Actions((t.Untouched(),))
@@ -118,31 +133,32 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
-    def annotated_hint(
-        self, annassign: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
-    ) -> t.Actions:
-        return self.transform_target(target, parent_node=annassign)
-
     # actual assignments; simply rename targets
     def annotated_assignment(
         self,
         annassign: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
-        return self.transform_target(target, parent_node=annassign)
+        return self.transform_target(target)
 
     def unannotated_assign_single_target(
-        self, assign: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
+        self,
+        assign: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
-        return self.transform_target(target, parent_node=assign)
+        return self.transform_target(target)
 
     def unannotated_assign_multiple_targets(
-        self, assign: libcst.Assign | libcst.AugAssign, target: libcst.Name | libcst.Attribute
+        self,
+        assign: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
-        return self.transform_target(target, parent_node=assign)
+        return self.transform_target(target)
 
-    def for_target(self, forloop: libcst.For, target: libcst.Name | libcst.Attribute) -> t.Actions:
-        return self.transform_target(target, parent_node=forloop)
+    def for_target(
+        self, forloop: libcst.For, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        return self.transform_target(target)
 
     # def compfor_target(
     #    self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
@@ -152,12 +168,14 @@ class _SSATransformer(t.HintableDeclarationTransformer, t.ScopeAwareTransformer,
     def withitem_target(
         self, withstmt: libcst.With, target: libcst.Name | libcst.Attribute
     ) -> t.Actions:
-        return self.transform_target(target, parent_node=withstmt)
+        return self.transform_target(target)
 
 
 class QName2SSATransformer(_SSATransformer):
     def __init__(
-        self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
+        self,
+        context: codemod.CodemodContext,
+        annotations: pt.DataFrame[TypeCollectionSchema],
     ):
         super().__init__(context)
         self.annotations = annotations.assign(consumed=0)
@@ -165,7 +183,6 @@ class QName2SSATransformer(_SSATransformer):
     def lookup(
         self,
         target: libcst.Name | libcst.Attribute,
-        parent_node: libcst.CSTNode,
         scope: tuple[str],
         qname: str,
     ) -> t.Actions:
@@ -182,8 +199,7 @@ class QName2SSATransformer(_SSATransformer):
 
         # annotations hints do not consume, but must still be renamed
         # so that it is visible that a target is implicitly annotated
-        if not self.matches(parent_node, m.AnnAssign(value=None)):
-            self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
+        self.annotations.at[qname_ssa_ser.index[0], "consumed"] = 1
 
         if scope:
             qname_ssa = qname_ssa.removeprefix(".".join(scope) + ".")
@@ -192,7 +208,9 @@ class QName2SSATransformer(_SSATransformer):
 
 class SSA2QNameTransformer(_SSATransformer):
     def __init__(
-        self, context: codemod.CodemodContext, annotations: pt.DataFrame[TypeCollectionSchema]
+        self,
+        context: codemod.CodemodContext,
+        annotations: pt.DataFrame[TypeCollectionSchema],
     ):
         super().__init__(context)
         self.annotations = annotations
@@ -200,7 +218,6 @@ class SSA2QNameTransformer(_SSATransformer):
     def lookup(
         self,
         target: libcst.Name | libcst.Attribute,
-        parent_node: libcst.CSTNode,
         scope: tuple[str],
         qname: str,
     ) -> str:
@@ -212,7 +229,6 @@ class SSA2QNameTransformer(_SSATransformer):
 
         qname_ser = candidates[TypeCollectionSchema.qname]
         qname = str(qname_ser.iloc[0])
-        self.annotations.at[qname_ser.index[0], "consumed"] = 1
 
         if scope:
             qname = qname.removeprefix(".".join(scope) + ".")

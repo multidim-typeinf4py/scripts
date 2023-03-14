@@ -114,8 +114,7 @@ class Test_QName2SSA(codemod.CodemodTest):
             a, = 10, None
             """,
             """
-            aλ1: int
-            aλ1, = 10, None
+            aλ1: int; aλ1, = 10, None
             """,
             annotations=pd.DataFrame(
                 {
@@ -124,6 +123,30 @@ class Test_QName2SSA(codemod.CodemodTest):
                     "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file),
+        )
+
+    def test_branch_hoisting(self):
+        self.assertCodemod(
+            """
+            a: int | None
+            if cond:
+                a = 5
+            else:
+                a = None
+            """,
+            """
+            if cond:
+                aλ1: int | None; aλ1 = 5
+            else:
+                aλ2: int | None; aλ2 = None
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 2,
+                    "category": [TypeCollectionCategory.VARIABLE] * 2,
+                    "qname": ["a"] * 2,
+                }
+            ).pipe(generate_qname_ssas_for_file)
         )
 
 
@@ -208,8 +231,7 @@ class Test_SSA2QName(codemod.CodemodTest):
             aλ1, = 10, None
             """,
             """
-            a: int
-            a, = 10, None
+            a: int; a, = 10, None
             """,
             annotations=pd.DataFrame(
                 {
@@ -218,4 +240,29 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file),
+        )
+
+    def test_branch_hoisting(self):
+        self.assertCodemod(
+            """
+            if cond:
+                aλ1: int | None
+                aλ1 = 5
+            else:
+                aλ2: int | None
+                aλ2 = None
+            """,
+            """
+            if cond:
+                a: int | None; a = 5
+            else:
+                a: int | None; a = None
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"] * 2,
+                    "category": [TypeCollectionCategory.VARIABLE] * 2,
+                    "qname": ["a"] * 2,
+                }
+            ).pipe(generate_qname_ssas_for_file)
         )
