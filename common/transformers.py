@@ -105,13 +105,17 @@ class Replace:
     matcher: m.BaseMatcherNode
     replacement: libcst.CSTNode
 
+@dataclasses.dataclass(frozen=True)
+class Remove:
+    ...
+
 
 @dataclasses.dataclass(frozen=True)
 class Untouched:
     ...
 
 
-Actions = list[Untouched | Prepend | Append | Replace]
+Actions = list[Untouched | Prepend | Append | Replace | Remove]
 
 
 def _apply_actions(
@@ -134,6 +138,10 @@ def _apply_actions(
 
             case Replace(matcher, replacement):
                 updated_node = m.replace(updated_node, matcher, replacement)
+
+            case Remove():
+                updated_node = libcst.RemoveFromParent()
+                return updated_node
 
     # module = h.parse_template_module(
     #     "{ps}\n{un}\n{ap}",
