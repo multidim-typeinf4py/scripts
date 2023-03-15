@@ -169,14 +169,12 @@ def _apply_actions(
             )
         )
     else:
-        flatten: list[libcst.BaseStatement] = []
-        if prepends:
-            flatten.append(libcst.SimpleStatementLine(body=prepends))
-        flatten.append(updated_node)
-        if appends:
-            flatten.append(libcst.SimpleStatementLine(body=appends))
         # Must return libcst.FlattenSentinel[BaseStatement]
-        return libcst.FlattenSentinel(flatten)
+        return libcst.FlattenSentinel((
+            libcst.SimpleStatementLine(body=prepends),
+            updated_node,
+            libcst.SimpleStatementLine(body=appends)
+        ))
 
 
 class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
