@@ -225,7 +225,7 @@ class ContextVectorVisitor(
         self.full_scope_nodes.pop()
         self.full_scope_names.pop()
 
-    @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
+    @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.ExceptStarHandler() | m.Finally())
     def _enter_exception_block(
         self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
     ):

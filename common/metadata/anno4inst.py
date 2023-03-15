@@ -20,34 +20,57 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         # else:
         #   a = None
         self._outer_hinting: list[dict[str, libcst.Annotation]] = []
-        self._delete_after_leave_root_if: list[set[str]] = []
 
         # Hints within the active scope
         self._scope_local_hinting: dict[str, libcst.Annotation] = {}
 
-    def visit_If(self, node: libcst.If) -> None:
-        parent = self.provider.get_metadata(metadata.ParentNodeProvider, node)
-        if not m.matches(parent, m.If()):
-            self._delete_after_leave_root_if.append(set())
+    def visit_If_body(self, _: libcst.If) -> None:
+        self._visit_flow_diverging_body(_)
 
-    def leave_If(self, original_node: libcst.If) -> None:
-        parent = self.provider.get_metadata(metadata.ParentNodeProvider, original_node)
-        if not m.matches(parent, m.If()):
-            for delete_hint in self._delete_after_leave_root_if.pop():
-                self._scope_local_hinting.pop(delete_hint, None)
+    def visit_Else_body(self, _: libcst.Else) -> None:
+        self._visit_flow_diverging_body(_)
 
+    def visit_For_body(self, _: libcst.For) -> None:
+        self._visit_flow_diverging_body(_)
 
-    def visit_If_body(self, node: libcst.If) -> None:
+    def visit_While_body(self, _: libcst.While) -> None:
+        self._visit_flow_diverging_body(_)
+
+    def visit_Try_body(self, _: libcst.Try) -> None:
+        self._visit_flow_diverging_body(_)
+
+    def visit_TryStar_body(self, _: libcst.TryStar) -> None:
+        self._visit_flow_diverging_body(_)
+
+    def visit_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
+        self._visit_flow_diverging_body(_)
+
+    def _visit_flow_diverging_body(self, _: libcst.BaseCompoundStatement):
         self._outer_hinting.append(self._scope_local_hinting.copy())
         self._scope_local_hinting.clear()
 
-    def visit_Else_body(self, node: libcst.Else) -> None:
-        self._outer_hinting.append(self._scope_local_hinting.copy())
-        self._scope_local_hinting.clear()
-    def leave_If_body(self, node: libcst.If) -> None:
-        self._scope_local_hinting = self._outer_hinting.pop()
+    def leave_If_body(self, _: libcst.If) -> None:
+        self._leave_flow_diverging_body(_)
 
-    def leave_Else_body(self, node: libcst.Else) -> None:
+    def leave_Else_body(self, _: libcst.Else) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def leave_For_body(self, _: libcst.For) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def leave_While_body(self, _: libcst.While) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def leave_Try_body(self, _: libcst.Try) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def leave_TryStar_body(self, _: libcst.TryStar) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def leave_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
+        self._leave_flow_diverging_body(_)
+
+    def _leave_flow_diverging_body(self, _: libcst.BaseCompoundStatement):
         self._scope_local_hinting = self._outer_hinting.pop()
 
     def instance_attribute_hint(
@@ -63,7 +86,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         if isinstance(target, libcst.Attribute):
             self.provider.set_metadata(target.value, annotation)
 
-        self._scope_local_hinting.pop(self.qualified_name(target), None)
+        self._scope_local_hinting[self.qualified_name(target)] = annotation
 
     def annotated_hint(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
@@ -81,12 +104,11 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         self, target: libcst.Name | libcst.Attribute
     ) -> libcst.Annotation | None:
         qname = self.qualified_name(target)
-        if (a := self._scope_local_hinting.pop(qname, None)) is not None:
+        if (a := self._scope_local_hinting.get(qname, None)) is not None:
             return a
 
         for hints in self._outer_hinting:
             if qname in hints:
-                self._delete_after_leave_root_if[-1].add(qname)
                 return hints[qname]
         else:
             return None
@@ -95,14 +117,10 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         ...
 
 
-class Annotation4InstanceProvider(
-    metadata.BatchableMetadataProvider[libcst.Annotation | None]
-):
-    METADATA_DEPENDENCIES = (
-        metadata.ParentNodeProvider,
-    )
+class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[libcst.Annotation | None]):
+    METADATA_DEPENDENCIES = (metadata.ParentNodeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> None:
-        metadata.MetadataWrapper(
-            node, unsafe_skip_copy=True, cache=self.metadata
-        ).visit(_Annotation4InstanceVisitor(self))
+        metadata.MetadataWrapper(node, unsafe_skip_copy=True, cache=self.metadata).visit(
+            _Annotation4InstanceVisitor(self)
+        )
