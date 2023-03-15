@@ -85,7 +85,7 @@ def test_hint_usage():
 
     assert a1 not in anno4insts
     assert m.matches(anno4insts[a2], m.Annotation(m.Name("int")))
-    assert anno4insts[a3] is None
+    assert m.matches(anno4insts[a3], m.Annotation(m.Name("int")))
 
 
 def test_if_else_branching():
@@ -109,7 +109,7 @@ def test_if_else_branching():
 
     assert m.matches(anno4insts[a1], m.Annotation(union_ty))
     assert m.matches(anno4insts[a2], m.Annotation(union_ty))
-    assert anno4insts[a3] is None
+    assert m.matches(anno4insts[a3], m.Annotation(union_ty))
 
 def test_only_if_branching():
     code = textwrap.dedent(
@@ -129,7 +129,7 @@ def test_only_if_branching():
     union_ty = libcst.parse_expression("int | None")
 
     assert m.matches(anno4insts[a1], m.Annotation(union_ty))
-    assert anno4insts[a2] is None
+    assert m.matches(anno4insts[a2], m.Annotation(union_ty))
 
 
 def test_if_elif_branching():
@@ -153,7 +153,7 @@ def test_if_elif_branching():
 
     assert m.matches(anno4insts[a1], m.Annotation(union_ty))
     assert m.matches(anno4insts[a2], m.Annotation(union_ty))
-    assert anno4insts[a3] is None
+    assert m.matches(anno4insts[a3], m.Annotation(union_ty))
 
 def test_hint_branching():
     code = textwrap.dedent(
@@ -165,6 +165,8 @@ def test_hint_branching():
             if another_cond:
                 a: str
                 a = "Hello World"
+
+                a = "Another Word"
 
             a = 10
             
@@ -179,15 +181,16 @@ def test_hint_branching():
     module = metadata.MetadataWrapper(libcst.parse_module(code))
     anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
 
-    _, a1, _, a2, a3, _, a4, a5 = m.findall(module, m.Name("a"))
+    _, a1, _, a2, a22, a3, _, a4, a5 = m.findall(module, m.Name("a"))
 
     union_ty = libcst.parse_expression("int | str | None")
 
     assert m.matches(anno4insts[a1], m.Annotation(union_ty))
     assert m.matches(anno4insts[a2], m.Annotation(m.Name("str")))
+    assert m.matches(anno4insts[a22], m.Annotation(m.Name("str")))
     assert m.matches(anno4insts[a3], m.Annotation(union_ty))
     assert m.matches(anno4insts[a4], m.Annotation(union_ty))
-    assert anno4insts[a5] is None
+    assert m.matches(anno4insts[a5], m.Annotation(union_ty))
 
 def test_retain_unused_through_branching():
     code = textwrap.dedent("""
@@ -202,5 +205,25 @@ def test_retain_unused_through_branching():
     module = metadata.MetadataWrapper(libcst.parse_module(code))
     anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
 
-    hint, a1 = m.findall(module, m.Name("a"))
+    _, a1 = m.findall(module, m.Name("a"))
     assert m.matches(anno4insts[a1], m.Annotation(libcst.parse_expression("int | None")))
+
+
+def test_narrowing():
+    code = textwrap.dedent("""
+    a: int | None
+    if cond:
+        a: int = 5
+    else:
+        a: None = None
+
+    a = None
+    """)
+
+    module = metadata.MetadataWrapper(libcst.parse_module(code))
+    anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+
+    _, a1, a2, a3 = m.findall(module, m.Name("a"))
+    assert m.matches(anno4insts[a1], m.Annotation(libcst.parse_expression("int")))
+    assert m.matches(anno4insts[a2], m.Annotation(libcst.parse_expression("None")))
+    assert m.matches(anno4insts[a3], m.Annotation(libcst.parse_expression("int | None")))

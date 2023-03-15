@@ -227,7 +227,7 @@ class ContextVectorVisitor(
 
     @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.ExceptStarHandler() | m.Finally())
     def _enter_exception_block(
-        self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+        self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.ExceptStarHandler | libcst.Finally
     ):
         self.full_scope_nodes.append(block)
         self.full_scope_names.append(tuple((*self.scope_components(), block.__class__.__name__)))
