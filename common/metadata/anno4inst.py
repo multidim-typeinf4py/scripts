@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import dataclasses
+
 import libcst
-from libcst import metadata, matchers as m
+from libcst import metadata
 
 from common import visitors as v
+
+
+@dataclasses.dataclass
+class TrackedAnnotation:
+    annotation: libcst.Annotation
+    hoisted: bool
 
 
 class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisitor):
@@ -45,7 +53,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def visit_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
         self._visit_flow_diverging_body(_)
 
-    def _visit_flow_diverging_body(self, _: libcst.BaseCompoundStatement):
+    def _visit_flow_diverging_body(self, _: libcst.CSTNode):
         self._outer_hinting.append(self._scope_local_hinting.copy())
         self._scope_local_hinting.clear()
 
@@ -67,24 +75,28 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def leave_TryStar_body(self, _: libcst.TryStar) -> None:
         self._leave_flow_diverging_body(_)
 
-    def leave_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
+    def leave_ExceptStarHandler_body(self, _: libcst.CSTNode) -> None:
         self._leave_flow_diverging_body(_)
 
-    def _leave_flow_diverging_body(self, _: libcst.BaseCompoundStatement):
+    def _leave_flow_diverging_body(self, _: libcst.CSTNode):
         self._scope_local_hinting = self._outer_hinting.pop()
 
     def instance_attribute_hint(
         self, target: libcst.Name, annotation: libcst.Annotation | None
     ) -> None:
-        self.provider.set_metadata(target, annotation)
+        if annotation is not None:
+            self.provider.set_metadata(target, TrackedAnnotation(annotation, hoisted=False))
+        else:
+            self.provider.set_metadata(target, None)
 
     def annotated_assignment(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
     ) -> None:
-        self.provider.set_metadata(target, annotation)
+        md = TrackedAnnotation(annotation, hoisted=False)
+        self.provider.set_metadata(target, md)
 
         if isinstance(target, libcst.Attribute):
-            self.provider.set_metadata(target.value, annotation)
+            self.provider.set_metadata(target.value, md)
 
         self._scope_local_hinting[self.qualified_name(target)] = annotation
 
@@ -102,14 +114,14 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
 
     def _retrieve_annotation(
         self, target: libcst.Name | libcst.Attribute
-    ) -> libcst.Annotation | None:
+    ) -> TrackedAnnotation | None:
         qname = self.qualified_name(target)
         if (a := self._scope_local_hinting.get(qname, None)) is not None:
-            return a
+            return TrackedAnnotation(annotation=a, hoisted=False)
 
-        for hints in self._outer_hinting:
+        for hints in reversed(self._outer_hinting):
             if qname in hints:
-                return hints[qname]
+                return TrackedAnnotation(annotation=hints[qname], hoisted=True)
         else:
             return None
 
@@ -117,7 +129,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         ...
 
 
-class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[libcst.Annotation | None]):
+class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[TrackedAnnotation | None]):
     METADATA_DEPENDENCIES = (metadata.ParentNodeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> None:
