@@ -108,6 +108,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         """
         a: int = 5      # ignored
         a: int          # triggers
+        a: int = λ__LOWERED_HINT_MARKER__λ # triggers for lowered hints
 
         class C:
             a: int      # ignored
@@ -152,10 +153,11 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope
         ) and m.matches(assignment.value, m.Ellipsis()):
             self.instance_attribute_hint(assignment.target, assignment.annotation)
-        elif assignment.value is not None:
-            self.annotated_assignment(assignment.target, assignment.annotation)
-        else:
+        elif assignment.value is None or m.matches(assignment.value, m.Name("λ__LOWERED_HINT_MARKER__λ")):
             self.annotated_hint(assignment.target, assignment.annotation)
+        else:
+            self.annotated_assignment(assignment.target, assignment.annotation)
+
 
     # Catch libsa4py's retainment of INSTANCE_ATTRs
     @m.call_if_inside(m.ClassDef())
