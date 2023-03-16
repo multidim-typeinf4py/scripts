@@ -6,7 +6,7 @@ from libcst import codemod
 from common.ast_helper import generate_qname_ssas_for_file
 from common.schemas import TypeCollectionCategory
 
-from infer.insertion import (
+from infer.qname_transforms import (
     QName2SSATransformer,
     SSA2QNameTransformer,
 )
@@ -114,7 +114,8 @@ class Test_QName2SSA(codemod.CodemodTest):
             a, = 10, None
             """,
             """
-            aλ1: int; aλ1, = 10, None
+            aλ1: int
+            aλ1, = 10, None
             """,
             annotations=pd.DataFrame(
                 {
@@ -125,20 +126,21 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
-    def test_branch_hoisting(self):
+    def test_branch_lowering(self):
         self.assertCodemod(
             """
             a: int | None
             if cond:
-                a = 5
+                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = 5
             else:
-                a = None
+                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = None
             """,
             """
+            aλ1: int | None
             if cond:
-                aλ1: int | None; aλ1 = 5
+                aλ1: int | None = λ__LOWERED_HINT_MARKER__λ; aλ1 = 5
             else:
-                aλ2: int | None; aλ2 = None
+                aλ2: int | None = λ__LOWERED_HINT_MARKER__λ; aλ2 = None
             """,
             annotations=pd.DataFrame(
                 {
@@ -231,7 +233,8 @@ class Test_SSA2QName(codemod.CodemodTest):
             aλ1, = 10, None
             """,
             """
-            a: int; a, = 10, None
+            a: int
+            a, = 10, None
             """,
             annotations=pd.DataFrame(
                 {
@@ -242,21 +245,19 @@ class Test_SSA2QName(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
-    def test_branch_hoisting(self):
+    def test_branch_lowering(self):
         self.assertCodemod(
             """
             if cond:
-                aλ1: int | None
-                aλ1 = 5
+                aλ1: int | None = λ__LOWERED_HINT_MARKER__λ; aλ1 = 5
             else:
-                aλ2: int | None
-                aλ2 = None
+                aλ2: int | None = λ__LOWERED_HINT_MARKER__λ; aλ2 = None
             """,
             """
             if cond:
-                a: int | None; a = 5
+                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = 5
             else:
-                a: int | None; a = None
+                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = None
             """,
             annotations=pd.DataFrame(
                 {
