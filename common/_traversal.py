@@ -38,7 +38,7 @@ class Recognition:
         if m.matches(original_node.value, m.Ellipsis()) and isinstance(
             metadata[meta.ScopeProvider][original_node.target], meta.ClassScope
         ):
-            return _access_targets(metadata, original_node.target) or None
+            return _access_targets(metadata, original_node.target)
         return None
 
     @staticmethod
@@ -49,7 +49,7 @@ class Recognition:
         if original_node.value is None or m.matches(
             original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ")
         ):
-            return _access_targets(metadata, original_node.target) or None
+            return _access_targets(metadata, original_node.target)
         return None
 
     @staticmethod
@@ -60,7 +60,7 @@ class Recognition:
         if original_node.value is not None and not m.matches(
             original_node.value, m.Ellipsis()
         ):
-            return _access_targets(metadata, original_node.target) or None
+            return _access_targets(metadata, original_node.target)
         return None
 
     ## Assign
@@ -74,7 +74,7 @@ class Recognition:
             metadata[meta.ScopeProvider][original_node.targets[0].target],
             meta.ClassScope,
         ):
-            return _access_targets(metadata, original_node.targets[0].target) or None
+            return _access_targets(metadata, original_node.targets[0].target)
         return None
 
     @staticmethod
@@ -92,7 +92,7 @@ class Recognition:
                 meta.ClassScope,
             )
         ):
-            return _access_targets(metadata, asstarget.target) or None
+            return _access_targets(metadata, asstarget.target)
         return None
 
     @staticmethod
@@ -111,7 +111,7 @@ class Recognition:
                 meta.ClassScope,
             )
         ):
-            return _access_targets(metadata, asstarget.target) or None
+            return _access_targets(metadata, asstarget.target)
         return None
 
     ## AugAssign
@@ -120,8 +120,8 @@ class Recognition:
     def augassign_targets(
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AugAssign,
-    ) -> Targets | None:
-        return _access_targets(metadata, original_node.target) or None
+    ) -> Targets:
+        return _access_targets(metadata, original_node.target)
 
     ## For
 
@@ -129,15 +129,15 @@ class Recognition:
     def for_targets(
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.For,
-    ) -> Targets | None:
-        return _access_targets(metadata, original_node.target) or None
+    ) -> Targets:
+        return _access_targets(metadata, original_node.target)
 
     ## With
     @staticmethod
     def with_targets(
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.With,
-    ) -> Targets | None:
+    ) -> Targets:
         unchanged, glbls, nonlocals = list(), list(), list()
 
         for targets in (
@@ -149,7 +149,7 @@ class Recognition:
             glbls.extend(targets.glbls)
             nonlocals.extend(targets.nonlocals)
 
-        return Targets(unchanged, glbls, nonlocals) or None
+        return Targets(unchanged, glbls, nonlocals)
 
     ## Misc
 
@@ -168,8 +168,8 @@ class Targets:
     glbls: list[libcst.Name] = dataclasses.field(default_factory=list)
     nonlocals: list[libcst.Name] = dataclasses.field(default_factory=list)
 
-    def __bool__(self):
-        return any((self.unchanged, self.glbls, self.nonlocals))
+    def empty(self):
+        return not any((self.unchanged, self.glbls, self.nonlocals))
 
 
 def _access_targets(
