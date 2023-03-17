@@ -11,7 +11,7 @@ from common import visitors as v
 @dataclasses.dataclass
 class TrackedAnnotation:
     annotation: libcst.Annotation
-    hoisted: bool
+    lowered: bool
 
 
 class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisitor):
@@ -85,14 +85,14 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         self, target: libcst.Name, annotation: libcst.Annotation | None
     ) -> None:
         if annotation is not None:
-            self.provider.set_metadata(target, TrackedAnnotation(annotation, hoisted=False))
+            self.provider.set_metadata(target, TrackedAnnotation(annotation, lowered=False))
         else:
             self.provider.set_metadata(target, None)
 
     def annotated_assignment(
         self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
     ) -> None:
-        md = TrackedAnnotation(annotation, hoisted=False)
+        md = TrackedAnnotation(annotation, lowered=False)
         self.provider.set_metadata(target, md)
 
         if isinstance(target, libcst.Attribute):
@@ -117,11 +117,11 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     ) -> TrackedAnnotation | None:
         qname = self.qualified_name(target)
         if (a := self._scope_local_hinting.get(qname, None)) is not None:
-            return TrackedAnnotation(annotation=a, hoisted=False)
+            return TrackedAnnotation(annotation=a, lowered=False)
 
         for hints in reversed(self._outer_hinting):
             if qname in hints:
-                return TrackedAnnotation(annotation=hints[qname], hoisted=True)
+                return TrackedAnnotation(annotation=hints[qname], lowered=True)
         else:
             return None
 
