@@ -1,20 +1,27 @@
+import collections
 import textwrap
-
-
-from libcst import codemod, metadata
+import typing
 import libcst
+
+import pandas as pd
+import pandera.typing as pt
 import pytest
+from libcst import codemod, metadata
+from pandas._libs import missing
 
 from common.ast_helper import generate_qname_ssas_for_file
 from common.schemas import TypeCollectionCategory, TypeCollectionSchema
-
 from infer.insertion import TypeAnnotationApplierTransformer
-
-import pandas as pd
-from pandas._libs import missing
-import pandera.typing as pt
-
 from symbols.collector import TypeCollectorVisitor
+
+CodemodAnnotation = collections.namedtuple(
+    typename="CodemodAnnotation",
+    field_names=[
+        TypeCollectionSchema.category,
+        TypeCollectionSchema.qname,
+        TypeCollectionSchema.anno,
+    ],
+)
 
 
 class AnnotationTesting(codemod.CodemodTest):
@@ -26,46 +33,35 @@ class AnnotationTesting(codemod.CodemodTest):
         self,
         before: str,
         after: str,
-        annotations: pd.DataFrame | list[TypeCollectionCategory],
+        annotations: typing.Sequence[CodemodAnnotation] | None = None,
     ):
-        visitor = TypeCollectorVisitor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            )
+        before, after = textwrap.dedent(before), textwrap.dedent(after)
+
+        context = codemod.CodemodContext(
+            filename="x.py",
+            metadata_manager=metadata.FullRepoManager(
+                repo_root_dir=".", paths=["x.py"], providers=[]
+            ),
         )
 
-        if isinstance(annotations, pd.DataFrame):
-            annotations = (
-                annotations.assign(file="x.py")
+        if annotations is not None:
+            df = (
+                pd.DataFrame(annotations, columns=list(annotations[0]._fields))
+                .assign(file="x.py")
                 .pipe(generate_qname_ssas_for_file)
                 .pipe(pt.DataFrame[TypeCollectionSchema])
             )
 
-        elif isinstance(annotations, list):
-            libcst.parse_module(self.HINTED).visit(visitor)
-
-            df = visitor.collection.df
-            masked = ~df[TypeCollectionSchema.category].isin(annotations)
-            df.loc[masked, TypeCollectionSchema.anno] = missing.NA
-
-            annotations = df
-
         else:
-            assert False, f"Unsupported {annotations=}"
+            visitor = TypeCollectorVisitor.strict(context)
+            libcst.parse_module(after).visit(visitor)
+            df = visitor.collection.df
 
         self.assertCodemod(
             before,
             after,
-            annotations=annotations,
-            context_override=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
-                ),
-            ),
+            annotations=df,
+            context_override=context,
         )
 
     HINTLESS = textwrap.dedent(
@@ -106,12 +102,282 @@ class AnnotationTesting(codemod.CodemodTest):
     )
 
 
-class Test_CustomAnnotator(AnnotationTesting):
+class Test_Unannotated(AnnotationTesting):
     TRANSFORM = TypeAnnotationApplierTransformer
 
+    def test_single_assign_variable_target(self):
+        self.assertBuildCodemod(
+            before="""
+            a = 10
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int = 10
+            """,
+        )
+
+    def test_class_attribute_target(self):
+        self.assertBuildCodemod(
+            before="""
+            class C:
+                a = 5
+            """,
+            after="""
+            from __future__ import annotations
+            
+            class C:
+                a: int = 5
+            """,
+        )
+
+    def test_for_target(self):
+        self.assertBuildCodemod(
+            before="""
+            for indexi, valuei in enumerate("Hello World"):
+                for indexj, valuej in enumerate([[1, 2, 3]]):
+                    ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            indexi: int; valuei: str
+
+            for indexi, valuei in enumerate("Hello World"):
+                indexj: int; valuej: list
+                for indexj, valuej in enumerate([[1, 2, 3]]):
+                    ...
+            """,
+        )
+
+    def test_multiple_assign_variable_target(self):
+        self.assertBuildCodemod(
+            before="""
+            a = b = 50
+            c, d = "HE"
+            """,
+            after="""
+            from __future__ import annotations
+            
+            a: int; b: int; a = b = 50
+            c: str; d: str; c, d = "HE"
+            """,
+        )
+
+    def test_with_items(self):
+        self.assertBuildCodemod(
+            before="""
+            import _io
+            import scratchpad
+            with make_scratchpad(path) as s, open(file) as f:
+                ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            import _io
+            import scratchpad
+            s: scratchpad.ScratchPad; f: _io.TextFileWrapper
+
+            with make_scratchpad(path) as s, open(file) as f:
+                ...
+            """,
+        )
+
+    def test_global_stays_unannotated(self):
+        self.assertBuildCodemod(
+            before="""
+            a: int = 0
+
+            def f():
+                global a
+                a = 20
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int = 0
+
+            def f():
+                global a
+                a = 20
+            """,
+        )
+
+    def test_nonlocal_stays_unannotated(self):
+        self.assertBuildCodemod(
+            before="""
+            def f():
+                a: int = 10
+
+                def g():
+                    nonlocal a
+                    a = 20
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f():
+                a: int = 10
+
+                def g():
+                    nonlocal a
+                    a = 20
+            """,
+        )
+
+    def test_parameters(self):
+        self.assertBuildCodemod(
+            before="""
+            def f(a, b):
+                ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f(a: A, b: B):
+                ...
+            """,
+        )
+
+    def test_rettype(self):
+        self.assertBuildCodemod(
+            before="""
+            def g(a, b):
+                ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            def g(a, b) -> int:
+                ...
+            """,
+        )
+
+    def test_libsa4py(self):
+        self.assertBuildCodemod(
+            before="""
+            class C:
+                a = ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            class C:
+                a: int = ...
+            """,
+        )
+
+    @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
+    def test_walrus(self):
+        self.assertBuildCodemod(
+            "(x := 4)",
+            """
+            from __future__ import annotations
+
+            x: int
+            (x := 4)
+            """,
+        )
+
+
+class Test_Annotated(AnnotationTesting):
+    TRANSFORM = TypeAnnotationApplierTransformer
+
+    def __init__(self, methodName: str = ...) -> None:
+        super().__init__(methodName)
+
+    def test_function(self):
+        self.assertBuildCodemod(
+            before="""
+            def f() -> int:
+                return 42
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f() -> int:
+                return 42
+            """,
+            annotations=[CodemodAnnotation(TypeCollectionCategory.CALLABLE_RETURN, "f", "str")],
+        )
+
+    def test_parameter(self):
+        self.assertBuildCodemod(
+            before="""
+            def f(a: int, b):
+                return a
+            """,
+            after="""
+            from __future__ import annotations
+
+            def f(a: int, b: int):
+                return a
+            """,
+            annotations=[
+                CodemodAnnotation(TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
+                CodemodAnnotation(TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", "bool"),
+                CodemodAnnotation(TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", "int"),
+            ],
+        )
+
+    def test_explicitly_annotated(self):
+        self.assertBuildCodemod(
+            before="a: int = 5",
+            after="""
+            from __future__ import annotations
+
+            a: int = 5
+            """,
+            annotations=[CodemodAnnotation(TypeCollectionCategory.VARIABLE, "a", "str")],
+        )
+
+    def test_implictly_annotated(self):
+        self.assertBuildCodemod(
+            before="""
+            a: int
+            a = 5
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int
+            a = 5
+            """,
+            annotations=[CodemodAnnotation(TypeCollectionCategory.VARIABLE, "a", "str")],
+        )
+
+    def test_lowering_effects(self):
+        self.assertBuildCodemod(
+            before="""
+            a: int | None
+            if cond:
+                a = 10
+            else:
+                a: None = None
+
+            a = a or 30
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int | None
+            if cond:
+                a = 10
+            else:
+                a: None = None
+
+            a = a or 30
+            """
+        )
+
+
+class Todo(AnnotationTesting):
     def test_attributes(self):
         self.assertBuildCodemod(
-            before=AnnotationTesting.HINTLESS,
+            before="""
+            a = 10
+            """,
             after="""
             from __future__ import annotations
 
@@ -129,13 +395,12 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default: str = self.x or "10"
                     self.x: str = default
             """,
-            annotations=[TypeCollectionCategory.VARIABLE],
+            annotations=pd.DataFrame({}),
         )
 
-    def test_skip_unannotated_variables(self):
+    def test_skip_unannotated(self):
         self.assertBuildCodemod(
-            before=AnnotationTesting.HINTLESS,
-            after=f"""
+            code=f"""
             from __future__ import annotations
 
             a = 10
@@ -152,15 +417,7 @@ class Test_CustomAnnotator(AnnotationTesting):
                     default: str = self.x or "10"
                     self.x = default
             """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE] * 7,
-                    "qname": ["a"] * 2
-                    + ["b", "c"]
-                    + [f"C.__init__.{v}" for v in ("self.x", "default", "self.x")],
-                    "anno": [missing.NA, "str", "str", missing.NA, "int", "str", missing.NA],
-                }
-            ),
+            annotations=[TypeCollectionCategory.VARIABLE],
         )
 
     def test_parameters(self):
@@ -254,145 +511,5 @@ class Test_CustomAnnotator(AnnotationTesting):
                         "anno": ["int"] * 2 + [missing.NA, "str"],
                     }
                 )
-            ),
-        )
-
-    def test_for_loop(self):
-        self.assertBuildCodemod(
-            before="""
-            for indexi, valuei in enumerate("Hello World"):
-                for indexj, valuej in enumerate([[1, 2, 3]]):
-                    ...
-            """,
-            after="""
-            from __future__ import annotations
-
-            indexi: int; valuei: str
-
-            for indexi, valuei in enumerate("Hello World"):
-                indexj: int; valuej: list
-                for indexj, valuej in enumerate([[1, 2, 3]]):
-                    ...
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE] * 4,
-                    "qname": ["indexi", "valuei", "indexj", "valuej"],
-                    "anno": ["int", "str", "int", "list"],
-                }
-            ),
-        )
-
-    def test_with_items(self):
-        self.assertBuildCodemod(
-            before="""
-            with scratchpad(path) as s, open(file) as f:
-                ...
-            """,
-            after="""
-            from __future__ import annotations
-
-            s: scratchpad.ScratchPad; f: _io.TextFileWrapper
-
-            with scratchpad(path) as s, open(file) as f:
-                ...
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE] * 2,
-                    "qname": ["s", "f"],
-                    "anno": ["scratchpad.ScratchPad", "_io.TextFileWrapper"],
-                }
-            ),
-        )
-
-    @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
-    def test_walrus(self):
-        self.assertBuildCodemod(
-            "(x := 4)",
-            """
-            x: int
-            (x := 4)
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE],
-                    "qname": ["x"],
-                    "anno": ["int"],
-                }
-            ),
-        )
-
-
-class Test_NotOverwriting(AnnotationTesting):
-    TRANSFORM = TypeAnnotationApplierTransformer
-
-    def __init__(self, methodName: str = ...) -> None:
-        super().__init__(methodName)
-
-    def test_function(self):
-        self.assertBuildCodemod(
-            before="""
-            def f() -> int:
-                return 42
-            """,
-            after="""
-            from __future__ import annotations
-
-            def f() -> int:
-                return 42
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.CALLABLE_RETURN],
-                    "qname": ["f"],
-                    "anno": ["str"],
-                }
-            ),
-        )
-
-    def test_parameter(self):
-        self.assertBuildCodemod(
-            before="""
-            def f(a: int, b):
-                return a
-            """,
-            after="""
-            from __future__ import annotations
-
-            def f(a: int, b: int):
-                return a
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [
-                        TypeCollectionCategory.CALLABLE_RETURN,
-                        TypeCollectionCategory.CALLABLE_PARAMETER,
-                        TypeCollectionCategory.CALLABLE_PARAMETER,
-                    ],
-                    "qname": ["f", "f.a", "f.b"],
-                    "anno": [missing.NA, "int", "int"],
-                }
-            ),
-        )
-
-    def test_implictly_annotated(self):
-        self.assertBuildCodemod(
-            before="""
-            a: int
-            a = 5
-            """,
-            after="""
-            from __future__ import annotations
-
-            a: int
-            a = 5
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "category": [TypeCollectionCategory.VARIABLE],
-                    "qname": ["a"],
-                    "anno": ["str"],
-                }
             ),
         )
