@@ -262,12 +262,6 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         a: int          # ignored
 
         a = b = 50          # ignored
-
-        for x, y in zip([1, 2, 3], "abc"): # triggers for both x and y
-            ...
-
-        with p.open() as f:     # triggers for f
-            ...
         """
         ...
 
@@ -286,6 +280,11 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     def for_target(
         self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
     ) -> Actions:
+        """
+        # triggers for both x and y
+        for x, y in zip([1, 2, 3], "abc"):
+            ...
+        """
         ...
 
     # @abc.abstractmethod
@@ -300,6 +299,11 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         original_node: libcst.With,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
+        """
+        # triggers for f
+        with p.open() as f:
+            ...
+        """
         ...
 
     @abc.abstractmethod
@@ -365,7 +369,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
             self.get_metadata(metadata.ScopeProvider, original_node.targets[0].target),
             metadata.ClassScope,
         ):
-            targets = self._access_targets(original_node.targets[0])
+            targets = self._access_targets(original_node.targets[0].target)
             transformer = self.libsa4py_hint
 
         elif len(original_node.targets) == 1 and not m.matches(
