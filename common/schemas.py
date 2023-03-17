@@ -24,7 +24,8 @@ class SymbolSchema(pa.SchemaModel):
 
 
 class TypeCollectionSchema(SymbolSchema):
-    anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    explicit_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    implicit_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
 TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
