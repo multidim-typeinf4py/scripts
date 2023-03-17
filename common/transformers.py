@@ -1,6 +1,7 @@
 import abc
 import dataclasses
 import itertools
+import typing
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h, codemod as c
@@ -28,7 +29,9 @@ class ScopeAwareTransformer(c.ContextAwareTransformer):
 
     @m.leave(m.FunctionDef() | m.ClassDef())
     def __on_leave_scope(
-        self, _1: libcst.FunctionDef | libcst.ClassDef, _2: libcst.FunctionDef | libcst.ClassDef
+        self,
+        _1: libcst.FunctionDef | libcst.ClassDef,
+        _2: libcst.FunctionDef | libcst.ClassDef,
     ) -> libcst.FunctionDef | libcst.ClassDef:
         self._qualifier.pop()
         return _2
@@ -107,17 +110,25 @@ class Replace:
 
 
 @dataclasses.dataclass(frozen=True)
+class Remove:
+    ...
+
+
+@dataclasses.dataclass(frozen=True)
 class Untouched:
     ...
 
 
-Actions = list[Untouched | Prepend | Append | Replace]
+Actions = list[Untouched | Prepend | Append | Replace | Remove]
+
+
+T = typing.TypeVar("T", libcst.BaseSmallStatement, libcst.BaseStatement)
 
 
 def _apply_actions(
     actions: Actions,
-    updated_node: libcst.BaseSmallStatement | libcst.BaseStatement,
-) -> libcst.FlattenSentinel:
+    updated_node: T,
+) -> libcst.FlattenSentinel[T] | libcst.RemovalSentinel:
     prepends = []
     appends = []
 
@@ -135,6 +146,10 @@ def _apply_actions(
             case Replace(matcher, replacement):
                 updated_node = m.replace(updated_node, matcher, replacement)
 
+            case Remove():
+                updated_node = libcst.RemoveFromParent()
+                return updated_node
+
     # module = h.parse_template_module(
     #     "{ps}\n{un}\n{ap}",
     #     ps=libcst.SimpleStatementLine(body=prepends),
@@ -144,20 +159,24 @@ def _apply_actions(
 
     if isinstance(updated_node, libcst.BaseSmallStatement):
         # Must return libcst.FlattenSentinel[BaseSmallStatement]
-        return libcst.FlattenSentinel((
-            *prepends,
-            #libcst.EmptyLine(),
-            updated_node,
-            #libcst.EmptyLine(),
-            *appends,
-        ))
+        return libcst.FlattenSentinel(
+            (
+                *prepends,
+                # libcst.EmptyLine(),
+                updated_node,
+                # libcst.EmptyLine(),
+                *appends,
+            )
+        )
     else:
         # Must return libcst.FlattenSentinel[BaseStatement]
-        return libcst.FlattenSentinel((
-            libcst.SimpleStatementLine(body=prepends),
-            updated_node,
-            libcst.SimpleStatementLine(body=appends)
-        ))
+        return libcst.FlattenSentinel(
+            (
+                libcst.SimpleStatementLine(body=prepends),
+                updated_node,
+                libcst.SimpleStatementLine(body=appends),
+            )
+        )
 
 
 class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
@@ -174,7 +193,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
 
     @abc.abstractmethod
     def instance_attribute_hint(
-        self, updated_node: libcst.AnnAssign, target: libcst.Name
+        self, original_node: libcst.AnnAssign, target: libcst.Name
     ) -> Actions:
         """
         class C:
@@ -187,7 +206,9 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         ...
 
     @abc.abstractmethod
-    def libsa4py_hint(self, updated_node: libcst.Assign, target: libcst.Name) -> Actions:
+    def libsa4py_hint(
+        self, original_node: libcst.Assign, target: libcst.Name
+    ) -> Actions:
         """
         class C:
             a: int      # ignored
@@ -201,7 +222,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def annotated_assignment(
         self,
-        updated_node: libcst.AnnAssign,
+        original_node: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
         """
@@ -213,7 +234,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def annotated_hint(
         self,
-        updated_node: libcst.AnnAssign,
+        original_node: libcst.AnnAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
         """
@@ -228,7 +249,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def unannotated_assign_single_target(
         self,
-        updated_node: libcst.Assign | libcst.AugAssign,
+        original_node: libcst.Assign | libcst.AugAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
         """
@@ -241,23 +262,13 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         a: int          # ignored
 
         a = b = 50          # ignored
-
-        for x, y in zip([1, 2, 3], "abc"): # triggers for both x and y
-            ...
-
-        with p.open() as f:     # triggers for f
-            ...
-
-        [x.value for x in y]    # triggers for x
-
-        assert (x := 10) >= 5   # triggers for x
         """
         ...
 
     @abc.abstractmethod
     def unannotated_assign_multiple_targets(
         self,
-        updated_node: libcst.Assign | libcst.AugAssign,
+        original_node: libcst.Assign | libcst.AugAssign,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
         """
@@ -267,8 +278,13 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
 
     @abc.abstractmethod
     def for_target(
-        self, updated_node: libcst.For, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
     ) -> Actions:
+        """
+        # triggers for both x and y
+        for x, y in zip([1, 2, 3], "abc"):
+            ...
+        """
         ...
 
     # @abc.abstractmethod
@@ -280,61 +296,80 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def withitem_target(
         self,
-        updated_node: libcst.With,
+        original_node: libcst.With,
         target: libcst.Name | libcst.Attribute,
     ) -> Actions:
+        """
+        # triggers for f
+        with p.open() as f:
+            ...
+        """
         ...
 
     @abc.abstractmethod
     def global_target(
-        self, updated_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, target: libcst.Name
+        self,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
     ) -> Actions:
         ...
 
     @abc.abstractmethod
     def nonlocal_target(
-        self, updated_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, target: libcst.Name
+        self,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
     ) -> Actions:
         ...
 
     @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
         if isinstance(
-            self.get_metadata(metadata.ScopeProvider, original_node.target), metadata.ClassScope
-        ) and m.matches(updated_node.value, m.Ellipsis()):
+            self.get_metadata(metadata.ScopeProvider, original_node.target),
+            metadata.ClassScope,
+        ) and m.matches(original_node.value, m.Ellipsis()):
             transformer = self.instance_attribute_hint
 
-        elif updated_node.value is not None:
-            transformer = self.annotated_assignment
+        elif original_node.value is None or m.matches(
+            original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ")
+        ):
+            transformer = self.annotated_hint
 
         else:
-            transformer = self.annotated_hint
+            transformer = self.annotated_assignment
 
         targets = self._access_targets(original_node.target)
         actions = list(
-            itertools.chain.from_iterable(transformer(original_node, target) for target in targets)
+            itertools.chain.from_iterable(
+                transformer(original_node, target) for target in targets
+            )
         )
 
         return _apply_actions(actions, updated_node)
 
     @m.call_if_inside(
         m.Assign(
-            targets=[m.AtLeastN(m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1)]
+            targets=[
+                m.AtLeastN(
+                    m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1
+                )
+            ]
         )
     )
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
         # Catch libsa4py's retainment of INSTANCE_ATTRs
         if m.matches(
-            original_node, m.Assign(targets=[m.AssignTarget(target=NAME)], value=m.Ellipsis())
+            original_node,
+            m.Assign(targets=[m.AssignTarget(target=NAME)], value=m.Ellipsis()),
         ) and isinstance(
             self.get_metadata(metadata.ScopeProvider, original_node.targets[0].target),
             metadata.ClassScope,
         ):
-            targets = [original_node.targets[0].target]
+            targets = self._access_targets(original_node.targets[0].target)
             transformer = self.libsa4py_hint
 
         elif len(original_node.targets) == 1 and not m.matches(
@@ -346,20 +381,23 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         else:
             targets = list(
                 itertools.chain.from_iterable(
-                    self._access_targets(asstarget.target) for asstarget in original_node.targets
+                    self._access_targets(asstarget.target)
+                    for asstarget in original_node.targets
                 )
             )
             transformer = self.unannotated_assign_multiple_targets
 
         actions = list(
-            itertools.chain.from_iterable(transformer(original_node, target) for target in targets)
+            itertools.chain.from_iterable(
+                transformer(original_node, target) for target in targets
+            )
         )
         return _apply_actions(actions, updated_node)
 
     @m.call_if_inside(m.AugAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
     def leave_AugAssign(
         self, original_node: libcst.AugAssign, updated_node: libcst.AugAssign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
         targets = self._access_targets(original_node.target)
         actions = list(
             itertools.chain.from_iterable(
@@ -379,7 +417,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
     def leave_For(
         self, original_node: libcst.For, updated_node: libcst.For
-    ) -> libcst.FlattenSentinel[libcst.BaseStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
         targets = self._access_targets(original_node.target)
         actions = list(
             itertools.chain.from_iterable(
@@ -398,13 +436,16 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
     @m.call_if_inside(
         m.With(
             items=[
-                m.AtLeastN(m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | TUPLE | LIST)), n=1)
+                m.AtLeastN(
+                    m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | TUPLE | LIST)),
+                    n=1,
+                )
             ]
         )
     )
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
-    ) -> libcst.FlattenSentinel[libcst.BaseStatement]:
+    ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
         targets = list(
             itertools.chain.from_iterable(
                 self._access_targets(item.asname.name)
@@ -439,7 +480,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
 
     def _access_targets(
         self,
-        target: libcst.Name | libcst.Attribute | libcst.List | libcst.Tuple,
+        target: libcst.BaseAssignTargetExpression,
     ) -> list[libcst.Name | libcst.Attribute]:
         if m.matches(target, NAME | INSTANCE_ATTR):
             targets = [target]
@@ -462,4 +503,4 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
             if modification is KeywordContext.UNCHANGED:
                 non_overwritten_targets.append(target)
 
-        return targets
+        return non_overwritten_targets

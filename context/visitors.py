@@ -75,7 +75,7 @@ class ContextVectorVisitor(
 
         # scope AST-tree; includes every node that influences scope.
         # Limited to ClassDef, FunctionDef
-        self.real_scope_names: list[libcst.CSTNode] = []
+        self.real_scope_names: list[tuple[str, ...]] = []
 
         # mapping of self.real_scope_names to symbols declared therein
         # used for reassignment checks
@@ -225,9 +225,14 @@ class ContextVectorVisitor(
         self.full_scope_nodes.pop()
         self.full_scope_names.pop()
 
-    @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
+    @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.ExceptStarHandler() | m.Finally())
     def _enter_exception_block(
-        self, block: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+        self,
+        block: libcst.Try
+        | libcst.TryStar
+        | libcst.ExceptHandler
+        | libcst.ExceptStarHandler
+        | libcst.Finally,
     ):
         self.full_scope_nodes.append(block)
         self.full_scope_names.append(tuple((*self.scope_components(), block.__class__.__name__)))
@@ -251,9 +256,12 @@ class ContextVectorVisitor(
         self,
         annotatable: libcst.CSTNode,
         identifier: str,
-        annotation: libcst.Annotation | None,
+        annotation: anno4inst.TrackedAnnotation | libcst.Annotation | None,
         category: TypeCollectionCategory,
     ) -> None:
+        if isinstance(annotation, anno4inst.TrackedAnnotation):
+            annotation = annotation.annotation
+
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
 
         self.visible_symbols[self.scope_components()].add(identifier)
