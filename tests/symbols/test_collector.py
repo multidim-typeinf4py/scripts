@@ -1,11 +1,15 @@
-import operator
+import collections
 import pathlib
 import textwrap
 import typing
 
 import libcst
+import pandas as pd
+import pandera.typing as pt
+import pytest
 from libcst import codemod
 from libcst import metadata
+from pandas._libs import missing
 
 from common.ast_helper import generate_qname_ssas_for_file
 from common.schemas import (
@@ -14,16 +18,7 @@ from common.schemas import (
     TypeCollectionCategory,
 )
 from common.storage import TypeCollection
-
-
 from symbols.collector import TypeCollectorVisitor, build_type_collection
-
-from pandas._libs import missing
-
-import pandas as pd
-import pandera.typing as pt
-
-import pytest
 
 
 @pytest.fixture
@@ -47,7 +42,11 @@ def code_path() -> typing.Iterator[pathlib.Path]:
             TypeCollectionCategory.CALLABLE_RETURN,
             [
                 ("function", "function", "int"),
-                ("function_with_multiline_parameters", "function_with_multiline_parameters", "int"),
+                (
+                    "function_with_multiline_parameters",
+                    "function_with_multiline_parameters",
+                    "int",
+                ),
                 ("Clazz.__init__", "Clazz.__init__", "None"),
                 ("Clazz.method", "Clazz.method", missing.NA),
                 ("Clazz.multiline_method", "Clazz.multiline_method", "tuple"),
@@ -88,7 +87,11 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("Clazz.method.b", "Clazz.method.b", "str"),
                 ("Clazz.method.c", "Clazz.method.c", "int"),
                 # Clazz.multiline_method
-                ("Clazz.multiline_method.self", "Clazz.multiline_method.self", missing.NA),
+                (
+                    "Clazz.multiline_method.self",
+                    "Clazz.multiline_method.self",
+                    missing.NA,
+                ),
                 ("Clazz.multiline_method.a", "Clazz.multiline_method.a", "str"),
                 ("Clazz.multiline_method.b", "Clazz.multiline_method.b", "int"),
                 ("Clazz.multiline_method.c", "Clazz.multiline_method.c", missing.NA),
@@ -165,6 +168,17 @@ def test_loadable(code_path: pathlib.Path) -> None:
         assert diff.empty
 
 
+CR = collections.namedtuple(
+    typename="CR",
+    field_names=[
+        TypeCollectionSchema.category,
+        TypeCollectionSchema.qname,
+        TypeCollectionSchema.explicit_anno,
+        TypeCollectionSchema.implicit_anno,
+    ],
+)
+
+
 class AnnotationTracking(codemod.CodemodTest):
     def performTracking(self, code: str) -> pt.DataFrame[TypeCollectionSchema]:
         module = libcst.parse_module(textwrap.dedent(code))
@@ -184,18 +198,12 @@ class AnnotationTracking(codemod.CodemodTest):
     def assertMatchingAnnotating(
         self,
         actual: pt.DataFrame[TypeCollectionSchema],
-        expected: list[tuple[TypeCollectionCategory, str, str | missing.NAType]],
+        expected: list[CR],
     ) -> None:
-        files = ["x.py"] * len(expected)
-        categories = list(map(operator.itemgetter(0), expected))
-        qnames = list(map(operator.itemgetter(1), expected))
-        annos = list(map(operator.itemgetter(2), expected))
-
         if expected:
             expected_df = (
-                pd.DataFrame(
-                    {"file": files, "category": categories, "qname": qnames, "anno": annos}
-                )
+                pd.DataFrame(expected, columns=expected[0]._fields)
+                .assign(file="x.py")
                 .pipe(generate_qname_ssas_for_file)
                 .pipe(pt.DataFrame[TypeCollectionSchema])
             )
@@ -232,18 +240,48 @@ class Test_TrackUnannotated(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "a", "str"),
-                (TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
-                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", missing.NA),
-                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", missing.NA),
-                (TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", missing.NA),
-                (TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int"),
-                (TypeCollectionCategory.CALLABLE_RETURN, "C.__init__", missing.NA),
-                (TypeCollectionCategory.CALLABLE_PARAMETER, "C.__init__.self", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
-                (TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
-                (TypeCollectionCategory.VARIABLE, "C.__init__.self.x", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA, missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", "str", "str"),
+                CR(TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA, missing.NA),
+                CR(
+                    TypeCollectionCategory.CALLABLE_PARAMETER,
+                    "f.a",
+                    missing.NA,
+                    missing.NA,
+                ),
+                CR(
+                    TypeCollectionCategory.CALLABLE_PARAMETER,
+                    "f.b",
+                    missing.NA,
+                    missing.NA,
+                ),
+                CR(
+                    TypeCollectionCategory.CALLABLE_PARAMETER,
+                    "f.c",
+                    missing.NA,
+                    missing.NA,
+                ),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int", "int"),
+                CR(
+                    TypeCollectionCategory.CALLABLE_RETURN,
+                    "C.__init__",
+                    missing.NA,
+                    missing.NA,
+                ),
+                CR(
+                    TypeCollectionCategory.CALLABLE_PARAMETER,
+                    "C.__init__.self",
+                    missing.NA,
+                    missing.NA,
+                ),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "str", "str"),
+                CR(
+                    TypeCollectionCategory.VARIABLE,
+                    "C.__init__.self.x",
+                    missing.NA,
+                    "int",
+                ),
             ],
         )
 
@@ -518,6 +556,24 @@ class Test_HintTracking(AnnotationTracking):
             [
                 (TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
                 (TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
+            ],
+        )
+
+    def test_branch_annotating(self):
+        df = self.performTracking(
+            """
+            a: int | None
+            if cond:
+                a = 1
+            else:
+                a = None
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                (TypeCollectionCategory.VARIABLE, "C.foo2", "int"),
             ],
         )
 
