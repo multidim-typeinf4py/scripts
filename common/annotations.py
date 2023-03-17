@@ -49,7 +49,7 @@ class MultiVarAnnotations:
     """
     FORK OF LIBCST'S ANNOTATIONS: attributes is now a defaultdict with lists for values!
 
-    Represents all of the annotation information we might add to
+    Represents all the annotation information we might add to
     a class:
     - All data is keyed on the qualified name relative to the module root
     - The ``functions`` field also keys on the signature so that we
@@ -104,7 +104,10 @@ class MultiVarAnnotations:
 
 
 class MultiVarTypeCollector(
-    HintableDeclarationVisitor, HintableParameterVisitor, HintableReturnVisitor, ScopeAwareVisitor
+    HintableDeclarationVisitor,
+    HintableParameterVisitor,
+    HintableReturnVisitor,
+    ScopeAwareVisitor,
 ):
     """
     Collect type annotations from a stub module.
@@ -185,33 +188,24 @@ class MultiVarTypeCollector(
         self, target: libcst.Name | libcst.Attribute, _: libcst.Annotation
     ) -> None:
         full_qual = self.qualified_name(target)
-        annotation = self.get_metadata(Annotation4InstanceProvider, target)
-        annotation_value = self._handle_Annotation(annotation=annotation)
+
+        hint_metadata = self.get_metadata(Annotation4InstanceProvider, target)
+        if hint_metadata is None:
+            annotation_value = None
+        else:
+            annotation_value = self._handle_Annotation(annotation=hint_metadata.annotation)
 
         self.annotations.attributes[full_qual].append(annotation_value)
-
-        # NOTE: Debatedly, propagation can be achieved using this
-        # NOTE: However, we expect tools to annotate "aggressively"
-        # NOTE: i.e. to annotate as many symbols as they can
-
-        # Track hint for unannotated variables used thereafter
-        # = propagation of type hint through scope
-        # self._cst_annassign_hinting[full_qual] = annotation_value
-
-        # # Hinting is used in an assignment; track
-        # if node.value is not None:
-        #     self.annotations.attributes[full_qual].append(annotation_value)
-
-        #     # If hint was given, drop it
-        #     if full_qual in self._cst_annassign_hinting:
-        #         self._cst_annassign_hinting.pop(full_qual)
 
     def annotated_hint(self, _1: libcst.Name | libcst.Attribute, _2: libcst.Annotation) -> None:
         ...
 
     def instance_attribute_hint(self, target: libcst.Name, _: libcst.Annotation | None) -> None:
-        annotation = self.get_metadata(Annotation4InstanceProvider, target)
-        annotation_value = self._handle_Annotation(annotation=annotation)
+        hint_metadata = self.get_metadata(Annotation4InstanceProvider, target)
+        if hint_metadata is None:
+            annotation_value = None
+        else:
+            annotation_value = self._handle_Annotation(annotation=hint_metadata.annotation)
 
         # Mark as an instance attribute
         scope = self.qualified_scope()
@@ -219,7 +213,8 @@ class MultiVarTypeCollector(
         *_, classname = scope
 
         classdef = self.annotations.class_definitions.get(
-            key, libcst.ClassDef(name=libcst.Name(classname), body=libcst.IndentedBlock(body=[]))
+            key,
+            libcst.ClassDef(name=libcst.Name(classname), body=libcst.IndentedBlock(body=[])),
         )
 
         if annotation_value is not None:
@@ -242,7 +237,11 @@ class MultiVarTypeCollector(
         full_qual = self.qualified_name(target)
         hint = self.get_metadata(Annotation4InstanceProvider, target)
 
-        self.annotations.attributes[full_qual].append(self._handle_Annotation(annotation=hint))
+        if hint is None:
+            anno = None
+        else:
+            anno = self._handle_Annotation(annotation=hint.annotation)
+        self.annotations.attributes[full_qual].append(anno)
 
     # no-op, as these cannot ever be annotated
     def scope_overwritten_target(self, _: libcst.Name) -> None:
@@ -480,6 +479,8 @@ class ApplyTypeAnnotationsVisitor(
     use the keyword argument ``overwrite_existing_annotations=True`` when
     constructing the codemod or when calling ``store_stub_in_context``.
     """
+
+    METADATA_DEPENDENCIES = (Annotation4InstanceProvider,)
 
     CONTEXT_KEY = "ApplyTypeAnnotationsVisitor"
 
@@ -957,6 +958,9 @@ class ApplyTypeAnnotationsVisitor(
     def _handle_instance_attr(
         self, updated_node: libcst.AnnAssign | libcst.Assign, target: libcst.Name
     ) -> t.Actions:
+        if isinstance(updated_node, libcst.AnnAssign) and not self.overwrite_existing_annotations:
+            return t.Actions((t.Untouched(),))
+
         clazz_def = self.annotations.class_definitions.get(".".join(self.qualified_scope()))
         if clazz_def is None:
             return t.Actions((t.Untouched(),))
@@ -986,30 +990,6 @@ class ApplyTypeAnnotationsVisitor(
             ),
         )
 
-    def annotated_assignment(
-        self,
-        updated_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> t.Actions:
-        annotation = self.annotations.attributes.get(self.qualified_name(target))
-        if annotation is None:
-            return t.Actions((t.Untouched(),))
-        matcher = m.Annotation(annotation=updated_node.annotation.annotation)
-
-        return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
-
-    def annotated_hint(
-        self,
-        updated_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> t.Actions:
-        annotation = self.annotations.attributes.get(self.qualified_name(target))
-        if annotation is None:
-            return t.Actions((t.Untouched(),))
-        matcher = m.Annotation(annotation=updated_node.annotation.annotation)
-
-        return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
-
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
     def _visit_Assign(
@@ -1035,20 +1015,49 @@ class ApplyTypeAnnotationsVisitor(
             self.typevars[name] = self.current_assign
             self.current_assign = None
 
+    def annotated_assignment(
+        self,
+        updated_node: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        return self._handle_annotated_target(updated_node, target)
+
+    def annotated_hint(
+        self,
+        updated_node: libcst.AnnAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> t.Actions:
+        return self._handle_annotated_target(updated_node, target)
+
+    def _handle_annotated_target(
+        self, annassign: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+    ) -> t.Actions:
+        if not self.overwrite_existing_annotations:
+            return t.Actions((t.Untouched(),))
+
+        annotation = self.annotations.attributes.get(self.qualified_name(target))
+        if annotation is None:
+            return t.Actions((t.Untouched(),))
+        matcher = m.Annotation(annotation=annassign.annotation.annotation)
+
+        return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
+
     def unannotated_assign_single_target(
         self,
         updated_node: libcst.Assign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
+        if not self.overwrite_existing_annotations and self._is_implicitly_annotated(target):
+            return t.Actions((t.Untouched(),))
+
         annotation = self.annotations.attributes.get(self.qualified_name(target))
         if annotation is None:
             return t.Actions((t.Untouched(),))
 
-        matcher = m.Assign(updated_node.targets, value=updated_node.value)
         return t.Actions(
             (
                 t.Replace(
-                    matcher=matcher,
+                    matcher=m.Assign(updated_node.targets, value=updated_node.value),
                     replacement=libcst.AnnAssign(
                         target=target, annotation=annotation, value=updated_node.value
                     ),
@@ -1078,13 +1087,14 @@ class ApplyTypeAnnotationsVisitor(
     def _hint_as_prepend(
         self, _: libcst.CSTNode, target: libcst.Name | libcst.Attribute
     ) -> t.Actions:
+        if not self.overwrite_existing_annotations and self._is_implicitly_annotated(target):
+            return t.Actions((t.Untouched(),))
+
         annotation = self.annotations.attributes.get(self.qualified_name(target))
-
-        if annotation is None:
-            action = t.Untouched()
-
-        else:
+        if annotation is not None:
             action = t.Prepend(libcst.AnnAssign(target=target, annotation=annotation))
+        else:
+            action = t.Untouched()
 
         return t.Actions((action,))
 
@@ -1106,6 +1116,9 @@ class ApplyTypeAnnotationsVisitor(
     ) -> libcst.ImportFrom:
         self.import_statements.append(original_node)
         return updated_node
+
+    def _is_implicitly_annotated(self, target: libcst.Name | libcst.Attribute) -> bool:
+        return self.get_metadata(Annotation4InstanceProvider, target) is not None
 
     def leave_Module(
         self,
@@ -1146,6 +1159,8 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
     Configurable type annotation removal.
     Based on LibSA4Py implementation
     """
+
+    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
 
     def __init__(
         self,
@@ -1199,7 +1214,8 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
             ),
         ):
             if isinstance(
-                self.get_metadata(metadata.ScopeProvider, updated_node), metadata.ClassScope
+                self.get_metadata(metadata.ScopeProvider, original_node),
+                metadata.ClassScope,
             ):
                 updated_node = libcst.Assign(
                     targets=[libcst.AssignTarget(target=original_node.target)],
