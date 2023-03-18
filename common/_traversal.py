@@ -35,7 +35,7 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if m.matches(original_node.value, m.Ellipsis()) and isinstance(
+        if not m.matches(original_node.value, m.Ellipsis()) and isinstance(
             metadata[meta.ScopeProvider][original_node.target], meta.ClassScope
         ):
             return _access_targets(metadata, original_node.target)
@@ -70,9 +70,13 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.Assign,
     ) -> Targets | None:
-        if len(original_node.targets) == 1 and isinstance(
-            metadata[meta.ScopeProvider][original_node.targets[0].target],
-            meta.ClassScope,
+        if (
+            len(original_node.targets) == 1
+            and m.matches(original_node.value, m.Ellipsis())
+            and isinstance(
+                metadata[meta.ScopeProvider][original_node.targets[0].target],
+                meta.ClassScope,
+            )
         ):
             return _access_targets(metadata, original_node.targets[0].target)
         return None
@@ -216,7 +220,10 @@ class Matchers:
     withitems = m.With(items=[m.AtLeastN(withitem, n=1)])
 
 
-class Traverser(typing.Generic[(T := typing.TypeVar("T"))], abc.ABC):
+T = typing.TypeVar("T")
+
+
+class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def instance_attribute_hint(
         self, original_node: libcst.AnnAssign, target: libcst.Name
