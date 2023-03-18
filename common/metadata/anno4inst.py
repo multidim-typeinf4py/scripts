@@ -6,6 +6,7 @@ import libcst
 from libcst import metadata
 
 from common import visitors as v
+from common._traversal import T
 
 
 @dataclasses.dataclass
@@ -82,35 +83,75 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         self._scope_local_hinting = self._outer_hinting.pop()
 
     def instance_attribute_hint(
-        self, target: libcst.Name, annotation: libcst.Annotation | None
+        self, original_node: libcst.AnnAssign, target: libcst.Name
     ) -> None:
-        if annotation is not None:
-            self.provider.set_metadata(target, TrackedAnnotation(annotation, lowered=False))
-        else:
-            self.provider.set_metadata(target, None)
+        self.provider.set_metadata(
+            target, TrackedAnnotation(original_node.annotation, lowered=False)
+        )
+
+    def libsa4py_hint(self, _: libcst.Assign, target: libcst.Name) -> None:
+        self.provider.set_metadata(target, None)
 
     def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
     ) -> None:
-        md = TrackedAnnotation(annotation, lowered=False)
-        self.provider.set_metadata(target, md)
-
-        if isinstance(target, libcst.Attribute):
-            self.provider.set_metadata(target.value, md)
-
-        self._scope_local_hinting[self.qualified_name(target)] = annotation
+        tracked = TrackedAnnotation(original_node.annotation, lowered=False)
+        self.provider.set_metadata(target, tracked)
+        self._scope_local_hinting[
+            self.qualified_name(target)
+        ] = original_node.annotation
 
     def annotated_hint(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
+        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
     ) -> None:
-        self._scope_local_hinting[self.qualified_name(target)] = annotation
+        self._scope_local_hinting[
+            self.qualified_name(target)
+        ] = original_node.annotation
 
-    def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
+    def unannotated_assign_single_target(
+        self,
+        original_node: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> None:
         annotation = self._retrieve_annotation(target)
-
         self.provider.set_metadata(target, annotation)
-        if isinstance(target, libcst.Attribute):
-            self.provider.set_metadata(target.value, annotation)
+
+    def unannotated_assign_multiple_targets(
+        self,
+        original_node: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> None:
+        self._handle_only_indirectly_annotatable(target)
+
+    def for_target(
+        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
+    ) -> None:
+        self._handle_only_indirectly_annotatable(target)
+
+    def withitem_target(
+        self, original_node: libcst.With, target: libcst.Name | libcst.Attribute
+    ) -> None:
+        self._handle_only_indirectly_annotatable(target)
+
+    def _handle_only_indirectly_annotatable(
+        self, target: libcst.Name | libcst.Attribute
+    ):
+        annotation = self._retrieve_annotation(target)
+        self.provider.set_metadata(target, annotation)
+
+    def global_target(
+        self,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
+    ) -> None:
+        pass
+
+    def nonlocal_target(
+        self,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
+    ) -> None:
+        pass
 
     def _retrieve_annotation(
         self, target: libcst.Name | libcst.Attribute
@@ -125,14 +166,13 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         else:
             return None
 
-    def scope_overwritten_target(self, _: libcst.Name) -> None:
-        ...
 
-
-class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[TrackedAnnotation | None]):
+class Annotation4InstanceProvider(
+    metadata.BatchableMetadataProvider[TrackedAnnotation | None]
+):
     METADATA_DEPENDENCIES = (metadata.ParentNodeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> None:
-        metadata.MetadataWrapper(node, unsafe_skip_copy=True, cache=self.metadata).visit(
-            _Annotation4InstanceVisitor(self)
-        )
+        metadata.MetadataWrapper(
+            node, unsafe_skip_copy=True, cache=self.metadata
+        ).visit(_Annotation4InstanceVisitor(self))
