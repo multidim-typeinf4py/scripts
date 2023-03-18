@@ -10,14 +10,15 @@ from libcst import matchers as m
 from libcst.helpers import get_full_name_for_node_or_raise
 from pandas._libs import missing
 
+from common import visitors
+from common._traversal import T
 from common.ast_helper import _stringify, generate_qname_ssas_for_file
+from common.metadata import anno4inst
 from common.schemas import (
     ContextCategory,
     ContextSymbolSchema,
     TypeCollectionCategory,
 )
-from common import visitors
-from common.metadata import anno4inst
 from context.features import RelevantFeatures
 
 
@@ -100,9 +101,6 @@ class ContextVectorVisitor(
 
         self.dfrs: list[ContextVectorVisitor.ContextVector] = []
 
-    def scope_overwritten_target(self, target: libcst.Name) -> None:
-        self.keyword_modified_targets.add(get_full_name_for_node_or_raise(target))
-
     def annotated_function(
         self, function: libcst.FunctionDef, annotation: libcst.Annotation
     ) -> None:
@@ -143,26 +141,32 @@ class ContextVectorVisitor(
             category=TypeCollectionCategory.CALLABLE_PARAMETER,
         )
 
-    def instance_attribute_hint(
-        self, target: libcst.Name, annotation: libcst.Annotation | None
-    ) -> None:
+    def instance_attribute_hint(self, _: libcst.AnnAssign, target: libcst.Name) -> None:
         self._handle_annotatable(
             annotatable=target,
             identifier=target.value,
-            explicit_annotation=annotation,
-            implicit_annotation=annotation,
+            explicit_annotation=None,
+            implicit_annotation=None,
+            category=TypeCollectionCategory.INSTANCE_ATTR,
+        )
+
+    def libsa4py_hint(self, original_node: libcst.Assign, target: libcst.Name) -> None:
+        self._handle_annotatable(
+            annotatable=target,
+            identifier=target.value,
+            explicit_annotation=None,
+            implicit_annotation=None,
             category=TypeCollectionCategory.INSTANCE_ATTR,
         )
 
     def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
+        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+    ) -> T:
         ident = get_full_name_for_node_or_raise(target)
-
         self._handle_annotatable(
             annotatable=target,
             identifier=ident,
-            explicit_annotation=annotation,
+            explicit_annotation=original_node.annotation,
             implicit_annotation=self.get_metadata(
                 anno4inst.Annotation4InstanceProvider, target
             ),
@@ -170,9 +174,33 @@ class ContextVectorVisitor(
         )
 
     def annotated_hint(
-        self, _1: libcst.Name | libcst.Attribute, _2: libcst.Annotation
+        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+    ) -> T:
+        pass
+
+    def unannotated_assign_single_target(
+        self,
+        original_node: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
     ) -> None:
-        ...
+        return self.unannotated_target(target)
+
+    def unannotated_assign_multiple_targets(
+        self,
+        original_node: libcst.Assign | libcst.AugAssign,
+        target: libcst.Name | libcst.Attribute,
+    ) -> None:
+        return self.unannotated_target(target)
+
+    def for_target(
+        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
+    ) -> None:
+        return self.unannotated_target(target)
+
+    def withitem_target(
+        self, original_node: libcst.With, target: libcst.Name | libcst.Attribute
+    ) -> None:
+        return self.unannotated_target(target)
 
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         name = get_full_name_for_node_or_raise(target)
@@ -182,9 +210,28 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=name,
             explicit_annotation=None,
-            implicit_annotation=self.get_metadata(anno4inst.Annotation4InstanceProvider, target),
+            implicit_annotation=self.get_metadata(
+                anno4inst.Annotation4InstanceProvider, target
+            ),
             category=TypeCollectionCategory.VARIABLE,
         )
+
+    def global_target(
+        self,
+        _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
+    ) -> None:
+        self.scope_overwritten_target(target)
+
+    def nonlocal_target(
+        self,
+        _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        target: libcst.Name,
+    ) -> None:
+        self.scope_overwritten_target(target)
+
+    def scope_overwritten_target(self, target: libcst.Name) -> None:
+        self.keyword_modified_targets.add(get_full_name_for_node_or_raise(target))
 
     @m.visit(m.If() | m.Else())
     def _enter_branch(self, branch: libcst.If | libcst.Else):
