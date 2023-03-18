@@ -196,13 +196,6 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, _traversal.Trave
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
-    # @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
-    # def leave_CompFor(
-    #     self, _: libcst.CompFor, updated_node: libcst.CompFor
-    # ) -> libcst.FlattenSentinel[libcst.CSTNode]:
-    #     targets = self._access_targets(updated_node.target)
-    #     return _apply_actions(updated_node, self.compfor_target, targets)
-
     @m.call_if_inside(_traversal.Matchers.withitems)
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
@@ -213,18 +206,6 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, _traversal.Trave
             _traversal.Recognition.fallthru(original_node)
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
-
-    # TODO: Can the prependable / appendable node for NamedExpr be found by
-    # TODO: using m.StatementLine(m.AtLeastN(m.NamedExpr(...), n=1))?
-    # @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
-    # def leave_NamedExpr(self, updated_node: libcst.NamedExpr) -> None:
-    #    targets_of_interest = self._access_targets(updated_node.target)
-    #    actions = list(
-    #        itertools.chain.from_iterable(
-    #            self.namedexpr_target(updated_node, target) for target in targets_of_interest
-    #        )
-    #    )
-    #    return _handle_actions(updated_node, actions)
 
     # Visitors ignore Lambdas, so Transformer should too
     def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
