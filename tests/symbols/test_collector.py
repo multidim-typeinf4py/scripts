@@ -565,6 +565,20 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
+    def test_class_attribute(self):
+        df = self.performTracking(
+            """
+            class C:
+                a: int = 5
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                CR(TypeCollectionCategory.VARIABLE, "C.a", "int"),
+            ],
+        )
+
     def test_branch_annotating(self):
         df = self.performTracking(
             """
