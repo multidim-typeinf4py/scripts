@@ -35,9 +35,32 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if original_node.value is None and isinstance(
-            metadata[meta.ScopeProvider][original_node.target],
-            meta.ClassScope,
+        """
+        class Clazz:
+            a: int
+        """
+        if original_node.value is None and _is_class_scope(metadata, original_node.target):
+            return _access_targets(metadata, original_node.target)
+
+        return None
+
+    @staticmethod
+    def libsa4py_hint(
+        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+        original_node: libcst.Assign | libcst.AnnAssign,
+    ) -> Targets | None:
+        """
+        class Clazz:
+            a = ...
+            a: int = ...
+        """
+        if m.matches(
+            original_node, m.Assign(targets=[m.AssignTarget(NAME)], value=m.Ellipsis())
+        ) and _is_class_scope(metadata, original_node.targets[0].target):
+            return _access_targets(metadata, original_node.targets[0].target)
+
+        elif m.matches(original_node, m.AnnAssign(value=m.Ellipsis())) and _is_class_scope(
+            metadata, original_node.target
         ):
             return _access_targets(metadata, original_node.target)
 
@@ -48,9 +71,10 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if original_node.value is None or m.matches(
-            original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ")
-        ):
+        if (
+            original_node.value is None
+            or m.matches(original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ"))
+        ) and not _is_class_scope(metadata, original_node.target):
             return _access_targets(metadata, original_node.target)
 
         return None
@@ -60,33 +84,18 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
+        """
+        class Clazz:
+            a: int = 5
+        
+        a: int = 5
+        """
         if (
             original_node.value is not None
             and not m.matches(original_node.value, m.Ellipsis())
-            and not isinstance(
-                metadata[meta.ScopeProvider][original_node.target],
-                meta.ClassScope,
-            )
+            # and not _is_class_scope(metadata, original_node.target)
         ):
             return _access_targets(metadata, original_node.target)
-        return None
-
-    ## Assign
-
-    @staticmethod
-    def libsa4py_hint(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
-        original_node: libcst.Assign,
-    ) -> Targets | None:
-
-        if m.matches(
-            original_node, m.Assign(targets=[m.AssignTarget()], value=m.Ellipsis())
-        ) and isinstance(
-            metadata[meta.ScopeProvider][original_node.targets[0].target],
-            meta.ClassScope,
-        ):
-            return _access_targets(metadata, original_node.targets[0].target)
-
         return None
 
     @staticmethod
@@ -94,10 +103,14 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.Assign,
     ) -> Targets | None:
+        """
+        a = 10
+        """
         if (
             len(original_node.targets) == 1
             and not m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
             and not m.matches(original_node.value, m.Ellipsis())
+            and not _is_class_scope(metadata, asstarget.target)
         ):
             return _access_targets(metadata, asstarget.target)
         return None
@@ -107,15 +120,15 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.Assign,
     ) -> Targets | None:
+        """
+        a = b = 10
+        a, b = 2, 10
+        [a, (b, c)] = 10, (20, 30)
+        """
         if (
             len(original_node.targets) > 1
             or m.matches(original_node.targets[0], m.AssignTarget(LIST | TUPLE))
-        ) and (
-            not isinstance(
-                metadata[meta.ScopeProvider][original_node.targets[0]],
-                meta.ClassScope,
-            )
-        ):
+        ) and not _is_class_scope(metadata, original_node.targets[0].target):
             unchanged, glbls, nonlocals = list(), list(), list()
 
             for discovered in (
@@ -135,6 +148,9 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AugAssign,
     ) -> Targets:
+        """
+        a += 2
+        """
         return _access_targets(metadata, original_node.target)
 
     ## For
@@ -144,6 +160,10 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.For,
     ) -> Targets:
+        """
+        for x, y in zip(...):
+            ...
+        """
         return _access_targets(metadata, original_node.target)
 
     ## With
@@ -152,6 +172,10 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.With,
     ) -> Targets:
+        """
+        with f() as g, h() as i:
+            ...
+        """
         unchanged, glbls, nonlocals = list(), list(), list()
 
         for targets in (
@@ -170,6 +194,13 @@ class Recognition:
     @staticmethod
     def fallthru(original_node: libcst.CSTNode) -> typing.NoReturn:
         raise Exception(f"Cannot recognise {libcst.Module([]).code_for_node(original_node)}")
+
+
+def _is_class_scope(
+    metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+    original_node: libcst.BaseAssignTargetExpression,
+) -> bool:
+    return isinstance(metadata[meta.ScopeProvider][original_node], meta.ClassScope)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -241,7 +272,7 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def libsa4py_hint(self, original_node: libcst.Assign, target: libcst.Name) -> T:
+    def libsa4py_hint(self, original_node: libcst.Assign | libcst.AnnAssign, target: libcst.Name) -> T:
         """
         class C:
             a: int      # ignored
