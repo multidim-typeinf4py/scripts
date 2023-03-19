@@ -39,7 +39,7 @@ class ScopeAwareTransformer(c.ContextAwareTransformer):
 
 class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_Param(
-        self, _: libcst.Param, updated_node: libcst.Param
+        self, original_node: libcst.Param, updated_node: libcst.Param
     ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
         libcst.Param
     ] | libcst.RemovalSentinel:
@@ -67,7 +67,7 @@ class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
 
 class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_FunctionDef(
-        self, _: libcst.FunctionDef, updated_node: libcst.FunctionDef
+        self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
     ) -> libcst.BaseStatement | libcst.FlattenSentinel[
         libcst.BaseStatement
     ] | libcst.RemovalSentinel:
@@ -122,7 +122,9 @@ class Untouched:
 Actions = list[Untouched | Prepend | Append | Replace | Remove]
 
 
-class HintableDeclarationTransformer(c.ContextAwareTransformer, _traversal.Traverser[Actions], abc.ABC):
+class HintableDeclarationTransformer(
+    c.ContextAwareTransformer, _traversal.Traverser[Actions], abc.ABC
+):
     """
     Provide hook methods for transforming hintable attributes (both a and self.a)
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops
@@ -208,7 +210,7 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, _traversal.Trave
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
     # Visitors ignore Lambdas, so Transformer should too
-    def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
+    def visit_Lambda(self, node: libcst.Lambda) -> bool | None:
         return False
 
     _T = typing.TypeVar("_T", libcst.BaseSmallStatement, libcst.BaseStatement)

@@ -1,12 +1,10 @@
 import abc
-import itertools
 import typing
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h
 
 from common.metadata.keyword_scopage import KeywordModifiedScopeProvider
-
 from . import _traversal
 
 
@@ -154,8 +152,8 @@ class HintableDeclarationVisitor(
 
         return self._apply_visit(targets, visitor, node)
 
-    # We cannot annotate anything inside of a lambda; and annotating
-    # variables from outside of a Lambda is an alternation to the scope
+    # We cannot annotate anything inside a lambda; and annotating
+    # variables from outside a Lambda is an alternation to the scope
     def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
         return False
 
