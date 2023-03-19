@@ -80,6 +80,20 @@ class Test_Unannotated(AnnotationTesting):
             """,
         )
 
+    def test_instance_attribute_target(self):
+        self.assertBuildCodemod(
+            before="""
+            class C:
+                a = ...
+            """,
+            after="""
+            from __future__ import annotations
+            
+            class C:
+                a: int = ...
+            """,
+        )
+
     def test_class_attribute_target(self):
         self.assertBuildCodemod(
             before="""
