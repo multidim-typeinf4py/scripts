@@ -85,7 +85,6 @@ class TypeCollection:
                 )
 
         for qname, annos in annotations.attributes.items():
-            # NOTE: assignments to variables without an annotation are deemed INVALID
             if annos:
                 for anno in annos:
                     contents.append(
@@ -261,14 +260,18 @@ class TypeCollection:
             for cqname, group in attr_df.groupby(by="cqname"):
                 *_, cname = cqname.split(".")
                 hints = [
-                    cst.SimpleStatementLine([cst.AnnAssign(
-                        target=cst.Name(aname),
-                        annotation=cst.Annotation(cst.parse_expression(hint)),
-                        value=cst.Ellipsis(),
-                    )])
-                    for aname, hint in group[["attrname", TypeCollectionSchema.anno]].itertuples(
-                        index=False
+                    cst.SimpleStatementLine(
+                        [
+                            cst.AnnAssign(
+                                target=cst.Name(aname),
+                                annotation=cst.Annotation(cst.parse_expression(hint)),
+                                value=cst.Ellipsis(),
+                            )
+                        ]
                     )
+                    for aname, hint in group[
+                        ["attrname", TypeCollectionSchema.anno]
+                    ].itertuples(index=False)
                     if pd.notna(hint)
                 ]
                 attrs[cqname] = cst.ClassDef(

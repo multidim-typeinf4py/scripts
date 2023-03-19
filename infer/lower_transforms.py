@@ -6,7 +6,7 @@ import libcst
 from libcst import metadata, codemod as c, matchers as m
 
 from common import transformers as t
-from common.metadata.anno4inst import Annotation4InstanceProvider, TrackedAnnotation
+from common.metadata.anno4inst import Annotation4InstanceProvider, Lowered, TrackedAnnotation
 
 
 class LoweringTransformer(t.HintableDeclarationTransformer):
@@ -21,18 +21,15 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
     def _handle_lowering(
         self, _: libcst.CSTNode, unannotated: libcst.Name | libcst.Attribute
     ) -> t.Actions:
-        annotation_metadata: TrackedAnnotation = self.get_metadata(
-            Annotation4InstanceProvider, unannotated
-        )
-        if annotation_metadata is not None and annotation_metadata.lowered:
-            lowerable_hint = self.get_metadata(
-                metadata.ParentNodeProvider, annotation_metadata.annotation
-            )
+        meta: TrackedAnnotation = self.get_metadata(Annotation4InstanceProvider, unannotated)
+        if meta.lowered is Lowered.ALTERED:
+            assert (lowered_anno := meta.labelled or meta.inferred)
+            lowerable_hint = self.get_metadata(metadata.ParentNodeProvider, lowered_anno)
             assert isinstance(lowerable_hint, libcst.AnnAssign)
 
             lowered_hint = libcst.AnnAssign(
                 target=unannotated,
-                annotation=annotation_metadata.annotation,
+                annotation=lowered_anno,
                 value=libcst.Name("λ__LOWERED_HINT_MARKER__λ"),
             )
 

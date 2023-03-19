@@ -6,9 +6,9 @@ import typing
 import libcst
 from libcst import metadata, matchers as m, helpers as h, codemod as c
 
-from .matchers import NAME, INSTANCE_ATTR, LIST, TUPLE
+from common.metadata.keyword_scopage import KeywordModifiedScopeProvider
 
-from common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
+from . import _traversal
 
 
 class ScopeAwareTransformer(c.ContextAwareTransformer):
@@ -39,7 +39,7 @@ class ScopeAwareTransformer(c.ContextAwareTransformer):
 
 class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_Param(
-        self, _: libcst.Param, updated_node: libcst.Param
+        self, original_node: libcst.Param, updated_node: libcst.Param
     ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
         libcst.Param
     ] | libcst.RemovalSentinel:
@@ -67,7 +67,7 @@ class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
 
 class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_FunctionDef(
-        self, _: libcst.FunctionDef, updated_node: libcst.FunctionDef
+        self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
     ) -> libcst.BaseStatement | libcst.FlattenSentinel[
         libcst.BaseStatement
     ] | libcst.RemovalSentinel:
@@ -122,64 +122,9 @@ class Untouched:
 Actions = list[Untouched | Prepend | Append | Replace | Remove]
 
 
-T = typing.TypeVar("T", libcst.BaseSmallStatement, libcst.BaseStatement)
-
-
-def _apply_actions(
-    actions: Actions,
-    updated_node: T,
-) -> libcst.FlattenSentinel[T] | libcst.RemovalSentinel:
-    prepends = []
-    appends = []
-
-    for action in actions:
-        match action:
-            case Untouched():
-                ...
-
-            case Prepend(node):
-                prepends.append(node)
-
-            case Append(node):
-                appends.append(node)
-
-            case Replace(matcher, replacement):
-                updated_node = m.replace(updated_node, matcher, replacement)
-
-            case Remove():
-                updated_node = libcst.RemoveFromParent()
-                return updated_node
-
-    # module = h.parse_template_module(
-    #     "{ps}\n{un}\n{ap}",
-    #     ps=libcst.SimpleStatementLine(body=prepends),
-    #     un=updated_node,
-    #     ap=libcst.SimpleStatementLine(body=appends),
-    # )
-
-    if isinstance(updated_node, libcst.BaseSmallStatement):
-        # Must return libcst.FlattenSentinel[BaseSmallStatement]
-        return libcst.FlattenSentinel(
-            (
-                *prepends,
-                # libcst.EmptyLine(),
-                updated_node,
-                # libcst.EmptyLine(),
-                *appends,
-            )
-        )
-    else:
-        # Must return libcst.FlattenSentinel[BaseStatement]
-        return libcst.FlattenSentinel(
-            (
-                libcst.SimpleStatementLine(body=prepends),
-                updated_node,
-                libcst.SimpleStatementLine(body=appends),
-            )
-        )
-
-
-class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
+class HintableDeclarationTransformer(
+    c.ContextAwareTransformer, _traversal.Traverser[Actions], abc.ABC
+):
     """
     Provide hook methods for transforming hintable attributes (both a and self.a)
     in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops
@@ -191,316 +136,147 @@ class HintableDeclarationTransformer(c.ContextAwareTransformer, abc.ABC):
         KeywordModifiedScopeProvider,
     )
 
-    @abc.abstractmethod
-    def instance_attribute_hint(
-        self, original_node: libcst.AnnAssign, target: libcst.Name
-    ) -> Actions:
-        """
-        class C:
-            a: int      # triggers
-            a = ...     # ignored (libsa4py's instance attributes)
-            a = 5       # ignored
-
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def libsa4py_hint(
-        self, original_node: libcst.Assign, target: libcst.Name
-    ) -> Actions:
-        """
-        class C:
-            a: int      # ignored
-            a = ...     # triggers (libsa4py's instance attributes)
-            a = 5       # ignored
-
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def annotated_assignment(
-        self,
-        original_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> Actions:
-        """
-        a: int = 5      # triggers
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def annotated_hint(
-        self,
-        original_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> Actions:
-        """
-        a: int = 5      # ignored
-        a: int          # triggers
-
-        class C:
-            a: int      # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def unannotated_assign_single_target(
-        self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> Actions:
-        """
-        class C:
-            a: int      # ignored
-            a = ...     # ignored
-            a = 5       # triggers
-
-        a = 10          # triggers
-        a: int          # ignored
-
-        a = b = 50          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def unannotated_assign_multiple_targets(
-        self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
-    ) -> Actions:
-        """
-        a = b = 50      # triggers
-        """
-        ...
-
-    @abc.abstractmethod
-    def for_target(
-        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
-    ) -> Actions:
-        """
-        # triggers for both x and y
-        for x, y in zip([1, 2, 3], "abc"):
-            ...
-        """
-        ...
-
-    # @abc.abstractmethod
-    # def compfor_target(
-    #    self, updated_node: libcst.CompFor, target: libcst.Name | libcst.Attribute
-    # ) -> Actions:
-    #    ...
-
-    @abc.abstractmethod
-    def withitem_target(
-        self,
-        original_node: libcst.With,
-        target: libcst.Name | libcst.Attribute,
-    ) -> Actions:
-        """
-        # triggers for f
-        with p.open() as f:
-            ...
-        """
-        ...
-
-    @abc.abstractmethod
-    def global_target(
-        self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
-        target: libcst.Name,
-    ) -> Actions:
-        ...
-
-    @abc.abstractmethod
-    def nonlocal_target(
-        self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
-        target: libcst.Name,
-    ) -> Actions:
-        ...
-
-    @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
+    @m.call_if_inside(_traversal.Matchers.annassign)
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
     ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
-        if isinstance(
-            self.get_metadata(metadata.ScopeProvider, original_node.target),
-            metadata.ClassScope,
-        ) and m.matches(original_node.value, m.Ellipsis()):
+        if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, original_node):
             transformer = self.instance_attribute_hint
 
-        elif original_node.value is None or m.matches(
-            original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ")
-        ):
+        elif targets := _traversal.Recognition.annotated_hint(self.metadata, original_node):
             transformer = self.annotated_hint
 
-        else:
+        elif targets := _traversal.Recognition.annotated_assignment(self.metadata, original_node):
             transformer = self.annotated_assignment
 
-        targets = self._access_targets(original_node.target)
-        actions = list(
-            itertools.chain.from_iterable(
-                transformer(original_node, target) for target in targets
-            )
-        )
+        else:
+            _traversal.Recognition.fallthru(original_node)
 
-        return _apply_actions(actions, updated_node)
+        return self._apply_actions(targets, transformer, original_node, updated_node)
 
-    @m.call_if_inside(
-        m.Assign(
-            targets=[
-                m.AtLeastN(
-                    m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1
-                )
-            ]
-        )
-    )
+    @m.call_if_inside(_traversal.Matchers.assign)
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
     ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
-        # Catch libsa4py's retainment of INSTANCE_ATTRs
-        if m.matches(
-            original_node,
-            m.Assign(targets=[m.AssignTarget(target=NAME)], value=m.Ellipsis()),
-        ) and isinstance(
-            self.get_metadata(metadata.ScopeProvider, original_node.targets[0].target),
-            metadata.ClassScope,
-        ):
-            targets = self._access_targets(original_node.targets[0].target)
+        if targets := _traversal.Recognition.libsa4py_hint(self.metadata, original_node):
             transformer = self.libsa4py_hint
 
-        elif len(original_node.targets) == 1 and not m.matches(
-            asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
+        elif targets := _traversal.Recognition.unannotated_assign_single_target(
+            self.metadata, original_node
         ):
-            targets = self._access_targets(asstarget.target)
             transformer = self.unannotated_assign_single_target
 
-        else:
-            targets = list(
-                itertools.chain.from_iterable(
-                    self._access_targets(asstarget.target)
-                    for asstarget in original_node.targets
-                )
-            )
+        elif targets := _traversal.Recognition.unannotated_assign_multiple_targets(
+            self.metadata, original_node
+        ):
             transformer = self.unannotated_assign_multiple_targets
 
-        actions = list(
-            itertools.chain.from_iterable(
-                transformer(original_node, target) for target in targets
-            )
-        )
-        return _apply_actions(actions, updated_node)
+        else:
+            _traversal.Recognition.fallthru(original_node)
 
-    @m.call_if_inside(m.AugAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
+        return self._apply_actions(targets, transformer, original_node, updated_node)
+
+    @m.call_if_inside(_traversal.Matchers.augassign)
     def leave_AugAssign(
         self, original_node: libcst.AugAssign, updated_node: libcst.AugAssign
     ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
-        targets = self._access_targets(original_node.target)
-        actions = list(
-            itertools.chain.from_iterable(
-                self.unannotated_assign_multiple_targets(original_node, target)
-                for target in targets
-            )
-        )
+        if targets := _traversal.Recognition.augassign_targets(self.metadata, original_node):
+            transformer = self.unannotated_assign_multiple_targets
+        else:
+            _traversal.Recognition.fallthru(original_node)
 
-        return _apply_actions(actions, updated_node)
+        return self._apply_actions(targets, transformer, original_node, updated_node)
 
-    # @abc.abstractmethod
-    # def namedexpr_target(
-    #     self, walrus: libcst.NamedExpr, target: libcst.Name | libcst.Attribute
-    # ) -> Actions:
-    #     ...
-
-    @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
+    @m.call_if_inside(_traversal.Matchers.fortargets)
     def leave_For(
         self, original_node: libcst.For, updated_node: libcst.For
     ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
-        targets = self._access_targets(original_node.target)
-        actions = list(
-            itertools.chain.from_iterable(
-                self.for_target(original_node, target) for target in targets
-            )
-        )
-        return _apply_actions(actions, updated_node)
+        if targets := _traversal.Recognition.for_targets(self.metadata, original_node):
+            transformer = self.for_target
+        else:
+            _traversal.Recognition.fallthru(original_node)
 
-    # @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
-    # def leave_CompFor(
-    #     self, _: libcst.CompFor, updated_node: libcst.CompFor
-    # ) -> libcst.FlattenSentinel[libcst.CSTNode]:
-    #     targets = self._access_targets(updated_node.target)
-    #     return _apply_actions(updated_node, self.compfor_target, targets)
+        return self._apply_actions(targets, transformer, original_node, updated_node)
 
-    @m.call_if_inside(
-        m.With(
-            items=[
-                m.AtLeastN(
-                    m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | TUPLE | LIST)),
-                    n=1,
-                )
-            ]
-        )
-    )
+    @m.call_if_inside(_traversal.Matchers.withitems)
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
     ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
-        targets = list(
-            itertools.chain.from_iterable(
-                self._access_targets(item.asname.name)
-                for item in original_node.items
-                if item.asname is not None
-            )
-        )
+        if targets := _traversal.Recognition.with_targets(self.metadata, original_node):
+            transformer = self.withitem_target
+        else:
+            _traversal.Recognition.fallthru(original_node)
 
-        actions = list(
-            itertools.chain.from_iterable(
-                self.withitem_target(original_node, target) for target in targets
-            )
-        )
-
-        return _apply_actions(actions, updated_node)
-
-    # TODO: Can the prependable / appendable node for NamedExpr be found by
-    # TODO: using m.StatementLine(m.AtLeastN(m.NamedExpr(...), n=1))?
-    # @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | TUPLE | LIST))
-    # def leave_NamedExpr(self, updated_node: libcst.NamedExpr) -> None:
-    #    targets_of_interest = self._access_targets(updated_node.target)
-    #    actions = list(
-    #        itertools.chain.from_iterable(
-    #            self.namedexpr_target(updated_node, target) for target in targets_of_interest
-    #        )
-    #    )
-    #    return _handle_actions(updated_node, actions)
+        return self._apply_actions(targets, transformer, original_node, updated_node)
 
     # Visitors ignore Lambdas, so Transformer should too
-    def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
+    def visit_Lambda(self, node: libcst.Lambda) -> bool | None:
         return False
 
-    def _access_targets(
+    _T = typing.TypeVar("_T", libcst.BaseSmallStatement, libcst.BaseStatement)
+
+    def _apply_actions(
         self,
-        target: libcst.BaseAssignTargetExpression,
-    ) -> list[libcst.Name | libcst.Attribute]:
-        if m.matches(target, NAME | INSTANCE_ATTR):
-            targets = [target]
+        targets: _traversal.Targets,
+        transformer: typing.Callable[[_T, libcst.Name | libcst.Attribute], Actions],
+        original_node: _T,
+        updated_node: _T,
+    ) -> libcst.FlattenSentinel[_T] | libcst.RemovalSentinel:
 
-        elif m.matches(target, TUPLE | LIST):
-            targets = [
-                element.value
-                for element in m.findall(
-                    target,
-                    (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
+        unchanged_actions = list(
+            itertools.chain.from_iterable(
+                transformer(original_node, target) for target in targets.unchanged
+            )
+        )
+        global_actions = list(
+            itertools.chain.from_iterable(
+                self.global_target(original_node, target) for target in targets.glbls
+            )
+        )
+        nonlocal_actions = list(
+            itertools.chain.from_iterable(
+                self.nonlocal_target(original_node, target) for target in targets.nonlocals
+            )
+        )
+
+        prepends = []
+        appends = []
+
+        for action in itertools.chain(unchanged_actions, global_actions, nonlocal_actions):
+            match action:
+                case Untouched():
+                    ...
+
+                case Prepend(node):
+                    prepends.append(node)
+
+                case Append(node):
+                    appends.append(node)
+
+                case Replace(matcher, replacement):
+                    updated_node = m.replace(updated_node, matcher, replacement)
+
+                case Remove():
+                    updated_node = libcst.RemoveFromParent()
+                    return updated_node
+
+        if isinstance(updated_node, libcst.BaseSmallStatement):
+            # Must return libcst.FlattenSentinel[BaseSmallStatement]
+            return libcst.FlattenSentinel(
+                (
+                    *prepends,
+                    # libcst.EmptyLine(),
+                    updated_node,
+                    # libcst.EmptyLine(),
+                    *appends,
                 )
-            ]
-
+            )
         else:
-            targets = []
-
-        non_overwritten_targets = list()
-        for target in targets:
-            modification = self.get_metadata(KeywordModifiedScopeProvider, target)
-            if modification is KeywordContext.UNCHANGED:
-                non_overwritten_targets.append(target)
-
-        return non_overwritten_targets
+            # Must return libcst.FlattenSentinel[BaseStatement]
+            return libcst.FlattenSentinel(
+                (
+                    libcst.SimpleStatementLine(body=prepends),
+                    updated_node,
+                    libcst.SimpleStatementLine(body=appends),
+                )
+            )
