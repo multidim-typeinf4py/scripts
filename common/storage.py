@@ -62,7 +62,6 @@ class TypeCollection:
                     TypeCollectionCategory.CALLABLE_RETURN,
                     qname,
                     _stringify(fanno.returns) or (missing.NA if strict else "None"),
-                    _stringify(fanno.returns) or (missing.NA if strict else "None"),
                 )
             )
 
@@ -82,7 +81,6 @@ class TypeCollection:
                         TypeCollectionCategory.CALLABLE_PARAMETER,
                         qname,
                         _stringify(param.annotation) or missing.NA,
-                        _stringify(param.annotation) or missing.NA,
                     )
                 )
 
@@ -95,7 +93,6 @@ class TypeCollection:
                             TypeCollectionCategory.VARIABLE,
                             qname,
                             _stringify(explicit) or missing.NA,
-                            _stringify(implicit) or missing.NA,
                         )
                     )
 
@@ -105,7 +102,6 @@ class TypeCollection:
                         filename,
                         TypeCollectionCategory.VARIABLE,
                         qname,
-                        missing.NA,
                         missing.NA,
                     )
                 )
@@ -130,7 +126,6 @@ class TypeCollection:
                         filename,
                         TypeCollectionCategory.INSTANCE_ATTR,
                         qname,
-                        anno,
                         anno,
                     )
                 )
@@ -209,7 +204,7 @@ class TypeCollection:
                 select_params = param_df[param_df["fname"] == fname]
                 rettype = fs_df[fs_df[TypeCollectionSchema.qname_ssa] == fname]
                 if len(rettype):
-                    rettype_anno = rettype[TypeCollectionSchema.explicit_anno].iloc[0]
+                    rettype_anno = rettype[TypeCollectionSchema.anno].iloc[0]
                 else:
                     rettype_anno = None
                 params = [
@@ -220,7 +215,7 @@ class TypeCollection:
                         else None,
                     )
                     for value, anno in select_params[
-                        ["argname", TypeCollectionSchema.explicit_anno]
+                        ["argname", TypeCollectionSchema.anno]
                     ].itertuples(index=False)
                 ]
 
@@ -245,7 +240,7 @@ class TypeCollection:
             var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
             for qname, anno in var_df[
-                [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.explicit_anno]
+                [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.anno]
             ].itertuples(index=False):
                 if pd.notna(anno):
                     vs[qname] = cst.Annotation(cst.parse_expression(anno))
@@ -275,7 +270,7 @@ class TypeCollection:
                         ]
                     )
                     for aname, hint in group[
-                        ["attrname", TypeCollectionSchema.explicit_anno]
+                        ["attrname", TypeCollectionSchema.anno]
                     ].itertuples(index=False)
                     if pd.notna(hint)
                 ]

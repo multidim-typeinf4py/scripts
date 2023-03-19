@@ -173,8 +173,7 @@ CR = collections.namedtuple(
     field_names=[
         TypeCollectionSchema.category,
         TypeCollectionSchema.qname,
-        TypeCollectionSchema.explicit_anno,
-        TypeCollectionSchema.implicit_anno,
+        TypeCollectionSchema.anno,
     ],
 )
 
@@ -240,47 +239,41 @@ class Test_TrackUnannotated(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA, missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "a", "str", "str"),
-                CR(TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA, missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
                 CR(
                     TypeCollectionCategory.CALLABLE_PARAMETER,
                     "f.a",
-                    missing.NA,
                     missing.NA,
                 ),
                 CR(
                     TypeCollectionCategory.CALLABLE_PARAMETER,
                     "f.b",
                     missing.NA,
-                    missing.NA,
                 ),
                 CR(
                     TypeCollectionCategory.CALLABLE_PARAMETER,
                     "f.c",
                     missing.NA,
-                    missing.NA,
                 ),
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int", "int"),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int"),
                 CR(
                     TypeCollectionCategory.CALLABLE_RETURN,
                     "C.__init__",
-                    missing.NA,
                     missing.NA,
                 ),
                 CR(
                     TypeCollectionCategory.CALLABLE_PARAMETER,
                     "C.__init__.self",
                     missing.NA,
-                    missing.NA,
                 ),
                 CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "str", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.self.x",
                     missing.NA,
-                    "int",
                 ),
             ],
         )
@@ -301,7 +294,9 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "int")])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA, "int")]
+        )
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -311,7 +306,9 @@ class Test_HintTracking(AnnotationTracking):
             a: str = "Hello World"
             """
         )
-        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "a", "str")])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", "str")]
+        )
 
     def test_hinting_applied_to_unpackables(self):
         tuple_df = self.performTracking(
@@ -325,8 +322,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             tuple_df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "b", "list[str]"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "list[str]"),
             ],
         )
 
@@ -341,8 +338,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             list_df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "list[str]"),
-                (TypeCollectionCategory.VARIABLE, "b", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "list[str]"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "int"),
             ],
         )
 
@@ -360,9 +357,9 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "b", "str"),
-                (TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
             ],
         )
 
@@ -379,10 +376,10 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "b", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "c", "int"),
-                (TypeCollectionCategory.VARIABLE, "d", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "b", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "c", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "d", "int", missing.NA),
             ],
         )
 
@@ -401,9 +398,9 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "a", "str"),
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
 
@@ -422,10 +419,10 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "a", "str"),
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
 
@@ -437,7 +434,7 @@ class Test_HintTracking(AnnotationTracking):
             """
         )
         self.assertMatchingAnnotating(
-            unannotated_df, [(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
+            unannotated_df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
         )
 
         annotated_df = self.performTracking(
@@ -446,7 +443,9 @@ class Test_HintTracking(AnnotationTracking):
             (x := 4)
             """
         )
-        self.assertMatchingAnnotating(annotated_df, [(TypeCollectionCategory.VARIABLE, "x", "int")])
+        self.assertMatchingAnnotating(
+            annotated_df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")]
+        )
 
     def test_for_unannotated(self):
         df = self.performTracking(
@@ -455,7 +454,9 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
+        )
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -465,7 +466,9 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "x", "int")])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")]
+        )
 
     def test_for_unpacking_annotated(self):
         df = self.performTracking(
@@ -480,8 +483,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "x", "int"),
-                (TypeCollectionCategory.VARIABLE, "y", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "x", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "y", "str"),
             ],
         )
 
@@ -493,7 +496,9 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(df, [(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
+        )
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -507,10 +512,12 @@ class Test_HintTracking(AnnotationTracking):
         )
 
         self.assertMatchingAnnotating(
-            df, [(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
+            df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -521,11 +528,13 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "x", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "x", missing.NA),
             ],
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -539,7 +548,7 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "x", "enum.Enum"),
+                CR(TypeCollectionCategory.VARIABLE, "x", "enum.Enum"),
             ],
         )
 
@@ -554,8 +563,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
-                (TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
             ],
         )
 
@@ -572,8 +581,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                (TypeCollectionCategory.VARIABLE, "C.foo2", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "C.foo2", "int"),
             ],
         )
 
@@ -592,9 +601,9 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                (TypeCollectionCategory.VARIABLE, "a", "int"),
-                (TypeCollectionCategory.VARIABLE, "b", "amod.B"),
-                (TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
-                (TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "amod.B"),
+                CR(TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
+                CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
             ],
         )

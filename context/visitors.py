@@ -47,8 +47,7 @@ class ContextVectorVisitor(
             ContextSymbolSchema.file,
             ContextSymbolSchema.category,
             ContextSymbolSchema.qname,
-            ContextSymbolSchema.explicit_anno,
-            ContextSymbolSchema.implicit_anno,
+            ContextSymbolSchema.anno,
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
             ContextSymbolSchema.nested,
@@ -108,7 +107,6 @@ class ContextVectorVisitor(
             annotatable=function,
             identifier=function.name.value,
             explicit_annotation=annotation,
-            implicit_annotation=annotation,
             category=TypeCollectionCategory.CALLABLE_RETURN,
         )
 
@@ -117,7 +115,6 @@ class ContextVectorVisitor(
             annotatable=function,
             identifier=function.name.value,
             explicit_annotation=None,
-            implicit_annotation=None,
             category=TypeCollectionCategory.CALLABLE_RETURN,
         )
 
@@ -128,7 +125,6 @@ class ContextVectorVisitor(
             annotatable=param,
             identifier=param.name.value,
             explicit_annotation=annotation,
-            implicit_annotation=annotation,
             category=TypeCollectionCategory.CALLABLE_PARAMETER,
         )
 
@@ -137,7 +133,6 @@ class ContextVectorVisitor(
             annotatable=param,
             identifier=param.name.value,
             explicit_annotation=None,
-            implicit_annotation=None,
             category=TypeCollectionCategory.CALLABLE_PARAMETER,
         )
 
@@ -146,7 +141,6 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=target.value,
             explicit_annotation=None,
-            implicit_annotation=None,
             category=TypeCollectionCategory.INSTANCE_ATTR,
         )
 
@@ -155,7 +149,6 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=target.value,
             explicit_annotation=None,
-            implicit_annotation=None,
             category=TypeCollectionCategory.INSTANCE_ATTR,
         )
 
@@ -167,9 +160,6 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=ident,
             explicit_annotation=original_node.annotation,
-            implicit_annotation=self.get_metadata(
-                anno4inst.Annotation4InstanceProvider, target
-            ),
             category=TypeCollectionCategory.VARIABLE,
         )
 
@@ -210,9 +200,6 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=name,
             explicit_annotation=None,
-            implicit_annotation=self.get_metadata(
-                anno4inst.Annotation4InstanceProvider, target
-            ),
             category=TypeCollectionCategory.VARIABLE,
         )
 
@@ -336,7 +323,6 @@ class ContextVectorVisitor(
         annotatable: libcst.CSTNode,
         identifier: str,
         explicit_annotation: libcst.Annotation | None,
-        implicit_annotation: anno4inst.TrackedAnnotation | libcst.Annotation | None,
         category: TypeCollectionCategory,
     ) -> None:
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
@@ -353,17 +339,12 @@ class ContextVectorVisitor(
         categoryf = self._ctxt_category(category)
         qname = self.qname_within_scope(identifier)
 
-        impl_anno = (
-            implicit_annotation.annotation if implicit_annotation is not None else None
-        )
-
         self.dfrs.append(
             ContextVectorVisitor.ContextVector(
                 self.filepath,
                 category,
                 qname,
                 _stringify(explicit_annotation) or missing.NA,
-                _stringify(impl_anno) or missing.NA,
                 loopf,
                 reassignedf,
                 nestedf,
