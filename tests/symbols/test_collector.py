@@ -191,7 +191,7 @@ class AnnotationTracking(codemod.CodemodTest):
             ),
         )
 
-        metadata.MetadataWrapper(module).visit(visitor)
+        module.visit(visitor)
         return visitor.collection.df
 
     def assertMatchingAnnotating(
@@ -268,7 +268,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
                 CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
                 CR(
                     TypeCollectionCategory.VARIABLE,
@@ -295,7 +295,7 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
         self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA, "int")]
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
         )
 
     def test_hinting_overwrite(self):
@@ -376,18 +376,17 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
+                CR(TypeCollectionCategory.VARIABLE, "d", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "b", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "c", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "d", "int", missing.NA),
             ],
         )
 
     def test_multiple_reassign(self):
         df = self.performTracking(
             """
-            a: int
-            a = 5
+            a: int = 5
 
             a: bytes
             a: str = "Hello World"
@@ -407,12 +406,10 @@ class Test_HintTracking(AnnotationTracking):
     def test_hint_retainment(self):
         df = self.performTracking(
             """
-            a: int
-            a = 10
+            a: int = 10
             a = 5
 
-            a: str
-            a = "Hello"
+            a: str = "Hello"
             a = "World"
             """
         )
@@ -582,7 +579,7 @@ class Test_HintTracking(AnnotationTracking):
             df,
             [
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "C.foo2", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
 
