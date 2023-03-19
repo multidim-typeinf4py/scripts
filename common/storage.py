@@ -85,7 +85,6 @@ class TypeCollection:
                 )
 
         for qname, annos in annotations.attributes.items():
-            # NOTE: assignments to variables without an annotation are deemed INVALID
             if annos:
                 for anno in annos:
                     contents.append(
@@ -199,16 +198,15 @@ class TypeCollection:
                 sep_df = sep_df.set_axis(["fname", "argname"], axis=1)
             param_df = pd.merge(param_df, sep_df, left_index=True, right_index=True)
 
-            # Combine both fs_df and param_df so that if at least one prediction is
-            # made in either, a FunctionAnnotation is produced
-            fnames = pd.concat(
-                [fs_df[TypeCollectionSchema.qname_ssa], param_df["fname"]], ignore_index=True
-            ).unique()
-
-            for fname in fnames:
+            # Use function name to find parameters; parameters cannot exist without functions
+            # but functions without parameters cannot exist
+            for fname in fs_df[TypeCollectionSchema.qname_ssa]:
                 select_params = param_df[param_df["fname"] == fname]
                 rettype = fs_df[fs_df[TypeCollectionSchema.qname_ssa] == fname]
-                rettype_anno = rettype[TypeCollectionSchema.anno].iloc[0]
+                if len(rettype):
+                    rettype_anno = rettype[TypeCollectionSchema.anno].iloc[0]
+                else:
+                    rettype_anno = None
                 params = [
                     cst.Param(
                         name=cst.Name(value),
@@ -262,14 +260,18 @@ class TypeCollection:
             for cqname, group in attr_df.groupby(by="cqname"):
                 *_, cname = cqname.split(".")
                 hints = [
-                    cst.SimpleStatementLine([cst.AnnAssign(
-                        target=cst.Name(aname),
-                        annotation=cst.Annotation(cst.parse_expression(hint)),
-                        value=cst.Ellipsis(),
-                    )])
-                    for aname, hint in group[["attrname", TypeCollectionSchema.anno]].itertuples(
-                        index=False
+                    cst.SimpleStatementLine(
+                        [
+                            cst.AnnAssign(
+                                target=cst.Name(aname),
+                                annotation=cst.Annotation(cst.parse_expression(hint)),
+                                value=cst.Ellipsis(),
+                            )
+                        ]
                     )
+                    for aname, hint in group[
+                        ["attrname", TypeCollectionSchema.anno]
+                    ].itertuples(index=False)
                     if pd.notna(hint)
                 ]
                 attrs[cqname] = cst.ClassDef(

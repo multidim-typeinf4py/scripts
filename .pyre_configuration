@@ -1,0 +1,20 @@
+{
+  "site_package_search_strategy": "pep561",
+  "source_directories": [
+    {
+      "import_root": ".",
+      "source": "common"
+    },
+    {
+      "import_root": ".",
+      "source": "infer"
+    },
+    {
+      "import_root": ".",
+      "source": "context"
+    }
+  ],
+  "exclude": [
+    "infer/inference/*.py"
+  ]
+}

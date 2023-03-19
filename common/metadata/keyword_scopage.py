@@ -1,11 +1,10 @@
 from __future__ import annotations
+
 import collections
 import enum
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h
-
-from .matchers import NAME, INSTANCE_ATTR, TUPLE, LIST
 
 
 class KeywordContext(enum.Enum):
@@ -97,3 +96,4 @@ class KeywordModifiedScopeProvider(metadata.BatchableMetadataProvider[KeywordCon
 
     def visit_Module(self, node: libcst.Module) -> bool | None:
         node.visit(_KeywordModifiedScopeVisitor(self))
+        return None

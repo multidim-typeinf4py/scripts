@@ -1,10 +1,11 @@
 import abc
+import typing
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h
 
-from .matchers import LIST, NAME, INSTANCE_ATTR, TUPLE
-from .metadata import KeywordModifiedScopeProvider, KeywordContext
+from common.metadata.keyword_scopage import KeywordModifiedScopeProvider
+from . import _traversal
 
 
 class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
@@ -66,178 +67,101 @@ class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         ...
 
 
-class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, abc.ABC):
+class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC):
     """
     Provide hook methods for visiting hintable attributes (both a and self.a)
-    in Assign, AnnAssign and AugAssign, as well as WithItems, For Loops and Walrus usages.
+    in Assign, AnnAssign and AugAssign, as well as WithItems and For Loops usages
     """
 
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
+    METADATA_DEPENDENCIES = (
+        KeywordModifiedScopeProvider,
+        metadata.ScopeProvider,
+    )
 
-    @abc.abstractmethod
-    def instance_attribute_hint(
-        self, target: libcst.Name, annotation: libcst.Annotation | None
-    ) -> None:
-        """
-        class C:
-            a: int      # triggers
-            a = ...     # triggers (libsa4py's instance attributes)
-            a = 5       # ignored
-
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def annotated_assignment(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        """
-        a: int = 5      # triggers
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def annotated_hint(
-        self, target: libcst.Name | libcst.Attribute, annotation: libcst.Annotation
-    ) -> None:
-        """
-        a: int = 5      # ignored
-        a: int          # triggers
-
-        class C:
-            a: int      # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def unannotated_target(
-        self,
-        target: libcst.Name | libcst.Attribute,
-    ) -> None:
-        """
-        class C:
-            a: int      # ignored
-            a = ...     # ignored
-            a = 5       # triggers
-
-        a = 10          # triggers
-        a: int          # ignored
-
-        a = b = 50          # triggers for both a and b
-
-        for x, y in zip([1, 2, 3], "abc"): # triggers for both x and y
-            ...
-
-        with p.open() as f:     # triggers for f
-            ...
-
-        [x.value for x in y]    # triggers for x
-
-        assert (x := 10) >= 5   # triggers for x
-        """
-        ...
-
-    @abc.abstractmethod
-    def scope_overwritten_target(self, target: libcst.Name) -> None:
-        ...
-
-    @m.call_if_inside(m.AnnAssign(target=NAME | INSTANCE_ATTR))
+    @m.call_if_inside(_traversal.Matchers.annassign)
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
-        if isinstance(
-            self.get_metadata(metadata.ScopeProvider, assignment), metadata.ClassScope
-        ) and m.matches(assignment.value, m.Ellipsis()):
-            self.instance_attribute_hint(assignment.target, assignment.annotation)
-        elif assignment.value is not None:
-            self.annotated_assignment(assignment.target, assignment.annotation)
+        if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, assignment):
+            visitor = self.instance_attribute_hint
+        elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, assignment):
+            visitor = self.libsa4py_hint
+        elif targets := _traversal.Recognition.annotated_hint(self.metadata, assignment):
+            visitor = self.annotated_hint
+        elif targets := _traversal.Recognition.annotated_assignment(self.metadata, assignment):
+            visitor = self.annotated_assignment
         else:
-            self.annotated_hint(assignment.target, assignment.annotation)
+            _traversal.Recognition.fallthru(assignment)
 
-    # Catch libsa4py's retainment of INSTANCE_ATTRs
-    @m.call_if_inside(m.ClassDef())
-    def visit_ClassDef_body(self, clazz: libcst.ClassDef) -> None:
-        for libsa4py_hint in filter(
-            lambda e: m.matches(
-                e,
-                m.SimpleStatementLine(
-                    body=[m.Assign(targets=[m.AssignTarget(target=m.Name())], value=m.Ellipsis())]
-                ),
-            ),
-            clazz.body.body,
-        ):
-            self.instance_attribute_hint(libsa4py_hint.body[0].targets[0].target, annotation=None)
-
-    @m.call_if_inside(m.For(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-    def visit_For_target(self, node: libcst.For) -> None:
-        return self.__on_visit_target(node)
+        self._apply_visit(targets, visitor, assignment)
 
     # @m.call_if_inside(m.CompFor(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
     # def visit_CompFor_target(self, node: libcst.CompFor) -> None:
     #     return self.__on_visit_target(node)
 
-    @m.call_if_inside(
-        m.Assign(
-            targets=[
-                m.ZeroOrMore(m.AssignTarget(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-            ],
-            value=~m.Ellipsis(),
-        )
-    )
+    @m.call_if_inside(_traversal.Matchers.assign)
     def visit_Assign_targets(self, node: libcst.Assign) -> None:
-        for target in node.targets:
-            if m.matches(target.target, NAME | INSTANCE_ATTR | m.Tuple() | m.List()):
-                self.__on_visit_target(target)
+        if targets := _traversal.Recognition.libsa4py_hint(self.metadata, node):
+            visitor = self.libsa4py_hint
 
-    @m.call_if_inside(m.AugAssign(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
+        elif targets := _traversal.Recognition.unannotated_assign_single_target(
+            self.metadata, node
+        ):
+            visitor = self.unannotated_assign_single_target
+
+        elif targets := _traversal.Recognition.unannotated_assign_multiple_targets(
+            self.metadata, node
+        ):
+            visitor = self.unannotated_assign_multiple_targets
+
+        else:
+            _traversal.Recognition.fallthru(node)
+
+        self._apply_visit(targets, visitor, node)
+
+    @m.call_if_inside(_traversal.Matchers.augassign)
     def visit_AugAssign_target(self, node: libcst.AugAssign) -> None:
-        return self.__on_visit_target(node)
+        if targets := _traversal.Recognition.augassign_targets(self.metadata, node):
+            visitor = self.unannotated_assign_multiple_targets
+        else:
+            _traversal.Recognition.fallthru(node)
 
-    @m.call_if_inside(m.WithItem(asname=m.AsName(NAME | INSTANCE_ATTR | m.Tuple() | m.List())))
-    def visit_WithItem_item(self, node: libcst.WithItem) -> None:
-        return self.__on_visit_target(node)
+        return self._apply_visit(targets, visitor, node)
 
-    # @m.call_if_inside(m.NamedExpr(target=NAME | INSTANCE_ATTR | m.Tuple() | m.List()))
-    # def visit_NamedExpr_target(self, node: libcst.NamedExpr) -> None:
-    #     return self.__on_visit_target(node)
+    @m.call_if_inside(_traversal.Matchers.fortargets)
+    def visit_For_target(self, node: libcst.For) -> None:
+        if targets := _traversal.Recognition.for_targets(self.metadata, node):
+            visitor = self.for_target
+        else:
+            _traversal.Recognition.fallthru(node)
 
-    # We cannot annotate anything inside of a lambda; and annotating
-    # variables from outside of a Lambda is an alternation to the scope
+        return self._apply_visit(targets, visitor, node)
+
+    @m.call_if_inside(_traversal.Matchers.withitems)
+    def visit_With(self, node: libcst.With) -> None:
+        if targets := _traversal.Recognition.with_targets(self.metadata, node):
+            visitor = self.withitem_target
+        else:
+            _traversal.Recognition.fallthru(node)
+
+        return self._apply_visit(targets, visitor, node)
+
+    # We cannot annotate anything inside a lambda; and annotating
+    # variables from outside a Lambda is an alternation to the scope
     def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
         return False
 
-    def __on_visit_target(
+    _T = typing.TypeVar("_T", bound=libcst.CSTNode)
+
+    def _apply_visit(
         self,
-        node: libcst.For
-        # | libcst.CompFor
-        | libcst.AssignTarget | libcst.AugAssign | libcst.WithItem,
-        # | libcst.NamedExpr,
+        targets: _traversal.Targets,
+        visitor: typing.Callable[[_T, libcst.Name | libcst.Attribute], None],
+        original_node: _T,
     ) -> None:
-        if hasattr(node, "target"):
-            target = node.target
-        elif hasattr(node, "asname"):
-            target = node.asname.name
+        for target in targets.unchanged:
+            visitor(original_node, target)
 
-        if m.matches(target, NAME | INSTANCE_ATTR):
-            targets = [target]
+        for target in targets.glbls:
+            self.global_target(original_node, target)
 
-        elif m.matches(target, TUPLE | LIST):
-            targets = [
-                element.value
-                for element in m.findall(
-                    target,
-                    (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR),
-                )
-            ]
-
-        for target in targets:
-            mod_scope = self.get_metadata(metadata.ScopeProvider, target)
-            assert mod_scope is not None
-
-            if (
-                isinstance(mod_scope, metadata.FunctionScope)
-                and h.get_full_name_for_node_or_raise(target) in mod_scope._scope_overwrites
-            ):
-                self.scope_overwritten_target(target)
-            else:
-                self.unannotated_target(target)
+        for target in targets.nonlocals:
+            self.nonlocal_target(original_node, target)

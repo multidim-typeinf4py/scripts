@@ -31,12 +31,12 @@ def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, 
 @contextmanager
 def working_dir(wd: pathlib.Path) -> typing.Generator[None, None, None]:
     oldcwd = pathlib.Path.cwd()
-    os.chdir(wd)
+    os.chdir(str(wd))
 
     try:
         yield
     finally:
-        os.chdir(oldcwd)
+        os.chdir(str(oldcwd))
 
 
 def format_parallel_exec_result(action: str, result: ParallelTransformResult) -> str:
