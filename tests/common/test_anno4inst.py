@@ -13,26 +13,31 @@ class LabelTesting(TestCase):
         self,
         meta: TrackedAnnotation,
         labelled: libcst.Annotation,
+        lowerage: Lowered | None = None,
     ):
         assert m.matches(meta.labelled, m.Annotation(labelled.annotation))
         assert m.matches(meta.inferred, m.Annotation(labelled.annotation))
+
+        if lowerage is not None:
+            assert meta.lowered is lowerage
 
     def assertInferred(
         self,
         meta: TrackedAnnotation,
         inferred: libcst.Annotation,
+        lowerage: Lowered | None = None,
     ):
         assert meta.labelled is None
         assert m.matches(meta.inferred, m.Annotation(inferred.annotation))
+
+        if lowerage is not None:
+            assert meta.lowered is lowerage
 
     def assertUnannotated(
         self,
         meta: TrackedAnnotation,
     ):
         assert meta.labelled is meta.inferred is None
-
-    def assertLowerage(self, meta: TrackedAnnotation, lowerage: Lowered):
-        assert meta.lowered is lowerage
 
 
 class Individual(LabelTesting):
@@ -335,7 +340,39 @@ class Consumption(LabelTesting):
 
 
 class Lowering(LabelTesting):
-    def test_if_else_branching():
+    def test_if_branching(self):
+        code = textwrap.dedent(
+            """
+            a: int | str = 10
+            if cond:
+                a: str = "Hello World"
+            
+            a = 20
+            """
+        )
+
+        module = metadata.MetadataWrapper(libcst.parse_module(code))
+        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+
+        a1, a2, a3 = m.findall(module, m.Name("a"))
+
+        self.assertLabelled(
+            anno4insts[a1],
+            labelled=libcst.Annotation(libcst.parse_expression("int | str")),
+            lowerage=Lowered.UNALTERED,
+        )
+        self.assertLabelled(
+            anno4insts[a2],
+            labelled=libcst.Annotation(libcst.parse_expression("str")),
+            lowerage=Lowered.UNALTERED,
+        )
+        self.assertInferred(
+            anno4insts[a3],
+            inferred=libcst.Annotation(libcst.parse_expression("int | str")),
+            lowerage=Lowered.UNALTERED,
+        )
+
+    def test_if_else_branching(self):
         code = textwrap.dedent(
             """
             a: int | None
@@ -352,69 +389,15 @@ class Lowering(LabelTesting):
         anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
 
         _, a1, a2, a3 = m.findall(module, m.Name("a"))
-        union_ty = libcst.parse_expression("int | None")
+        union_ty = libcst.Annotation(libcst.parse_expression("int | None"))
 
-        assert m.matches(anno4insts[a1].annotation, m.Annotation(union_ty))
-        assert anno4insts[a1].lowered is True
-
-        assert m.matches(anno4insts[a2].annotation, m.Annotation(union_ty))
-        assert anno4insts[a2].lowered is True
-
-        assert m.matches(anno4insts[a3].annotation, m.Annotation(union_ty))
-        assert anno4insts[a3].lowered is False
-
-    def test_only_if_branching():
-        code = textwrap.dedent(
-            """
-            a: int | None
-            if cond:
-                a = 5
-                
-            a = "Hello World"
-            """
+        self.assertInferred(anno4insts[a1], inferred=union_ty, lowerage=Lowered.ALTERED)
+        self.assertInferred(anno4insts[a2], inferred=union_ty, lowerage=Lowered.ALTERED)
+        self.assertInferred(
+            anno4insts[a3], inferred=union_ty, lowerage=Lowered.UNALTERED
         )
 
-        module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
-
-        _, a1, a2 = m.findall(module, m.Name("a"))
-        union_ty = libcst.parse_expression("int | None")
-
-        assert m.matches(anno4insts[a1].annotation, m.Annotation(union_ty))
-        assert anno4insts[a1].lowered is True
-
-        assert m.matches(anno4insts[a2].annotation, m.Annotation(union_ty))
-        assert anno4insts[a2].lowered is False
-
-    def test_if_elif_branching():
-        code = textwrap.dedent(
-            """
-            a: int | None
-            if cond:
-                a = 5
-            elif cond2:
-                a = None
-
-            a = "Hello World"
-            """
-        )
-
-        module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
-
-        _, a1, a2, a3 = m.findall(module, m.Name("a"))
-        union_ty = libcst.parse_expression("int | None")
-
-        assert m.matches(anno4insts[a1].annotation, m.Annotation(union_ty))
-        assert anno4insts[a1].lowered is True
-
-        assert m.matches(anno4insts[a2].annotation, m.Annotation(union_ty))
-        assert anno4insts[a2].lowered is True
-
-        assert m.matches(anno4insts[a3].annotation, m.Annotation(union_ty))
-        assert anno4insts[a3].lowered is False
-
-    def test_hint_branching():
+    def test_hint_branching(self):
         code = textwrap.dedent(
             """
             a: int | str | None
@@ -442,27 +425,23 @@ class Lowering(LabelTesting):
 
         _, a1, _, a2, a22, a3, _, a4, a5 = m.findall(module, m.Name("a"))
 
-        union_ty = libcst.parse_expression("int | str | None")
+        union_ty = libcst.Annotation(libcst.parse_expression("int | str | None"))
+        stranno = libcst.Annotation(libcst.parse_expression("str"))
 
-        assert m.matches(anno4insts[a1].annotation, m.Annotation(union_ty))
-        assert anno4insts[a1].lowered is True
+        self.assertInferred(anno4insts[a1], inferred=union_ty, lowerage=Lowered.ALTERED)
+        self.assertInferred(
+            anno4insts[a2], inferred=stranno, lowerage=Lowered.UNALTERED
+        )
+        self.assertInferred(
+            anno4insts[a22], inferred=stranno, lowerage=Lowered.UNALTERED
+        )
+        self.assertInferred(anno4insts[a3], inferred=union_ty, lowerage=Lowered.ALTERED)
+        self.assertInferred(anno4insts[a4], inferred=union_ty, lowerage=Lowered.ALTERED)
+        self.assertInferred(
+            anno4insts[a5], inferred=union_ty, lowerage=Lowered.UNALTERED
+        )
 
-        assert m.matches(anno4insts[a2].annotation, m.Annotation(m.Name("str")))
-        assert anno4insts[a2].lowered is False
-
-        assert m.matches(anno4insts[a22].annotation, m.Annotation(m.Name("str")))
-        assert anno4insts[a22].lowered is False
-
-        assert m.matches(anno4insts[a3].annotation, m.Annotation(union_ty))
-        assert anno4insts[a3].lowered is True
-
-        assert m.matches(anno4insts[a4].annotation, m.Annotation(union_ty))
-        assert anno4insts[a4].lowered is True
-
-        assert m.matches(anno4insts[a5].annotation, m.Annotation(union_ty))
-        assert anno4insts[a5].lowered is False
-
-    def test_retain_unused_through_branching():
+    def test_retain_unused_through_branching(self):
         code = textwrap.dedent(
             """
         a: int | None
@@ -477,14 +456,19 @@ class Lowering(LabelTesting):
         module = metadata.MetadataWrapper(libcst.parse_module(code))
         anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
 
-        _, a1 = m.findall(module, m.Name("a"))
-        assert m.matches(
-            anno4insts[a1].annotation,
-            m.Annotation(libcst.parse_expression("int | None")),
-        )
-        assert anno4insts[a1].lowered is False
+        (_, a) = m.findall(module, m.Name("a"))
+        b1, b2 = m.findall(module, m.Name("b"))
 
-    def test_narrowing():
+        self.assertUnannotated(anno4insts[b1])
+        self.assertUnannotated(anno4insts[b2])
+
+        self.assertInferred(
+            anno4insts[a],
+            libcst.Annotation(libcst.parse_expression("int | None")),
+            Lowered.UNALTERED,
+        )
+
+    def test_narrowing(self):
         code = textwrap.dedent(
             """
         a: int | None
@@ -502,18 +486,47 @@ class Lowering(LabelTesting):
 
         _, a1, a2, a3 = m.findall(module, m.Name("a"))
 
-        assert m.matches(
-            anno4insts[a1].annotation, m.Annotation(libcst.parse_expression("int"))
+        self.assertLabelled(
+            anno4insts[a1],
+            libcst.Annotation(libcst.parse_expression("int")),
+            Lowered.UNALTERED,
         )
-        assert anno4insts[a1].lowered is False
+        self.assertLabelled(
+            anno4insts[a2],
+            libcst.Annotation(libcst.parse_expression("None")),
+            Lowered.UNALTERED,
+        )
+        self.assertInferred(
+            anno4insts[a3],
+            libcst.Annotation(libcst.parse_expression("int | None")),
+            Lowered.UNALTERED,
+        )
 
-        assert m.matches(
-            anno4insts[a2].annotation, m.Annotation(libcst.parse_expression("None"))
+    def test_hints_only_inside_body(self):
+        code = textwrap.dedent(
+            """
+            if cond:
+                a: int = 5
+            else:
+                a: None = None
+                
+            a += 1
+            """
         )
-        assert anno4insts[a2].lowered is False
 
-        assert m.matches(
-            anno4insts[a3].annotation,
-            m.Annotation(libcst.parse_expression("int | None")),
+        module = metadata.MetadataWrapper(libcst.parse_module(code))
+        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+
+        a1, a2, a3 = m.findall(module, m.Name("a"))
+
+        self.assertLabelled(
+            anno4insts[a1],
+            libcst.Annotation(libcst.parse_expression("int")),
+            Lowered.UNALTERED,
         )
-        assert anno4insts[a3].lowered is False
+        self.assertLabelled(
+            anno4insts[a2],
+            libcst.Annotation(libcst.parse_expression("None")),
+            Lowered.UNALTERED,
+        )
+        self.assertUnannotated(anno4insts[a3])

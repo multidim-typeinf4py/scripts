@@ -39,10 +39,14 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         #   a = 5
         # else:
         #   a = None
-        self._outer_hinting: list[dict[str, tuple[libcst.Annotation, _Consumption]]] = []
+        self._outer_hinting: list[
+            dict[str, tuple[libcst.Annotation, _Consumption]]
+        ] = []
 
         # Hints within the active scope
-        self._scope_local_hinting: dict[str, tuple[libcst.Annotation, _Consumption]] = {}
+        self._scope_local_hinting: dict[
+            str, tuple[libcst.Annotation, _Consumption]
+        ] = {}
 
     def visit_If_body(self, _: libcst.If) -> None:
         self._visit_flow_diverging_body(_)
@@ -65,10 +69,6 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def visit_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
         self._visit_flow_diverging_body(_)
 
-    def _visit_flow_diverging_body(self, _: libcst.CSTNode):
-        self._outer_hinting.append(self._scope_local_hinting.copy())
-        self._scope_local_hinting.clear()
-
     def leave_If_body(self, _: libcst.If) -> None:
         self._leave_flow_diverging_body(_)
 
@@ -87,13 +87,19 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def leave_TryStar_body(self, _: libcst.TryStar) -> None:
         self._leave_flow_diverging_body(_)
 
-    def leave_ExceptStarHandler_body(self, _: libcst.CSTNode) -> None:
+    def leave_ExceptStarHandler_body(self, _: libcst.ExceptStarHandler) -> None:
         self._leave_flow_diverging_body(_)
+
+    def _visit_flow_diverging_body(self, _: libcst.CSTNode):
+        self._outer_hinting.append(self._scope_local_hinting.copy())
+        self._scope_local_hinting.clear()
 
     def _leave_flow_diverging_body(self, _: libcst.CSTNode):
         self._scope_local_hinting = self._outer_hinting.pop()
 
-    def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> None:
+    def instance_attribute_hint(
+        self, original_node: libcst.AnnAssign, target: libcst.Name
+    ) -> None:
         meta = TrackedAnnotation(
             labelled=original_node.annotation,
             inferred=original_node.annotation,
@@ -144,7 +150,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         else:
             self.provider.set_metadata(
                 target,
-                TrackedAnnotation(labelled=None, inferred=None, lowered=Lowered.UNALTERED),
+                TrackedAnnotation(
+                    labelled=None, inferred=None, lowered=Lowered.UNALTERED
+                ),
             )
 
     def unannotated_assign_multiple_targets(
@@ -154,7 +162,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
-    def for_target(self, original_node: libcst.For, target: libcst.Name | libcst.Attribute) -> None:
+    def for_target(
+        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
+    ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
     def withitem_target(
@@ -162,23 +172,31 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
-    def _handle_only_indirectly_annotatable(self, target: libcst.Name | libcst.Attribute):
+    def _handle_only_indirectly_annotatable(
+        self, target: libcst.Name | libcst.Attribute
+    ):
         if tracked := self._retrieve_for_unannotated(target):
             annotation, consumption, lowered = tracked
             if consumption is _Consumption.UNUSED:
                 self.provider.set_metadata(
                     target,
-                    TrackedAnnotation(labelled=annotation, inferred=annotation, lowered=lowered),
+                    TrackedAnnotation(
+                        labelled=annotation, inferred=annotation, lowered=lowered
+                    ),
                 )
             else:
                 self.provider.set_metadata(
                     target,
-                    TrackedAnnotation(labelled=None, inferred=annotation, lowered=lowered),
+                    TrackedAnnotation(
+                        labelled=None, inferred=annotation, lowered=lowered
+                    ),
                 )
         else:
             self.provider.set_metadata(
                 target,
-                TrackedAnnotation(labelled=None, inferred=None, lowered=Lowered.UNALTERED),
+                TrackedAnnotation(
+                    labelled=None, inferred=None, lowered=Lowered.UNALTERED
+                ),
             )
 
     def global_target(
@@ -217,10 +235,12 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         return result
 
 
-class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[TrackedAnnotation]):
+class Annotation4InstanceProvider(
+    metadata.BatchableMetadataProvider[TrackedAnnotation]
+):
     METADATA_DEPENDENCIES = (metadata.ParentNodeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> None:
-        metadata.MetadataWrapper(node, unsafe_skip_copy=True, cache=self.metadata).visit(
-            _Annotation4InstanceVisitor(self)
-        )
+        metadata.MetadataWrapper(
+            node, unsafe_skip_copy=True, cache=self.metadata
+        ).visit(_Annotation4InstanceVisitor(self))
