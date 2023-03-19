@@ -22,8 +22,8 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
         self, _: libcst.CSTNode, unannotated: libcst.Name | libcst.Attribute
     ) -> t.Actions:
         meta: TrackedAnnotation = self.get_metadata(Annotation4InstanceProvider, unannotated)
-        assert (lowered_anno := meta.labelled or meta.inferred)
         if meta.lowered is Lowered.ALTERED:
+            assert (lowered_anno := meta.labelled or meta.inferred)
             lowerable_hint = self.get_metadata(metadata.ParentNodeProvider, lowered_anno)
             assert isinstance(lowerable_hint, libcst.AnnAssign)
 
