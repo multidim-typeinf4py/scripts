@@ -35,12 +35,7 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if not m.matches(original_node.value, m.Ellipsis()) and isinstance(
-            metadata[meta.ScopeProvider][original_node.target], meta.ClassScope
-        ):
-            return _access_targets(metadata, original_node.target)
-
-        elif m.matches(original_node.value, m.Ellipsis()) and isinstance(
+        if m.matches(original_node.value, m.Ellipsis()) and isinstance(
             metadata[meta.ScopeProvider][original_node.target],
             meta.ClassScope,
         ):
