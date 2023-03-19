@@ -110,7 +110,7 @@ class Recognition:
             len(original_node.targets) == 1
             and not m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
             and not m.matches(original_node.value, m.Ellipsis())
-            and not _is_class_scope(metadata, asstarget.target)
+            # and not _is_class_scope(metadata, asstarget.target)
         ):
             return _access_targets(metadata, asstarget.target)
         return None
