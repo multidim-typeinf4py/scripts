@@ -195,11 +195,13 @@ class ContextVectorVisitor(
     def unannotated_target(self, target: libcst.Name | libcst.Attribute) -> None:
         name = get_full_name_for_node_or_raise(target)
 
+        annotation = self.get_metadata(anno4inst.Annotation4InstanceProvider, target).labelled
+
         # Reference stored hint if present
         self._handle_annotatable(
             annotatable=target,
             identifier=name,
-            explicit_annotation=None,
+            explicit_annotation=annotation,
             category=TypeCollectionCategory.VARIABLE,
         )
 
