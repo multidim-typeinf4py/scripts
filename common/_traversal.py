@@ -35,7 +35,7 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if m.matches(original_node.value, m.Ellipsis()) and isinstance(
+        if original_node.value is None and isinstance(
             metadata[meta.ScopeProvider][original_node.target],
             meta.ClassScope,
         ):
@@ -60,7 +60,14 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if original_node.value is not None and not m.matches(original_node.value, m.Ellipsis()):
+        if (
+            original_node.value is not None
+            and not m.matches(original_node.value, m.Ellipsis())
+            and not isinstance(
+                metadata[meta.ScopeProvider][original_node.target],
+                meta.ClassScope,
+            )
+        ):
             return _access_targets(metadata, original_node.target)
         return None
 
@@ -111,7 +118,9 @@ class Recognition:
         ):
             unchanged, glbls, nonlocals = list(), list(), list()
 
-            for discovered in (_access_targets(metadata, target.target) for target in original_node.targets):
+            for discovered in (
+                _access_targets(metadata, target.target) for target in original_node.targets
+            ):
                 unchanged.extend(discovered.unchanged)
                 glbls.extend(discovered.glbls)
                 nonlocals.extend(discovered.nonlocals)
@@ -273,7 +282,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def unannotated_assign_single_target(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
+        original_node: libcst.Assign,
         target: libcst.Name | libcst.Attribute,
     ) -> T:
         """

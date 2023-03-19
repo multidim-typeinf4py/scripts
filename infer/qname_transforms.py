@@ -77,7 +77,7 @@ class _SSATransformer(
 
     def unannotated_assign_single_target(
         self,
-        assign: libcst.Assign | libcst.AugAssign,
+        assign: libcst.Assign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
         return self.transform_target(target)

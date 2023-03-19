@@ -67,7 +67,7 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
 
     def unannotated_assign_single_target(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
+        original_node: libcst.Assign,
         target: libcst.Name | libcst.Attribute,
     ) -> t.Actions:
         return self._handle_lowering(original_node, target)
