@@ -39,6 +39,13 @@ class Recognition:
             metadata[meta.ScopeProvider][original_node.target], meta.ClassScope
         ):
             return _access_targets(metadata, original_node.target)
+
+        elif m.matches(original_node.value, m.Ellipsis()) and isinstance(
+            metadata[meta.ScopeProvider][original_node.target],
+            meta.ClassScope,
+        ):
+            return _access_targets(metadata, original_node.target)
+
         return None
 
     @staticmethod
@@ -50,6 +57,7 @@ class Recognition:
             original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ")
         ):
             return _access_targets(metadata, original_node.target)
+
         return None
 
     @staticmethod
@@ -57,9 +65,7 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if original_node.value is not None and not m.matches(
-            original_node.value, m.Ellipsis()
-        ):
+        if original_node.value is not None and not m.matches(original_node.value, m.Ellipsis()):
             return _access_targets(metadata, original_node.target)
         return None
 
@@ -70,15 +76,13 @@ class Recognition:
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
         original_node: libcst.Assign,
     ) -> Targets | None:
-        if (
-            len(original_node.targets) == 1
-            and m.matches(original_node.value, m.Ellipsis())
-            and isinstance(
-                metadata[meta.ScopeProvider][original_node.targets[0].target],
-                meta.ClassScope,
-            )
+
+        if m.matches(original_node.value, m.Ellipsis()) and isinstance(
+            metadata[meta.ScopeProvider][original_node.target],
+            meta.ClassScope,
         ):
-            return _access_targets(metadata, original_node.targets[0].target)
+            return _access_targets(metadata, original_node.target)
+
         return None
 
     @staticmethod
@@ -88,9 +92,7 @@ class Recognition:
     ) -> Targets | None:
         if (
             len(original_node.targets) == 1
-            and not m.matches(
-                asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
-            )
+            and not m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
             and not isinstance(
                 metadata[meta.ScopeProvider][asstarget.target],
                 meta.ClassScope,
@@ -106,9 +108,7 @@ class Recognition:
     ) -> Targets | None:
         if (
             len(original_node.targets) > 1
-            or m.matches(
-                asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
-            )
+            or m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
         ) and (
             not isinstance(
                 metadata[meta.ScopeProvider][asstarget.target],
@@ -159,16 +159,12 @@ class Recognition:
 
     @staticmethod
     def fallthru(original_node: libcst.CSTNode) -> typing.NoReturn:
-        raise Exception(
-            f"Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
-        )
+        raise Exception(f"Cannot recognise {libcst.Module([]).code_for_node(original_node)}")
 
 
 @dataclasses.dataclass(frozen=True)
 class Targets:
-    unchanged: list[libcst.Name | libcst.Attribute] = dataclasses.field(
-        default_factory=list
-    )
+    unchanged: list[libcst.Name | libcst.Attribute] = dataclasses.field(default_factory=list)
     glbls: list[libcst.Name] = dataclasses.field(default_factory=list)
     nonlocals: list[libcst.Name] = dataclasses.field(default_factory=list)
 
@@ -209,9 +205,7 @@ def _access_targets(
 class Matchers:
     annassign = m.AnnAssign(target=NAME | INSTANCE_ATTR)
     assign = m.Assign(
-        targets=[
-            m.AtLeastN(m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1)
-        ]
+        targets=[m.AtLeastN(m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1)]
     )
     augassign = m.AugAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
     fortargets = m.For(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
@@ -225,9 +219,7 @@ T = typing.TypeVar("T")
 
 class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
-    def instance_attribute_hint(
-        self, original_node: libcst.AnnAssign, target: libcst.Name
-    ) -> T:
+    def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> T:
         """
         class C:
             a: int      # triggers
@@ -308,9 +300,7 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def for_target(
-        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
-    ) -> T:
+    def for_target(self, original_node: libcst.For, target: libcst.Name | libcst.Attribute) -> T:
         """
         # triggers for both x and y
         for x, y in zip([1, 2, 3], "abc"):
