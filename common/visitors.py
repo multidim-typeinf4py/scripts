@@ -39,9 +39,7 @@ class HintableParameterVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             self.unannotated_param(param)
 
     @abc.abstractmethod
-    def annotated_param(
-        self, param: libcst.Param, annotation: libcst.Annotation
-    ) -> None:
+    def annotated_param(self, param: libcst.Param, annotation: libcst.Annotation) -> None:
         ...
 
     @abc.abstractmethod
@@ -69,9 +67,7 @@ class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         ...
 
 
-class HintableDeclarationVisitor(
-    m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC
-):
+class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC):
     """
     Provide hook methods for visiting hintable attributes (both a and self.a)
     in Assign, AnnAssign and AugAssign, as well as WithItems and For Loops usages
@@ -84,17 +80,13 @@ class HintableDeclarationVisitor(
 
     @m.call_if_inside(_traversal.Matchers.annassign)
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
-        if targets := _traversal.Recognition.instance_attribute_hint(
-            self.metadata, assignment
-        ):
+        if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, assignment):
             visitor = self.instance_attribute_hint
-        elif targets := _traversal.Recognition.annotated_hint(
-            self.metadata, assignment
-        ):
+        elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, assignment):
+            visitor = self.libsa4py_hint
+        elif targets := _traversal.Recognition.annotated_hint(self.metadata, assignment):
             visitor = self.annotated_hint
-        elif targets := _traversal.Recognition.annotated_assignment(
-            self.metadata, assignment
-        ):
+        elif targets := _traversal.Recognition.annotated_assignment(self.metadata, assignment):
             visitor = self.annotated_assignment
         else:
             _traversal.Recognition.fallthru(assignment)

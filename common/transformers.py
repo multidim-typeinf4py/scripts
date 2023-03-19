@@ -143,6 +143,9 @@ class HintableDeclarationTransformer(
         if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, original_node):
             transformer = self.instance_attribute_hint
 
+        elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, original_node):
+            transformer = self.libsa4py_hint
+
         elif targets := _traversal.Recognition.annotated_hint(self.metadata, original_node):
             transformer = self.annotated_hint
 
