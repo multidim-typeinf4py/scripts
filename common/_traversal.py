@@ -95,10 +95,7 @@ class Recognition:
         if (
             len(original_node.targets) == 1
             and not m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
-            and not isinstance(
-                metadata[meta.ScopeProvider][asstarget.target],
-                meta.ClassScope,
-            )
+            and not m.matches(original_node.value, m.Ellipsis())
         ):
             return _access_targets(metadata, asstarget.target)
         return None
