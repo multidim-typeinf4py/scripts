@@ -86,13 +86,13 @@ class TypeCollection:
 
         for qname, annos in annotations.attributes.items():
             if annos:
-                for explicit, implicit in annos:
+                for anno in annos:
                     contents.append(
                         (
                             filename,
                             TypeCollectionCategory.VARIABLE,
                             qname,
-                            _stringify(explicit) or missing.NA,
+                            _stringify(anno) or missing.NA,
                         )
                     )
 
