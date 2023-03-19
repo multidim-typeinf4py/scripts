@@ -77,11 +77,13 @@ class Recognition:
         original_node: libcst.Assign,
     ) -> Targets | None:
 
-        if m.matches(original_node.value, m.Ellipsis()) and isinstance(
-            metadata[meta.ScopeProvider][original_node.target],
+        if m.matches(
+            original_node, m.Assign(targets=[m.AssignTarget()], value=m.Ellipsis())
+        ) and isinstance(
+            metadata[meta.ScopeProvider][original_node.targets[0].target],
             meta.ClassScope,
         ):
-            return _access_targets(metadata, original_node.target)
+            return _access_targets(metadata, original_node.targets[0].target)
 
         return None
 
@@ -108,14 +110,21 @@ class Recognition:
     ) -> Targets | None:
         if (
             len(original_node.targets) > 1
-            or m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
+            or m.matches(original_node.targets[0], m.AssignTarget(LIST | TUPLE))
         ) and (
             not isinstance(
-                metadata[meta.ScopeProvider][asstarget.target],
+                metadata[meta.ScopeProvider][original_node.targets[0]],
                 meta.ClassScope,
             )
         ):
-            return _access_targets(metadata, asstarget.target)
+            unchanged, glbls, nonlocals = list(), list(), list()
+
+            for discovered in (_access_targets(metadata, target.target) for target in original_node.targets):
+                unchanged.extend(discovered.unchanged)
+                glbls.extend(discovered.glbls)
+                nonlocals.extend(discovered.nonlocals)
+
+            return Targets(unchanged, glbls, nonlocals)
         return None
 
     ## AugAssign
