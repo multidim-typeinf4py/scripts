@@ -393,9 +393,7 @@ class Lowering(LabelTesting):
 
         self.assertInferred(anno4insts[a1], inferred=union_ty, lowerage=Lowered.ALTERED)
         self.assertInferred(anno4insts[a2], inferred=union_ty, lowerage=Lowered.ALTERED)
-        self.assertInferred(
-            anno4insts[a3], inferred=union_ty, lowerage=Lowered.UNALTERED
-        )
+        self.assertInferred(anno4insts[a3], inferred=union_ty, lowerage=Lowered.UNALTERED)
 
     def test_hint_branching(self):
         code = textwrap.dedent(
@@ -429,17 +427,11 @@ class Lowering(LabelTesting):
         stranno = libcst.Annotation(libcst.parse_expression("str"))
 
         self.assertInferred(anno4insts[a1], inferred=union_ty, lowerage=Lowered.ALTERED)
-        self.assertInferred(
-            anno4insts[a2], inferred=stranno, lowerage=Lowered.UNALTERED
-        )
-        self.assertInferred(
-            anno4insts[a22], inferred=stranno, lowerage=Lowered.UNALTERED
-        )
+        self.assertInferred(anno4insts[a2], inferred=stranno, lowerage=Lowered.UNALTERED)
+        self.assertInferred(anno4insts[a22], inferred=stranno, lowerage=Lowered.UNALTERED)
         self.assertInferred(anno4insts[a3], inferred=union_ty, lowerage=Lowered.ALTERED)
         self.assertInferred(anno4insts[a4], inferred=union_ty, lowerage=Lowered.ALTERED)
-        self.assertInferred(
-            anno4insts[a5], inferred=union_ty, lowerage=Lowered.UNALTERED
-        )
+        self.assertInferred(anno4insts[a5], inferred=union_ty, lowerage=Lowered.UNALTERED)
 
     def test_retain_unused_through_branching(self):
         code = textwrap.dedent(
@@ -530,3 +522,31 @@ class Lowering(LabelTesting):
             Lowered.UNALTERED,
         )
         self.assertUnannotated(anno4insts[a3])
+
+    def test_hinting_unannotatable(self):
+        code = textwrap.dedent(
+            """
+        a: int | None
+        if cond:
+            a, = 10,
+        else:
+            a, = None,
+        """
+        )
+
+        module = metadata.MetadataWrapper(libcst.parse_module(code))
+        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+
+        _, a2, a3 = m.findall(module, m.Name("a"))
+        annotation = libcst.Annotation(libcst.parse_expression("int | None"))
+
+        self.assertInferred(
+            anno4insts[a2],
+            annotation,
+            Lowered.ALTERED,
+        )
+        self.assertInferred(
+            anno4insts[a3],
+            annotation,
+            Lowered.ALTERED,
+        )
