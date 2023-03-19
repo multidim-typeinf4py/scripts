@@ -382,7 +382,7 @@ class Test_Annotated(AnnotationTesting):
             if cond:
                 a = 10
             else:
-                a: None = None
+                a = None
 
             a = a or 30
             """,
