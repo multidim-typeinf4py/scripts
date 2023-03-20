@@ -582,11 +582,19 @@ class Test_HintTracking(AnnotationTracking):
     def test_branch_annotating(self):
         df = self.performTracking(
             """
+            import _io
+
+            f: _io.TextWrapper
             a: int | None
+
             if cond:
                 a = 1
+                with p.open() as f:
+                    ...
             else:
                 a = None
+                with q.open() as f:
+                    ...
             """
         )
         self.assertMatchingAnnotating(
@@ -594,6 +602,8 @@ class Test_HintTracking(AnnotationTracking):
             [
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "f", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "f", missing.NA),
             ],
         )
 
