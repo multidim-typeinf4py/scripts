@@ -412,3 +412,30 @@ class Test_Annotated(AnnotationTesting):
             a = a or 30
             """,
         )
+
+        self.assertBuildCodemod(
+            before="""
+            import _io
+
+            f: _io.TextWrapper
+            if cond:
+                with p.open() as f:
+                    ...
+            else:
+                with q.open() as f:
+                    ...
+            """,
+            after="""
+            from __future__ import annotations
+
+            import _io
+
+            f: _io.TextWrapper
+            if cond:
+                with p.open() as f:
+                    ...
+            else:
+                with q.open() as f:
+                    ...
+            """,
+        )
