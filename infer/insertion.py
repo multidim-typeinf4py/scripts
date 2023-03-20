@@ -46,11 +46,11 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             module_tycol, symbol_collector.collection.df
         )
 
-        lowered = LoweringTransformer(context=self.context).transform_module(tree)
+        #lowered = LoweringTransformer(context=self.context).transform_module(tree)
 
         with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
-        ).transform_module(lowered)
+        ).transform_module(tree)
 
         hinted = ApplyTypeAnnotationsVisitor(
             context=self.context,
@@ -63,7 +63,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             context=self.context, annotations=module_tycol
         ).transform_module(hinted)
 
-        unlowered = UnloweringTransformer(context=self.context).transform_module(
-            with_qnames
-        )
-        return unlowered
+        #unlowered = UnloweringTransformer(context=self.context).transform_module(
+        #    with_qnames
+        #)
+        return with_qnames
