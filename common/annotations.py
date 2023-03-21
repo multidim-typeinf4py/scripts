@@ -1264,6 +1264,7 @@ def _get_unique_qualified_name(visitor: m.MatcherDecoratableVisitor, node: libcs
     # Simply pick the first one that is not a relative import
     elif len(names) >= 1 and isinstance(names[0], str):
         name = next(filter(lambda qname: not qname.startswith("."), names), None)
+        name = name or names[0]
     if name is None:
         start = visitor.get_metadata(PositionProvider, node).start
         raise ValueError(
