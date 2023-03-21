@@ -2,9 +2,11 @@ import pathlib
 import shutil
 
 import click
+import pandas
 from common.annotations import TypeAnnotationRemover
 from common import output
 from common import factory
+from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 
 from infer.insertion import TypeAnnotationApplierTransformer
 
@@ -69,6 +71,12 @@ from libcst import codemod
     is_flag=True,
     help="Remove all return annotations in the codebase before inferring",
 )
+@click.option(
+    "-a",
+    "--annotate",
+    is_flag=True,
+    help="Add inferred annotations back into codebase"
+)
 def cli_entrypoint(
     tool: type[Inference],
     inpath: pathlib.Path,
@@ -76,6 +84,7 @@ def cli_entrypoint(
     remove_var_annos: bool,
     remove_param_annos: bool,
     remove_ret_annos: bool,
+    annotate: bool,
 ) -> None:
     with scratchpad(inpath) as sc:
         print(f"Using {sc} as a scratchpad for inference!")
@@ -85,7 +94,9 @@ def cli_entrypoint(
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationRemover(
                     context=codemod.CodemodContext(),
-                    variables=remove_var_annos, parameters=remove_param_annos, rets=remove_ret_annos
+                    variables=remove_var_annos,
+                    parameters=remove_param_annos,
+                    rets=remove_ret_annos,
                 ),
                 files=codemod.gather_files([str(sc)]),
                 repo_root=str(sc),
@@ -107,19 +118,40 @@ def cli_entrypoint(
         print(f"Inference completed; writing results to {outdir}")
         shutil.copytree(sc, outdir, symlinks=True)
 
+    with pandas.option_context(
+        "display.max_rows", None, "display.max_columns", None, "display.expand_frame_repr", False
+    ):
+        df = inference_tool.inferred.copy(deep=True)
+        interesting = []
+
+        if remove_var_annos:
+            interesting.append(TypeCollectionCategory.VARIABLE)
+            interesting.append(TypeCollectionCategory.INSTANCE_ATTR)
+
+        if remove_param_annos:
+            interesting.append(TypeCollectionCategory.CALLABLE_PARAMETER)
+
+        if remove_ret_annos:
+            interesting.append(TypeCollectionCategory.CALLABLE_RETURN)
+
+        df = df[df[TypeCollectionSchema.category].isin(interesting)]
+
+        print(df.sample(n=min(len(df), 20)).sort_index())
+
     output.write_icr(inference_tool.inferred, outdir)
     print(f"Inferred types have been stored at {outdir}")
 
-    print(f"Applying Annotations to codebase at {outdir}")
-    result = codemod.parallel_exec_transform_with_prettyprint(
-        transform=TypeAnnotationApplierTransformer(
-            codemod.CodemodContext(), top_preds_only(inference_tool.inferred)
-        ),
-        files=codemod.gather_files([str(outdir)]),
-        # jobs=1,
-        repo_root=str(outdir),
-    )
-    print(format_parallel_exec_result(action="Annotation Application", result=result))
+    if annotate:
+        print(f"Applying Annotations to codebase at {outdir}")
+        result = codemod.parallel_exec_transform_with_prettyprint(
+            transform=TypeAnnotationApplierTransformer(
+                codemod.CodemodContext(), top_preds_only(inference_tool.inferred)
+            ),
+            files=codemod.gather_files([str(outdir)]),
+            # jobs=1,
+            repo_root=str(outdir),
+        )
+        print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
