@@ -1593,7 +1593,7 @@ rapidfuzz = ">=2.3.0,<3.0.0"
 
 [[package]]
 name = "libcst"
-version = "0.1.dev948+gbabf4a7"
+version = "0.1.dev949+gb8a1773"
 description = "A concrete syntax tree with AST-like properties for Python 3.5, 3.6, 3.7, 3.8, 3.9, and 3.10 programs."
 category = "main"
 optional = false
