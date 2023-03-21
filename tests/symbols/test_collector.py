@@ -287,7 +287,7 @@ class Test_HintTracking(AnnotationTracking):
             [],
         )
 
-    def test_hinting_merged(self):
+    def test_hinting_not_merged(self):
         df = self.performTracking(
             """
         a: int
@@ -308,6 +308,16 @@ class Test_HintTracking(AnnotationTracking):
         )
         self.assertMatchingAnnotating(
             df, [CR(TypeCollectionCategory.VARIABLE, "a", "str")]
+        )
+
+    def test_stub_file_hinting(self):
+        df = self.performTracking(
+            """
+            r: requests.models.Response = ...
+            """)
+
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "r", "requests.models.Response")]
         )
 
     def test_hinting_applied_to_unpackables(self):
@@ -626,5 +636,25 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "b", "amod.B"),
                 CR(TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
                 CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+            ],
+        )
+
+    def test_multi_assignment_class(self):
+        df = self.performTracking(
+            """
+            class UserAdminView(AuthModelMixin):
+                column_display_pk = True
+                # Don't display the password on the list of Users
+                column_exclude_list = list = ("password",)
+                column_default_sort = ("created_at", True)
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_display_pk", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_exclude_list", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_default_sort", missing.NA),
             ],
         )
