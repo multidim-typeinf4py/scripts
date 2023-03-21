@@ -15,7 +15,6 @@ from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
     NAME_OR_ATTRIBUTE,
     StarParamType,
-    _get_unique_qualified_name,
     _get_imported_names,
     _is_non_sentinel,
     _get_string_value,
@@ -1252,3 +1251,24 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
                 value=original_node.value,
             )
         return updated_node
+
+
+def _get_unique_qualified_name(visitor: m.MatcherDecoratableVisitor, node: libcst.CSTNode) -> str:
+    name = None
+    names = [q.name for q in visitor.get_metadata(QualifiedNameProvider, node)]
+    if len(names) == 0:
+        # we hit this branch if the stub is directly using a fully
+        # qualified name, which is not technically valid python but is
+        # convenient to allow.
+        name = get_full_name_for_node(node)
+    # Simply pick the first one that is not a relative import
+    elif len(names) >= 1 and isinstance(names[0], str):
+        name = next(filter(lambda qname: not qname.startswith("."), names), None)
+    if name is None:
+        start = visitor.get_metadata(PositionProvider, node).start
+        raise ValueError(
+            "Could not resolve a unique qualified name for type "
+            + f"{get_full_name_for_node(node)} at {start.line}:{start.column}. "
+            + f"Candidate names were: {names!r}"
+        )
+    return name
