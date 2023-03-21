@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import libcst as cst
 import tqdm
-from libcst import codemod as codemod, metadata
+from libcst import codemod as c, metadata
 
 from common import TypeCollection
 
@@ -16,11 +16,11 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
     files = (
         [str(root)]
         if root.is_file()
-        else codemod.gather_files([str(root)], include_stubs=allow_stubs)
+        else c.gather_files([str(root)], include_stubs=allow_stubs)
     )
 
     visitor = TypeCollectorVisitor.strict(
-        context=codemod.CodemodContext(
+        context=c.CodemodContext(
             metadata_manager=metadata.FullRepoManager(
                 repo_root_dir=repo_root,
                 paths=files,
@@ -39,11 +39,11 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
     return visitor.collection
 
 
-class TypeCollectorVisitor(codemod.ContextAwareVisitor):
+class TypeCollectorVisitor(c.ContextAwareVisitor):
     collection: TypeCollection
 
     def __init__(
-        self, context: codemod.CodemodContext, collection: TypeCollection, strict: bool
+        self, context: c.CodemodContext, collection: TypeCollection, strict: bool
     ) -> None:
         super().__init__(context)
         self.collection = collection
@@ -51,11 +51,11 @@ class TypeCollectorVisitor(codemod.ContextAwareVisitor):
         self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
-    def strict(context: codemod.CodemodContext) -> TypeCollectorVisitor:
+    def strict(context: c.CodemodContext) -> TypeCollectorVisitor:
         return TypeCollectorVisitor(context=context, collection=TypeCollection.empty(), strict=True)
 
     @staticmethod
-    def lax(context: codemod.CodemodContext) -> TypeCollectorVisitor:
+    def lax(context: c.CodemodContext) -> TypeCollectorVisitor:
         return TypeCollectorVisitor(context=context, collection=TypeCollection.empty(), strict=False)
 
     def visit_Module(self, tree: cst.Module) -> None:
