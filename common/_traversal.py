@@ -2,8 +2,6 @@ from __future__ import annotations
 import abc
 
 import dataclasses
-import functools
-import itertools
 import typing
 
 import libcst
@@ -121,6 +119,9 @@ class Recognition:
         original_node: libcst.Assign,
     ) -> Targets | None:
         """
+        class Clazz:
+            a = b = ("Hello World",)
+
         a = b = 10
         a, b = 2, 10
         [a, (b, c)] = 10, (20, 30)
@@ -128,7 +129,8 @@ class Recognition:
         if (
             len(original_node.targets) > 1
             or m.matches(original_node.targets[0], m.AssignTarget(LIST | TUPLE))
-        ) and not _is_class_scope(metadata, original_node.targets[0].target):
+        ): 
+        #and not _is_class_scope(metadata, original_node.targets[0].target):
             unchanged, glbls, nonlocals = list(), list(), list()
 
             for discovered in (
