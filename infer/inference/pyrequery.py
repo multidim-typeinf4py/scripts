@@ -7,14 +7,13 @@ import pandas._libs.missing as missing
 import pandera.typing as pt
 
 import libcst
-from _pytest.config import ExitCode
 from libcst import metadata
 from libcst import helpers
 from libcst.codemod import _cli as cstcli
 
 from libsa4py import pyre
 
-from pyre_check.client.commands import start, stop, initialize
+from pyre_check.client.commands import start, stop, initialize, ExitCode
 from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
