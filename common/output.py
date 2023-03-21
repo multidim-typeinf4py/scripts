@@ -55,7 +55,7 @@ def read_icr(project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
 
 
 def inference_output_path(
-    inpath: pathlib.Path,
-    tool: str,
+    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
 ) -> pathlib.Path:
-    return inpath.parent / f"{inpath.name}@({tool})"
+    removed_names = ",".join(map(str, removed))
+    return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]"
