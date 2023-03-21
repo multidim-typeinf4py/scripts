@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
                 try:
                     _ = build_type_collection(path, allow_stubs=False)
-                except libcst.ParserSyntaxError as pse:
-                    out.write(f"{author}/{repo} - {pse.message}\n")
+                #except libcst.ParserSyntaxError as pse:
+                #    out.write(f"{author}/{repo} - {pse.message}\n")
                 except Exception as e:
                     err.write(f"{author}/{repo} - {e}\n")
