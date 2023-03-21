@@ -26,7 +26,7 @@ class PyreInfer(ProjectWideInference):
             infargs = command_arguments.InferArguments(
                 working_directory=sp,
                 annotate_attributes=True,
-                annotate_from_existing_stubs=False,
+                annotate_from_existing_stubs=True,
                 debug_infer=False,
                 quote_annotations=False,
                 dequalify=False,
@@ -41,7 +41,7 @@ class PyreInfer(ProjectWideInference):
             )
 
             return (
-                _adaptors.stubs2df(sp / PyreInfer._OUTPUT_DIR / "types")
+                _adaptors.hints2df(sp)
                 .assign(method=self.method, topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )
