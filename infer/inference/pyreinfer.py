@@ -41,7 +41,7 @@ class PyreInfer(ProjectWideInference):
             )
 
             return (
-                _adaptors.hints2df(sp)
+                _adaptors.stubs2df(sp / PyreInfer._OUTPUT_DIR / "types")
                 .assign(method=self.method, topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )
