@@ -87,13 +87,20 @@ class Recognition:
             a: int = 5
         
         a: int = 5
+
+        r: requests.models.Response = ...
         """
         if (
             original_node.value is not None
             and not m.matches(original_node.value, m.Ellipsis())
-            # and not _is_class_scope(metadata, original_node.target)
+            #and _is_class_scope(metadata, original_node.target)
         ):
             return _access_targets(metadata, original_node.target)
+
+        # Support for stub files here
+        elif m.matches(original_node.value, m.Ellipsis()) and not _is_class_scope(metadata, original_node.target):
+            return _access_targets(metadata, original_node.target)
+
         return None
 
     @staticmethod
