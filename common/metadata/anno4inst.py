@@ -116,19 +116,21 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
             lowered=Lowered.UNALTERED,
         )
         self.provider.set_metadata(target, meta)
-        self._scope_local_hinting[self.qualified_name(target)] = (
-            original_node.annotation,
-            _Consumption.USED,
-            Lowered.UNALTERED,
+        self._track_annotation(
+            qname=self.qualified_name(target),
+            consumption=_Consumption.USED,
+            lowerage=Lowered.UNALTERED,
+            annotation=original_node.annotation,
         )
 
     def annotated_hint(
         self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
     ) -> None:
-        self._scope_local_hinting[self.qualified_name(target)] = (
-            original_node.annotation,
-            _Consumption.UNUSED,
-            Lowered.UNALTERED,
+        self._track_annotation(
+            qname=self.qualified_name(target),
+            consumption=_Consumption.UNUSED,
+            lowerage=Lowered.UNALTERED,
+            annotation=original_node.annotation,
         )
 
     def unannotated_assign_single_target(
@@ -208,7 +210,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         if a := self._scope_local_hinting.get(qname, None):
             # Replace entry with USED, retain lowerage status
             anno, _, lowered = result = a
-            self._scope_local_hinting[qname] = (anno, _Consumption.USED, lowered)
+            self._track_annotation(qname, _Consumption.USED, lowered, annotation=anno)
 
         elif hints := next(
             filter(lambda h: qname in h, reversed(self._outer_hinting)),
@@ -216,9 +218,23 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         ):
             # Add entry to local hinting as ALTERED
             anno, _, _ = hints[qname]
-            self._scope_local_hinting[qname] = result = (anno, _Consumption.USED, Lowered.ALTERED)
+            result = (anno, _Consumption.USED, Lowered.ALTERED)
+            self._track_annotation(qname, _Consumption.USED, Lowered.ALTERED, annotation=anno)
 
         return result
+
+    def _track_annotation(
+        self,
+        qname: str,
+        consumption: _Consumption,
+        lowerage: Lowered,
+        annotation: libcst.Annotation,
+    ) -> libcst.Annotation:
+        self._scope_local_hinting[qname] = (annotation, consumption, lowerage)
+
+        # Insert preprocessing here if wished
+
+        return annotation
 
 
 class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[TrackedAnnotation]):

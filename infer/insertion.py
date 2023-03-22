@@ -9,7 +9,6 @@ from common.schemas import TypeCollectionSchema
 from common.storage import TypeCollection
 
 from .qname_transforms import QName2SSATransformer, SSA2QNameTransformer
-from .lower_transforms import LoweringTransformer, UnloweringTransformer
 
 from symbols.collector import TypeCollectorVisitor
 
@@ -22,6 +21,10 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
     ) -> None:
         super().__init__(context)
         self.annotations = annotations
+
+        self.annotations[TypeCollectionSchema.anno] = self.annotations[
+            TypeCollectionSchema.anno
+        ].str.removeprefix("builtins.")
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         assert self.context.filename is not None
@@ -46,7 +49,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             module_tycol, symbol_collector.collection.df
         )
 
-        #lowered = LoweringTransformer(context=self.context).transform_module(tree)
+        # lowered = LoweringTransformer(context=self.context).transform_module(tree)
 
         with_ssa_qnames = QName2SSATransformer(
             context=self.context, annotations=module_tycol
@@ -63,7 +66,7 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
             context=self.context, annotations=module_tycol
         ).transform_module(hinted)
 
-        #unlowered = UnloweringTransformer(context=self.context).transform_module(
+        # unlowered = UnloweringTransformer(context=self.context).transform_module(
         #    with_qnames
-        #)
+        # )
         return with_qnames

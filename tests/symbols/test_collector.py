@@ -41,59 +41,59 @@ def code_path() -> typing.Iterator[pathlib.Path]:
         (
             TypeCollectionCategory.CALLABLE_RETURN,
             [
-                ("function", "function", "int"),
+                ("function", "function", "builtins.int"),
                 (
                     "function_with_multiline_parameters",
                     "function_with_multiline_parameters",
-                    "int",
+                    "builtins.int",
                 ),
                 ("Clazz.__init__", "Clazz.__init__", "None"),
                 ("Clazz.method", "Clazz.method", missing.NA),
-                ("Clazz.multiline_method", "Clazz.multiline_method", "tuple"),
-                ("Clazz.function", "Clazz.function", "int"),
-                ("outer", "outer", "int"),
-                ("outer.nested", "outer.nested", "str"),
+                ("Clazz.multiline_method", "Clazz.multiline_method", "builtins.tuple"),
+                ("Clazz.function", "Clazz.function", "builtins.int"),
+                ("outer", "outer", "builtins.int"),
+                ("outer.nested", "outer.nested", "builtins.str"),
             ],
         ),
         (
             TypeCollectionCategory.CALLABLE_PARAMETER,
             [
                 # function
-                ("function.a", "function.a", "int"),
-                ("function.b", "function.b", "str"),
-                ("function.c", "function.c", "int"),
+                ("function.a", "function.a", "builtins.int"),
+                ("function.b", "function.b", "builtins.str"),
+                ("function.c", "function.c", "builtins.int"),
                 # function_with_multiline_parameters
                 (
                     "function_with_multiline_parameters.a",
                     "function_with_multiline_parameters.a",
-                    "str",
+                    "builtins.str",
                 ),
                 (
                     "function_with_multiline_parameters.b",
                     "function_with_multiline_parameters.b",
-                    "int",
+                    "builtins.int",
                 ),
                 (
                     "function_with_multiline_parameters.c",
                     "function_with_multiline_parameters.c",
-                    "str",
+                    "builtins.str",
                 ),
                 # Clazz.__init__
                 ("Clazz.__init__.self", "Clazz.__init__.self", missing.NA),
-                ("Clazz.__init__.a", "Clazz.__init__.a", "int"),
+                ("Clazz.__init__.a", "Clazz.__init__.a", "builtins.int"),
                 # Clazz.method
                 ("Clazz.method.self", "Clazz.method.self", missing.NA),
-                ("Clazz.method.a", "Clazz.method.a", "int"),
-                ("Clazz.method.b", "Clazz.method.b", "str"),
-                ("Clazz.method.c", "Clazz.method.c", "int"),
+                ("Clazz.method.a", "Clazz.method.a", "builtins.int"),
+                ("Clazz.method.b", "Clazz.method.b", "builtins.str"),
+                ("Clazz.method.c", "Clazz.method.c", "builtins.int"),
                 # Clazz.multiline_method
                 (
                     "Clazz.multiline_method.self",
                     "Clazz.multiline_method.self",
                     missing.NA,
                 ),
-                ("Clazz.multiline_method.a", "Clazz.multiline_method.a", "str"),
-                ("Clazz.multiline_method.b", "Clazz.multiline_method.b", "int"),
+                ("Clazz.multiline_method.a", "Clazz.multiline_method.a", "builtins.str"),
+                ("Clazz.multiline_method.b", "Clazz.multiline_method.b", "builtins.int"),
                 ("Clazz.multiline_method.c", "Clazz.multiline_method.c", missing.NA),
                 # Clazz.function
                 ("Clazz.function.self", "Clazz.function.self", missing.NA),
@@ -101,7 +101,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("Clazz.function.b", "Clazz.function.b", "bmod.B"),
                 ("Clazz.function.c", "Clazz.function.c", "cmod.C"),
                 # outer.nested
-                ("outer.nested.a", "outer.nested.a", "int"),
+                ("outer.nested.a", "outer.nested.a", "builtins.int"),
             ],
         ),
         (
@@ -113,15 +113,15 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                     "function_with_multiline_parameters.vλ1",
                     missing.NA,
                 ),
-                ("Clazz.__init__.self.a", "Clazz.__init__.self.aλ1", "int"),
+                ("Clazz.__init__.self.a", "Clazz.__init__.self.aλ1", "builtins.int"),
                 ("Clazz.function.v", "Clazz.function.vλ1", missing.NA),
-                ("a", "aλ1", "int"),
-                ("outer.nested.result", "outer.nested.resultλ1", "str"),
+                ("a", "aλ1", "builtins.int"),
+                ("outer.nested.result", "outer.nested.resultλ1", "builtins.str"),
             ],
         ),
         (
             TypeCollectionCategory.INSTANCE_ATTR,
-            [("Clazz.a", "Clazz.a", "int")],
+            [("Clazz.a", "Clazz.a", "builtins.int")],
         ),
     ],
     ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "INSTANCE_ATTR"],
@@ -240,7 +240,7 @@ class Test_TrackUnannotated(AnnotationTracking):
             df,
             [
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str"),
                 CR(TypeCollectionCategory.CALLABLE_RETURN, "f", missing.NA),
                 CR(
                     TypeCollectionCategory.CALLABLE_PARAMETER,
@@ -257,7 +257,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "f.c",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "int"),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "builtins.int"),
                 CR(
                     TypeCollectionCategory.CALLABLE_RETURN,
                     "C.__init__",
@@ -268,8 +268,8 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "builtins.str"),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.self.x",
@@ -304,7 +304,7 @@ class Test_HintTracking(AnnotationTracking):
             a: str = "Hello World"
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", "str")])
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str")])
 
     def test_stub_file_hinting(self):
         df = self.performTracking(
@@ -330,8 +330,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             tuple_df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "b", "list[str]"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "builtins.list[builtins.str]"),
             ],
         )
 
@@ -346,8 +346,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             list_df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "list[str]"),
-                CR(TypeCollectionCategory.VARIABLE, "b", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.list[builtins.str]"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "builtins.int"),
             ],
         )
 
@@ -365,9 +365,9 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "b", "str"),
-                CR(TypeCollectionCategory.VARIABLE, "d", "tuple[int, str]"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "builtins.str"),
+                CR(TypeCollectionCategory.VARIABLE, "d", "builtins.tuple[builtins.int, builtins.str]"),
             ],
         )
 
@@ -387,7 +387,7 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "d", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
                 CR(TypeCollectionCategory.VARIABLE, "b", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "c", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "c", "builtins.int"),
             ],
         )
 
@@ -405,8 +405,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str"),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
@@ -424,9 +424,9 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "a", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str"),
                 CR(TypeCollectionCategory.VARIABLE, "a", missing.NA),
             ],
         )
@@ -449,7 +449,7 @@ class Test_HintTracking(AnnotationTracking):
             """
         )
         self.assertMatchingAnnotating(
-            annotated_df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")]
+            annotated_df, [CR(TypeCollectionCategory.VARIABLE, "x", "builtins.int")]
         )
 
     def test_for_unannotated(self):
@@ -469,7 +469,7 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")])
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", "builtins.int")])
 
     def test_for_unpacking_annotated(self):
         df = self.performTracking(
@@ -484,8 +484,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "x", "int"),
-                CR(TypeCollectionCategory.VARIABLE, "y", "str"),
+                CR(TypeCollectionCategory.VARIABLE, "x", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "y", "builtins.str"),
             ],
         )
 
@@ -559,7 +559,7 @@ class Test_HintTracking(AnnotationTracking):
             df,
             [
                 CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "int"),
+                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "builtins.int"),
             ],
         )
 
@@ -573,7 +573,7 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "C.a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.a", "builtins.int"),
             ],
         )
 
@@ -620,7 +620,7 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "a", "int"),
+                CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
                 CR(TypeCollectionCategory.VARIABLE, "b", "amod.B"),
                 CR(TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
                 # CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),

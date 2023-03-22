@@ -331,9 +331,7 @@ class MultiVarTypeCollector(
                     asname = m.alias
                 else:
                     asname = None
-                AddImportsVisitor.add_needed_import(
-                    self.context, m.module_name, asname=asname
-                )
+                AddImportsVisitor.add_needed_import(self.context, m.module_name, asname=asname)
                 return True
             else:
                 if node and isinstance(node, libcst.Name) and node.value != target:
@@ -354,23 +352,25 @@ class MultiVarTypeCollector(
     # Each of these does one of two things, possibly recursively, over some
     # valid CST node for a static type:
     #  - process the qualified name and ensure we will add necessary imports
-    #  - dequalify the node
+    #  - dequalify the node if the node is builtin
 
     def _handle_NameOrAttribute(
         self,
         node: NameOrAttribute,
     ) -> Union[libcst.Name, libcst.Attribute]:
+        if m.matches(node, m.Name("None")):
+            return node
+
         qualified_name = _get_unique_qualified_name(self, node)
-        should_qualify = self._handle_qualification_and_should_qualify(qualified_name, node)
+        _ = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
-        if should_qualify:
-            qualified_node = (
-                libcst.parse_module(qualified_name) if isinstance(node, libcst.Name) else node
-            )
-            return qualified_node  # pyre-ignore[7]
-        else:
-            dequalified_node = node.attr if isinstance(node, libcst.Attribute) else node
-            return dequalified_node
+        qualified_node = (
+            libcst.parse_module(qualified_name) if isinstance(node, libcst.Name) else node
+        )
+        return qualified_node  # pyre-ignore[7]
+        #else:
+        #    dequalified_node = node.attr if isinstance(node, libcst.Attribute) else node
+        #    return dequalified_node
 
     def _handle_Index(
         self,
@@ -424,11 +424,8 @@ class MultiVarTypeCollector(
 
     def _handle_Annotation(
         self,
-        annotation: libcst.Annotation | None,
-    ) -> libcst.Annotation | None:
-        if annotation is None:
-            return annotation
-
+        annotation: libcst.Annotation,
+    ) -> libcst.Annotation:
         node = annotation.annotation
         if isinstance(node, libcst.SimpleString):
             self.annotations.names.add(_get_string_value(node))
@@ -448,7 +445,7 @@ class MultiVarTypeCollector(
 
         # Note: this is primarily meant to support pydantic style annotations
         # which have HIGHLY dynamic properties, e.g. pydantic.constr
-        elif m.matches(node, m.Call()):
+        elif m.matches(node, m.Call(m.Name() | m.Attribute())):
             return libcst.Annotation(annotation=self._handle_NameOrAttribute(node.func))
 
         else:
