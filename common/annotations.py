@@ -445,6 +445,12 @@ class MultiVarTypeCollector(
                     right=self._handle_Annotation(libcst.Annotation(node.right)).annotation,
                 )
             )
+
+        # Note: this is primarily meant to support pydantic style annotations
+        # which have HIGHLY dynamic properties, e.g. pydantic.constr
+        elif m.matches(node, m.Call()):
+            return libcst.Annotation(annotation=self._handle_NameOrAttribute(node.func))
+
         else:
             raise ValueError(f"Unexpected annotation node: {node}")
 
