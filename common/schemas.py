@@ -49,6 +49,7 @@ class ContextCategory(enum.IntEnum):
 
 
 class ContextSymbolSchema(TypeCollectionSchema):
+    simple_name: pt.Series[str] = pa.Field()
     loop: pt.Series[int] = pa.Field()
     reassigned: pt.Series[int] = pa.Field()
     nested: pt.Series[int] = pa.Field()
