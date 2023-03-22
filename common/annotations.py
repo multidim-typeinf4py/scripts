@@ -322,26 +322,31 @@ class MultiVarTypeCollector(
         module, target = self._module_and_target(qualified_name)
         if module in ("", "builtins"):
             return False
-
-        if qualified_name not in self.existing_imports:
+        elif qualified_name not in self.existing_imports:
             if module in self.existing_imports:
                 return True
-
             elif module in self.module_imports:
                 m = self.module_imports[module]
                 if m.obj_name is None:
                     asname = m.alias
                 else:
                     asname = None
-                AddImportsVisitor.add_needed_import(self.context, m.module_name, asname=asname)
+                AddImportsVisitor.add_needed_import(
+                    self.context, m.module_name, asname=asname
+                )
                 return True
-
             else:
+                if node and isinstance(node, libcst.Name) and node.value != target:
+                    asname = node.value
+                else:
+                    asname = None
                 AddImportsVisitor.add_needed_import(
                     self.context,
                     module,
+                    target,
+                    asname=asname,
                 )
-                return True
+                return False
         return False
 
     # Handler functions.

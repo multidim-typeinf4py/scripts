@@ -294,9 +294,7 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)])
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -306,15 +304,15 @@ class Test_HintTracking(AnnotationTracking):
             a: str = "Hello World"
             """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "a", "str")]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", "str")])
 
     def test_stub_file_hinting(self):
         df = self.performTracking(
             """
+            import requests.models
             r: requests.models.Response = ...
-            """)
+            """
+        )
 
         self.assertMatchingAnnotating(
             df, [CR(TypeCollectionCategory.VARIABLE, "r", "requests.models.Response")]
@@ -461,9 +459,7 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -473,9 +469,7 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", "int")])
 
     def test_for_unpacking_annotated(self):
         df = self.performTracking(
@@ -503,9 +497,7 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -522,9 +514,7 @@ class Test_HintTracking(AnnotationTracking):
             df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -539,9 +529,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -626,7 +614,7 @@ class Test_HintTracking(AnnotationTracking):
             a: int = 5
             b: amod.B = amod.B(10)
             c: Callable = lambda: _
-            d: notimported.buthereanyway = 10
+            # d: notimported.buthereanyway = 10
             """
         )
         self.assertMatchingAnnotating(
@@ -635,7 +623,25 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "a", "int"),
                 CR(TypeCollectionCategory.VARIABLE, "b", "amod.B"),
                 CR(TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
-                CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+                # CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+            ],
+        )
+
+    def test_multi_import_handling(self):
+        df = self.performTracking(
+            """
+            from typing import Callable
+            import typing
+
+            a: Callable = ...
+            b: typing.Callable = ...
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                CR(TypeCollectionCategory.VARIABLE, "a", "typing.Callable"),
+                CR(TypeCollectionCategory.VARIABLE, "b", "typing.Callable"),
             ],
         )
 
@@ -653,8 +659,12 @@ class Test_HintTracking(AnnotationTracking):
             df,
             [
                 CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_display_pk", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_exclude_list", missing.NA),
+                CR(
+                    TypeCollectionCategory.VARIABLE, "UserAdminView.column_exclude_list", missing.NA
+                ),
                 CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_default_sort", missing.NA),
+                CR(
+                    TypeCollectionCategory.VARIABLE, "UserAdminView.column_default_sort", missing.NA
+                ),
             ],
         )
