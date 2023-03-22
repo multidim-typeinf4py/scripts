@@ -11,7 +11,7 @@ from common import output
 
 from context.features import RelevantFeatures
 
-from .visitors import generate_context_vectors_for_file
+from .visitors import generate_context_vectors_for_project
 
 
 class Purpose(str, enum.Enum):
@@ -82,12 +82,7 @@ def cli_entrypoint(
         branching=flow,
     )
 
-    rs = [
-        generate_context_vectors_for_file(features, repo=inpath, path=pathlib.Path(file))
-        for file in codemod.gather_files([str(inpath)])
-    ]
-    df = pd.concat(rs, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
-
+    df = generate_context_vectors_for_project(features, repo=inpath)
     print(f"Feature set size: {df.shape}; writing to {output.context_vector_path(inpath)}")
     output.write_context_vectors(df, inpath)
 

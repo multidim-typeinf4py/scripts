@@ -28,32 +28,38 @@ from context.features import RelevantFeatures
 def generate_context_vectors_for_project(
     features: RelevantFeatures, repo: pathlib.Path
 ) -> pt.DataFrame[ContextSymbolSchema]:
-    assert repo.is_dir()
     repo_root = str(repo)
+    assert repo.is_dir(), f"Path to folder is required, got {repo_root}"
     files = c.gather_files([repo_root], include_stubs=False)
 
-    file2code = {file: open(file).read() for file in tqdm.tqdm(files)}
+    file2code = {
+        file: open(file).read()
+        for file in tqdm.tqdm(files, desc=f"Loading files for dataset creating of {repo_root}")
+    }
 
     collector = generate_context_vectors_for_file(
         features=features, repo_root=repo_root, files=files
     )
-    collections = process_map(collector, file2code.items(), desc=repo_root, total=len(file2code))
+    collections = process_map(
+        collector,
+        file2code.items(),
+        total=len(file2code),
+        desc=f"Creating dataset for {repo_root}",
+        position=0,
+    )
     return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
 
 
 def generate_context_vectors_for_file(
-    features: RelevantFeatures, repo: pathlib.Path, path: pathlib.Path | str
+    features: RelevantFeatures, repo: pathlib.Path, file2code: tuple[pathlib.Path, str]
 ) -> pt.DataFrame[ContextSymbolSchema]:
-    visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
-
-    if isinstance(path, str):
-        module = libcst.parse_module(path)
-    else:
-        module = libcst.parse_module(path.open().read())
+    path, code = file2code
+    module = libcst.parse_module(code)
 
     md = metadata.MetadataWrapper(module)
-    md.visit(visitor)
 
+    visitor = ContextVectorVisitor(filepath=str(path.relative_to(repo)), features=features)
+    md.visit(visitor)
     return visitor.build()
 
 

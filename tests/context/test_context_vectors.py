@@ -1,4 +1,5 @@
 import pathlib
+import libcst
 
 import pandas as pd
 import pandera.typing as pt
@@ -13,12 +14,15 @@ import pytest
 @pytest.fixture(scope="class")
 def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "context"
+
+    filepath = repo / "resource.py"
+
     cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(
             loop=True, reassigned=True, nested=True, user_defined=True, branching=True
         ),
         repo=repo,
-        path=repo / "resource.py",
+        file2code=(filepath, filepath.open().read()),
     )
 
     print(cvs)
@@ -28,7 +32,9 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
 class TestFeatures:
     def test_loop(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.exact_check(
-            context_dataset, ["looping.x", "looping.a", "looping._", "branching.a", "branching.e"], ContextSymbolSchema.loop
+            context_dataset,
+            ["looping.x", "looping.a", "looping._", "branching.a", "branching.e"],
+            ContextSymbolSchema.loop,
         )
 
     def test_reassigned(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
@@ -73,7 +79,7 @@ class TestFeatures:
                 "branching",
                 "branching.x",
             ],
-            ContextSymbolSchema.branching
+            ContextSymbolSchema.branching,
         )
         self.one_positive_check(context_dataset, ["branching.a"], ContextSymbolSchema.branching)
         self.one_negative_check(context_dataset, ["branching.a"], ContextSymbolSchema.branching)
