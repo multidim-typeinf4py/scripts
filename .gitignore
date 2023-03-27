@@ -169,6 +169,10 @@ cython_debug/
 
 models/*
 !models/.gitkeep
+
+slurm/datasets/*
+!slurm/datasets/.gitkeep
+
 .hityper
 
 .context-datasets/
