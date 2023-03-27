@@ -2,14 +2,15 @@ import enum
 import pathlib
 
 import click
-import pandera.typing as pt
-import pandas as pd
-import libcst.codemod as codemod
+from libcst import codemod
 
-from common.schemas import ContextSymbolSchema
-from common import output
+from common.schemas import InferredSchema, TypeCollectionCategory
+from common import factory, output
 
 from context.features import RelevantFeatures
+from infer.inference import Inference, MyPy, PyreInfer, PyreQuery, HiTyper, TypeWriter, Type4Py
+from infer.insertion import TypeAnnotationApplierTransformer
+from utils import format_parallel_exec_result, scratchpad
 
 from .visitors import generate_context_vectors_for_project
 
@@ -24,7 +25,43 @@ class Purpose(str, enum.Enum):
     "-i",
     "--inpath",
     type=click.Path(exists=True, dir_okay=True, file_okay=True, path_type=pathlib.Path),
-    help="Project to analyse",
+    help="Path of project that was inferred over",
+)
+@click.option(
+    "-t",
+    "--tool",
+    type=click.Choice(
+        choices=[
+            MyPy.__name__.lower(),
+            PyreInfer.__name__.lower(),
+            PyreQuery.__name__.lower(),
+            HiTyper.__name__.lower(),
+            TypeWriter.__name__.lower(),
+            Type4Py.__name__.lower(),
+        ],
+        case_sensitive=False,
+    ),
+    callback=lambda ctx, _, value: factory._inference_factory(value),
+    required=True,
+    help="Which inference tool was used Supported inference methods",
+)
+@click.option(
+    "-rv",
+    "--remove-var-annos",
+    is_flag=True,
+    help="Were variable annotations removed?",
+)
+@click.option(
+    "-rp",
+    "--remove-param-annos",
+    is_flag=True,
+    help="Were parameters annotations removed?",
+)
+@click.option(
+    "-rr",
+    "--remove-ret-annos",
+    is_flag=True,
+    help="Were return annotations removed?",
 )
 @click.option(
     "-l",
@@ -68,6 +105,10 @@ class Purpose(str, enum.Enum):
 )
 def cli_entrypoint(
     inpath: pathlib.Path,
+    tool: type[Inference],
+    remove_var_annos: bool,
+    remove_param_annos: bool,
+    remove_ret_annos: bool,
     loop: bool,
     reassigned: bool,
     nested: bool,
@@ -82,9 +123,36 @@ def cli_entrypoint(
         branching=flow,
     )
 
-    df = generate_context_vectors_for_project(features, repo=inpath)
-    print(f"Feature set size: {df.shape}; writing to {output.context_vector_path(inpath)}")
-    output.write_context_vectors(df, inpath)
+    removed = []
+
+    if remove_var_annos:
+        removed.append(TypeCollectionCategory.VARIABLE)
+        removed.append(TypeCollectionCategory.INSTANCE_ATTR)
+
+    if remove_param_annos:
+        removed.append(TypeCollectionCategory.CALLABLE_PARAMETER)
+
+    if remove_ret_annos:
+        removed.append(TypeCollectionCategory.CALLABLE_RETURN)
+
+    inferred = output.read_inferred(inpath, tool.method, removed=removed)
+
+    for _, topx in inferred.groupby(by=InferredSchema.topn):
+        with scratchpad(inpath) as sc:
+            print(f"Using {sc} as a scratchpad for context gathering!")
+            result = codemod.parallel_exec_transform_with_prettyprint(
+                transform=TypeAnnotationApplierTransformer(
+                    codemod.CodemodContext(), annotations=topx
+                ),
+                files=codemod.gather_files([str(sc)]),
+                # jobs=1,
+                repo_root=str(sc),
+            )
+        print(format_parallel_exec_result(action="Annotation Application", result=result))
+
+        df = generate_context_vectors_for_project(features, repo=sc)
+        print(f"Feature set size: {df.shape}; writing to {output.context_vector_path(inpath)}")
+        output.write_context_vectors(df, inpath)
 
 
 if __name__ == "__main__":
