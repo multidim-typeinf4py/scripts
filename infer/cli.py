@@ -153,7 +153,7 @@ def cli_entrypoint(
 
         print(df.sample(n=min(len(df), 20)).sort_index())
 
-    output.write_icr(df, outdir)
+    output.write_inferred(df, outdir)
     print(f"Inferred types have been stored at {outdir}")
 
     if annotate:
