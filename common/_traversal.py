@@ -85,7 +85,7 @@ class Recognition:
         """
         class Clazz:
             a: int = 5
-        
+
         a: int = 5
 
         r: requests.models.Response = ...
@@ -136,7 +136,7 @@ class Recognition:
         if (
             len(original_node.targets) > 1
             or m.matches(original_node.targets[0], m.AssignTarget(LIST | TUPLE))
-        ): 
+        ):
         #and not _is_class_scope(metadata, original_node.targets[0].target):
             unchanged, glbls, nonlocals = list(), list(), list()
 
@@ -201,8 +201,9 @@ class Recognition:
     ## Misc
 
     @staticmethod
-    def fallthru(original_node: libcst.CSTNode) -> typing.NoReturn:
-        raise Exception(f"Cannot recognise {libcst.Module([]).code_for_node(original_node)}")
+    def fallthru(original_node: libcst.CSTNode) -> Targets:
+        print(f"WARNING: Cannot recognise {libcst.Module([]).code_for_node(original_node)}")
+        return Targets(list(), list(), list())
 
 
 def _is_class_scope(

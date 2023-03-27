@@ -154,6 +154,7 @@ class HintableDeclarationTransformer(
 
         else:
             _traversal.Recognition.fallthru(original_node)
+            return original_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -176,6 +177,7 @@ class HintableDeclarationTransformer(
 
         else:
             _traversal.Recognition.fallthru(original_node)
+            return original_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -187,6 +189,7 @@ class HintableDeclarationTransformer(
             transformer = self.unannotated_assign_multiple_targets
         else:
             _traversal.Recognition.fallthru(original_node)
+            return original_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -198,6 +201,7 @@ class HintableDeclarationTransformer(
             transformer = self.for_target
         else:
             _traversal.Recognition.fallthru(original_node)
+            return original_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -209,6 +213,7 @@ class HintableDeclarationTransformer(
             transformer = self.withitem_target
         else:
             _traversal.Recognition.fallthru(original_node)
+            return original_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 

@@ -90,6 +90,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
             visitor = self.annotated_assignment
         else:
             _traversal.Recognition.fallthru(assignment)
+            return None
 
         self._apply_visit(targets, visitor, assignment)
 
@@ -114,6 +115,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
 
         else:
             _traversal.Recognition.fallthru(node)
+            return None
 
         self._apply_visit(targets, visitor, node)
 
@@ -123,6 +125,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
             visitor = self.unannotated_assign_multiple_targets
         else:
             _traversal.Recognition.fallthru(node)
+            return None
 
         return self._apply_visit(targets, visitor, node)
 
@@ -132,6 +135,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
             visitor = self.for_target
         else:
             _traversal.Recognition.fallthru(node)
+            return None
 
         return self._apply_visit(targets, visitor, node)
 
@@ -141,6 +145,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
             visitor = self.withitem_target
         else:
             _traversal.Recognition.fallthru(node)
+            return None
 
         return self._apply_visit(targets, visitor, node)
 
