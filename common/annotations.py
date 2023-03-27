@@ -8,8 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import libcst
-import libcst.matchers as m
-from libcst import metadata, codemod as c
+from libcst import metadata, codemod as c, matchers as m, helpers as h
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
@@ -364,11 +363,12 @@ class MultiVarTypeCollector(
         qualified_name = _get_unique_qualified_name(self, node)
         _ = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
+
         qualified_node = (
             libcst.parse_module(qualified_name) if isinstance(node, libcst.Name) else node
         )
         return qualified_node  # pyre-ignore[7]
-        #else:
+        # else:
         #    dequalified_node = node.attr if isinstance(node, libcst.Attribute) else node
         #    return dequalified_node
 
@@ -1269,10 +1269,13 @@ def _get_unique_qualified_name(visitor: m.MatcherDecoratableVisitor, node: libcs
         # qualified name, which is not technically valid python but is
         # convenient to allow.
         name = get_full_name_for_node(node)
-    # Simply pick the first one that is not a relative import
     elif len(names) >= 1 and isinstance(names[0], str):
         name = next(filter(lambda qname: not qname.startswith("."), names), None)
-        name = name or names[0]
+        # name = name or h.get_full_name_for_node_or_raise(node)
+        name = name.replace(".<locals>.", ".") or h.get_full_name_for_node_or_raise(node)
+
+        # print("NAMES:", names, "FULL-NAME", h.get_full_name_for_node_or_raise(node), "NAME:", name)
+
     if name is None:
         start = visitor.get_metadata(PositionProvider, node).start
         raise ValueError(
