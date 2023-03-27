@@ -34,12 +34,12 @@ def read_context_vectors(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSch
     return df.pipe(pt.DataFrame[ContextSymbolSchema])
 
 
-def icr_path(project: pathlib.Path) -> pathlib.Path:
-    return project / ".icr.csv"
+def inferred_path(project: pathlib.Path) -> pathlib.Path:
+    return project / ".inferred.csv"
 
 
-def write_icr(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
-    ipath = icr_path(project)
+def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
+    ipath = inferred_path(project)
     df.to_csv(
         ipath,
         index=False,
@@ -47,8 +47,9 @@ def write_icr(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
     )
 
 
-def read_icr(project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
-    ipath = icr_path(project)
+def read_inferred(inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]) -> pt.DataFrame[InferredSchema]:
+    outpath = inference_output_path(inpath, tool, removed)
+    ipath = inferred_path(outpath)
     df = pd.read_csv(ipath, converters={"category": lambda c: TypeCollectionCategory[c]})
 
     return df.pipe(pt.DataFrame[InferredSchema])
