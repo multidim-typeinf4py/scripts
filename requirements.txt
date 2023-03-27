@@ -35,7 +35,7 @@ google-auth==2.16.3
 graphviz==0.20.1
 greenlet==2.0.2
 grpcio==1.49.1
-hityper @ git+https://github.com/multidim-typeinf4py/HiTyper.git@HEAD
+hityper @ git+https://github.com/multidim-typeinf4py/HiTyper.git@main
 huggingface-hub==0.13.3
 hypothesis==6.70.1
 idna==3.4
