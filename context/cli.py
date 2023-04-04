@@ -127,7 +127,7 @@ def cli_entrypoint(
 
     if remove_var_annos:
         removed.append(TypeCollectionCategory.VARIABLE)
-        removed.append(TypeCollectionCategory.INSTANCE_ATTR)
+        removed.append(TypeCollectionCategory.VARIABLE)
 
     if remove_param_annos:
         removed.append(TypeCollectionCategory.CALLABLE_PARAMETER)

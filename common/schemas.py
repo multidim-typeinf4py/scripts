@@ -10,7 +10,6 @@ class TypeCollectionCategory(enum.Enum):
     VARIABLE = "variable"
     CALLABLE_RETURN = "function"
     CALLABLE_PARAMETER = "parameter"
-    INSTANCE_ATTR = "inst_attr"
 
     def __str__(self) -> str:
         return self.name

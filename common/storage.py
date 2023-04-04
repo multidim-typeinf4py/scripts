@@ -106,30 +106,6 @@ class TypeCollection:
                     )
                 )
 
-        for cqname, cdef in annotations.class_definitions.items():
-            for stmt in cdef.body.body:
-                if m.matches(stmt, m.AnnAssign()):
-                    qname = f"{cqname}.{_stringify(stmt.target)}"
-                    anno = _stringify(stmt.annotation)
-
-                elif m.matches(
-                    stmt, m.Assign(targets=[m.AssignTarget(m.Name())], value=m.Ellipsis())
-                ):
-                    qname = f"{cqname}.{_stringify(stmt.targets[0].target)}"
-                    anno = missing.NA
-
-                else:
-                    continue
-
-                contents.append(
-                    (
-                        filename,
-                        TypeCollectionCategory.INSTANCE_ATTR,
-                        qname,
-                        anno,
-                    )
-                )
-
         cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
         df = pd.DataFrame(contents, columns=cs)
 
@@ -249,7 +225,7 @@ class TypeCollection:
 
         def attributes() -> dict[str, cst.ClassDef]:
             attrs: dict[str, cst.ClassDef] = {}
-            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.INSTANCE_ATTR]
+            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
 
             sep_df = attr_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
             if sep_df.empty:

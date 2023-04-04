@@ -179,46 +179,12 @@ class MultiVarTypeCollector(
         self.current_assign = None
 
     def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> None:
-        self._instance_attr(target, original_node.annotation)
+        self._track_attribute_target(target)
 
     def libsa4py_hint(
         self, original_node: libcst.Assign | libcst.AnnAssign, target: libcst.Name
     ) -> None:
-        self._instance_attr(
-            target,
-            original_node.annotation if isinstance(original_node, libcst.AnnAssign) else None,
-        )
-
-    def _instance_attr(self, target: libcst.Name, annotation: libcst.Annotation | None) -> None:
-        if annotation is None:
-            annotation_value = None
-        else:
-            annotation_value = self._handle_Annotation(annotation=annotation)
-
-        # Mark as an instance attribute
-        scope = self.qualified_scope()
-        key = ".".join(scope)
-        *_, classname = scope
-
-        classdef = self.annotations.class_definitions.get(
-            key,
-            libcst.ClassDef(name=libcst.Name(classname), body=libcst.IndentedBlock(body=[])),
-        )
-
-        if annotation_value is not None:
-            update = libcst.AnnAssign(
-                target=target,
-                annotation=annotation_value,
-                value=None,
-            )
-        else:
-            update = libcst.Assign(
-                targets=[libcst.AssignTarget(target=target)], value=libcst.Ellipsis()
-            )
-
-        classdef.body.body.append(update)
-
-        self.annotations.class_definitions[key] = classdef
+        self._track_attribute_target(target)
 
     def annotated_assignment(
         self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
