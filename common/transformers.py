@@ -139,7 +139,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.annassign)
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
+    ) -> libcst.FlattenSentinel[
+        libcst.BaseSmallStatement
+    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
         if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, original_node):
             transformer = self.instance_attribute_hint
 
@@ -161,7 +163,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.assign)
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
+    ) -> libcst.FlattenSentinel[
+        libcst.BaseSmallStatement
+    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
         if targets := _traversal.Recognition.libsa4py_hint(self.metadata, original_node):
             transformer = self.libsa4py_hint
 
@@ -184,7 +188,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.augassign)
     def leave_AugAssign(
         self, original_node: libcst.AugAssign, updated_node: libcst.AugAssign
-    ) -> libcst.FlattenSentinel[libcst.BaseSmallStatement] | libcst.RemovalSentinel:
+    ) -> libcst.FlattenSentinel[
+        libcst.BaseSmallStatement
+    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
         if targets := _traversal.Recognition.augassign_targets(self.metadata, original_node):
             transformer = self.unannotated_assign_multiple_targets
         else:
@@ -208,7 +214,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.withitems)
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
-    ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
+    ) -> libcst.FlattenSentinel[
+        libcst.BaseStatement
+    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
         if targets := _traversal.Recognition.with_targets(self.metadata, original_node):
             transformer = self.withitem_target
         else:
@@ -251,22 +259,21 @@ class HintableDeclarationTransformer(
         appends = []
 
         for action in itertools.chain(unchanged_actions, global_actions, nonlocal_actions):
-            match action:
-                case Untouched():
-                    ...
+            if isinstance(action, Untouched):
+                ...
 
-                case Prepend(node):
-                    prepends.append(node)
+            elif isinstance(action, Prepend):
+                prepends.append(action.node)
 
-                case Append(node):
-                    appends.append(node)
+            elif isinstance(action, Append):
+                appends.append(action.node)
 
-                case Replace(matcher, replacement):
-                    updated_node = m.replace(updated_node, matcher, replacement)
+            elif isinstance(action, Replace):
+                updated_node = m.replace(updated_node, action.matcher, action.replacement)
 
-                case Remove():
-                    updated_node = libcst.RemoveFromParent()
-                    return updated_node
+            elif isinstance(action, Remove):
+                updated_node = libcst.RemoveFromParent()
+                return updated_node
 
         if isinstance(updated_node, libcst.BaseSmallStatement):
             # Must return libcst.FlattenSentinel[BaseSmallStatement]

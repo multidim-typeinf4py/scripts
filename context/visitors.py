@@ -167,7 +167,7 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=target.value,
             annotation=None,
-            category=TypeCollectionCategory.INSTANCE_ATTR,
+            category=TypeCollectionCategory.VARIABLE,
         )
 
     def libsa4py_hint(self, original_node: libcst.Assign, target: libcst.Name) -> None:
@@ -175,7 +175,7 @@ class ContextVectorVisitor(
             annotatable=target,
             identifier=target.value,
             annotation=None,
-            category=TypeCollectionCategory.INSTANCE_ATTR,
+            category=TypeCollectionCategory.VARIABLE,
         )
 
     def annotated_hint(
@@ -344,15 +344,14 @@ class ContextVectorVisitor(
         categoryf = self._ctxt_category(category)
         qname = self.qname_within_scope(identifier)
 
-        match type(annotatable):
-            case libcst.Name:
-                simple_name = annotatable.value
-            case libcst.Attribute:
-                simple_name = annotatable.attr.value
-            case libcst.FunctionDef:
-                simple_name = annotatable.name.value
-            case libcst.Param:
-                simple_name = annotatable.name.value
+        if m.matches(annotatable, m.Name()):
+            simple_name = annotatable.value
+        elif m.matches(annotatable, m.Attribute()):
+            simple_name = annotatable.attr.value
+        elif m.matches(annotatable, m.FunctionDef()):
+            simple_name = annotatable.name.value
+        elif m.matches(annotatable, m.Param()):
+            simple_name = annotatable.name.value
 
         self.dfrs.append(
             ContextVectorVisitor.ContextVector(
@@ -476,8 +475,8 @@ class ContextVectorVisitor(
             case TypeCollectionCategory.CALLABLE_PARAMETER:
                 return ContextCategory.CALLABLE_PARAMETER
 
-            case TypeCollectionCategory.INSTANCE_ATTR:
-                return ContextCategory.INSTANCE_ATTR
+            case TypeCollectionCategory.VARIABLE:
+                return ContextCategory.VARIABLE
 
             case TypeCollectionCategory.VARIABLE:
                 return ContextCategory.VARIABLE

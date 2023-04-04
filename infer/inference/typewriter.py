@@ -460,20 +460,20 @@ class Typewriter2Annotations(cst.CSTVisitor):
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
         is_fn = None
-        match scope := self.get_metadata(metadata.ScopeProvider, node):
-            case metadata.ClassScope():
-                is_fn = False
+        scope = self.get_metadata(metadata.ScopeProvider, node)
+        if isinstance(scope, metadata.ClassScope):
+            is_fn = False
 
-            case metadata.GlobalScope():
-                is_fn = True
+        elif isinstance(scope, metadata.GlobalScope):
+            is_fn = True
 
-            case metadata.FunctionScope():
-                # TypeWriter does not make guesses for inner functions
-                return None
+        elif isinstance(scope, metadata.FunctionScope):
+            # TypeWriter does not make guesses for inner functions
+            return None
 
-            case _:
-                print(f"WARNING: unexpected {scope=} for {cst.Module([]).code_for_node(node)}!")
-                return None
+        else:
+            print(f"WARNING: unexpected {scope=} for {cst.Module([]).code_for_node(node)}!")
+            return None
 
         parameters = self._load_parameters(node, function=is_fn)
         ret_found, ret = self._load_return(node)

@@ -13,11 +13,10 @@ def _stringify(node: cst.CSTNode | None) -> str | None:
         return cst.Module([]).code_for_node(node)
 
     except SyntaxError:
-        match node:
-            case cst.Annotation():
-                return _stringify(node.annotation)
-            case _:
-                raise AssertionError(f"Unhandled node: {node}")
+        if isinstance(node, cst.Annotation):
+            return _stringify(node.annotation)
+        else:
+            raise AssertionError(f"Unhandled node: {node}")
 
 
 def _generate_var_qname_ssas_for_qname(var_names: pd.Series) -> pd.Series:

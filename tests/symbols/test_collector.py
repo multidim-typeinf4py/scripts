@@ -102,6 +102,8 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("Clazz.function.c", "Clazz.function.c", "cmod.C"),
                 # outer.nested
                 ("outer.nested.a", "outer.nested.a", "builtins.int"),
+                # Clazz.a
+                [("Clazz.a", "Clazz.a", "builtins.int")],
             ],
         ),
         (
@@ -119,12 +121,8 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("outer.nested.result", "outer.nested.resultλ1", "builtins.str"),
             ],
         ),
-        (
-            TypeCollectionCategory.INSTANCE_ATTR,
-            [("Clazz.a", "Clazz.a", "builtins.int")],
-        ),
     ],
-    ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE", "INSTANCE_ATTR"],
+    ids=["CALLABLE_RETURN", "CALLABLE_PARAMETER", "VARIABLE"],
 )
 def test_hints_found(
     code_path: pathlib.Path,
@@ -257,7 +255,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "f.c",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.a", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.a", "builtins.int"),
                 CR(
                     TypeCollectionCategory.CALLABLE_RETURN,
                     "C.__init__",
@@ -304,7 +302,9 @@ class Test_HintTracking(AnnotationTracking):
             a: str = "Hello World"
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str")])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", "builtins.str")]
+        )
 
     def test_stub_file_hinting(self):
         df = self.performTracking(
@@ -367,7 +367,11 @@ class Test_HintTracking(AnnotationTracking):
             [
                 CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
                 CR(TypeCollectionCategory.VARIABLE, "b", "builtins.str"),
-                CR(TypeCollectionCategory.VARIABLE, "d", "builtins.tuple[builtins.int, builtins.str]"),
+                CR(
+                    TypeCollectionCategory.VARIABLE,
+                    "d",
+                    "builtins.tuple[builtins.int, builtins.str]",
+                ),
             ],
         )
 
@@ -469,7 +473,9 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", "builtins.int")])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "x", "builtins.int")]
+        )
 
     def test_for_unpacking_annotated(self):
         df = self.performTracking(
@@ -558,8 +564,8 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo", missing.NA),
-                CR(TypeCollectionCategory.INSTANCE_ATTR, "C.foo2", "builtins.int"),
+                CR(TypeCollectionCategory.VARIABLE, "C.foo", missing.NA),
+                CR(TypeCollectionCategory.VARIABLE, "C.foo2", "builtins.int"),
             ],
         )
 

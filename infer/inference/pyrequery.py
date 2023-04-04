@@ -184,7 +184,7 @@ class _PyreQuery2Annotations(
     def _instance_attribute(self, target: libcst.Name) -> None:
         qname = self.qualified_name(target)
         functy = self._infer_type(target)
-        self.annotations.append((TypeCollectionCategory.INSTANCE_ATTR, qname, functy))
+        self.annotations.append((TypeCollectionCategory.VARIABLE, qname, functy))
 
     def _variable(self, target: libcst.Name | libcst.Attribute) -> None:
         qname = self.qualified_name(target)

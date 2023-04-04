@@ -93,12 +93,14 @@ class Recognition:
         if (
             original_node.value is not None
             and not m.matches(original_node.value, m.Ellipsis())
-            #and _is_class_scope(metadata, original_node.target)
+            # and _is_class_scope(metadata, original_node.target)
         ):
             return _access_targets(metadata, original_node.target)
 
         # Support for stub files here
-        elif m.matches(original_node.value, m.Ellipsis()) and not _is_class_scope(metadata, original_node.target):
+        elif m.matches(original_node.value, m.Ellipsis()) and not _is_class_scope(
+            metadata, original_node.target
+        ):
             return _access_targets(metadata, original_node.target)
 
         return None
@@ -133,11 +135,10 @@ class Recognition:
         a, b = 2, 10
         [a, (b, c)] = 10, (20, 30)
         """
-        if (
-            len(original_node.targets) > 1
-            or m.matches(original_node.targets[0], m.AssignTarget(LIST | TUPLE))
+        if len(original_node.targets) > 1 or m.matches(
+            original_node.targets[0], m.AssignTarget(LIST | TUPLE)
         ):
-        #and not _is_class_scope(metadata, original_node.targets[0].target):
+            # and not _is_class_scope(metadata, original_node.targets[0].target):
             unchanged, glbls, nonlocals = list(), list(), list()
 
             for discovered in (
@@ -238,13 +239,13 @@ def _access_targets(
 
     unchanged, glbls, nonlocals = list(), list(), list()
     for t in targets:
-        match metadata[KeywordModifiedScopeProvider][t]:
-            case KeywordContext.UNCHANGED:
-                unchanged.append(t)
-            case KeywordContext.GLOBAL:
-                glbls.append(t)
-            case KeywordContext.NONLOCAL:
-                nonlocals.append(t)
+        scopage = metadata[KeywordModifiedScopeProvider][t]
+        if scopage is KeywordContext.UNCHANGED:
+            unchanged.append(t)
+        elif scopage is KeywordContext.GLOBAL:
+            glbls.append(t)
+        elif scopage is KeywordContext.NONLOCAL:
+            nonlocals.append(t)
 
     return Targets(
         unchanged=unchanged,
@@ -282,7 +283,9 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def libsa4py_hint(self, original_node: libcst.Assign | libcst.AnnAssign, target: libcst.Name) -> T:
+    def libsa4py_hint(
+        self, original_node: libcst.Assign | libcst.AnnAssign, target: libcst.Name
+    ) -> T:
         """
         class C:
             a: int      # ignored
