@@ -1,4 +1,5 @@
 import textwrap
+from typing import Optional
 from unittest import TestCase
 
 import libcst
@@ -13,7 +14,7 @@ class LabelTesting(TestCase):
         self,
         meta: TrackedAnnotation,
         labelled: libcst.Annotation,
-        lowerage: Lowered | None = None,
+        lowerage: Optional[Lowered] = None,
     ):
         assert m.matches(meta.labelled, m.Annotation(labelled.annotation))
         assert m.matches(meta.inferred, m.Annotation(labelled.annotation))
@@ -25,7 +26,7 @@ class LabelTesting(TestCase):
         self,
         meta: TrackedAnnotation,
         inferred: libcst.Annotation,
-        lowerage: Lowered | None = None,
+        lowerage: Optional[Lowered] = None,
     ):
         assert meta.labelled is None
         assert m.matches(meta.inferred, m.Annotation(inferred.annotation))

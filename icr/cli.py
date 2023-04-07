@@ -2,8 +2,11 @@ import itertools
 import pathlib
 import shutil
 import sys
+from typing import Optional
+
 import click
 
+import utils
 from common import factory, output
 from common.schemas import InferredSchema, TypeCollectionSchema
 from infer.inference.hity import HiTyper
@@ -88,7 +91,7 @@ from symbols.collector import build_type_collection
 def cli_entrypoint(
     static: list[str],
     prob: list[str],
-    engine: type[ConflictResolution] | None,
+    engine: Optional[type[ConflictResolution]],
     inpath: pathlib.Path,
     persist: bool,
     overwrite: bool,
@@ -122,12 +125,7 @@ def cli_entrypoint(
     else:
         tool, icr_df = next((tool, df) for tool, df in tool2icr.items())
 
-        inference_df = icr_df.loc[
-            inference_df.groupby(
-                by=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
-                sort=False,
-            )[InferredSchema.topn].idxmin()
-        ]
+        inference_df = utils.top_preds_only(icr_df)
 
     if persist:
         outdir = output.inference_output_path(original, tool=tool)

@@ -1,5 +1,6 @@
 import abc
 import typing
+from typing import Union, Optional
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h
@@ -16,16 +17,18 @@ class ScopeAwareVisitor(m.MatcherDecoratableVisitor):
     def qualified_scope(self) -> tuple[str, ...]:
         return tuple(self._qualifier)
 
-    def qualified_name(self, name: libcst.CSTNode | str) -> str:
+    def qualified_name(self, name: Union[libcst.CSTNode, str]) -> str:
         name = h.get_full_name_for_node_or_raise(name)
         return ".".join((*self._qualifier, name))
 
     @m.visit(m.FunctionDef() | m.ClassDef())
-    def __on_enter_scope(self, node: libcst.FunctionDef | libcst.ClassDef) -> None:
+    def __on_enter_scope(
+        self, node: Union[libcst.FunctionDef, libcst.ClassDef]
+    ) -> None:
         self._qualifier.append(node.name.value)
 
     @m.leave(m.FunctionDef() | m.ClassDef())
-    def __on_leave_scope(self, _: libcst.FunctionDef | libcst.ClassDef) -> None:
+    def __on_leave_scope(self, _: Union[libcst.FunctionDef, libcst.ClassDef]) -> None:
         self._qualifier.pop()
 
 
@@ -39,7 +42,9 @@ class HintableParameterVisitor(m.MatcherDecoratableVisitor, abc.ABC):
             self.unannotated_param(param)
 
     @abc.abstractmethod
-    def annotated_param(self, param: libcst.Param, annotation: libcst.Annotation) -> None:
+    def annotated_param(
+        self, param: libcst.Param, annotation: libcst.Annotation
+    ) -> None:
         ...
 
     @abc.abstractmethod
@@ -67,7 +72,9 @@ class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
         ...
 
 
-class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC):
+class HintableDeclarationVisitor(
+    m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC
+):
     """
     Provide hook methods for visiting hintable attributes (both a and self.a)
     in Assign, AnnAssign and AugAssign, as well as WithItems and For Loops usages
@@ -80,13 +87,19 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
 
     @m.call_if_inside(_traversal.Matchers.annassign)
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
-        if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, assignment):
+        if targets := _traversal.Recognition.instance_attribute_hint(
+            self.metadata, assignment
+        ):
             visitor = self.instance_attribute_hint
         elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, assignment):
             visitor = self.libsa4py_hint
-        elif targets := _traversal.Recognition.annotated_hint(self.metadata, assignment):
+        elif targets := _traversal.Recognition.annotated_hint(
+            self.metadata, assignment
+        ):
             visitor = self.annotated_hint
-        elif targets := _traversal.Recognition.annotated_assignment(self.metadata, assignment):
+        elif targets := _traversal.Recognition.annotated_assignment(
+            self.metadata, assignment
+        ):
             visitor = self.annotated_assignment
         else:
             _traversal.Recognition.fallthru(assignment)
@@ -151,7 +164,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
 
     # We cannot annotate anything inside a lambda; and annotating
     # variables from outside a Lambda is an alternation to the scope
-    def visit_Lambda(self, _: libcst.Lambda) -> bool | None:
+    def visit_Lambda(self, _: libcst.Lambda) -> Optional[bool]:
         return False
 
     _T = typing.TypeVar("_T", bound=libcst.CSTNode)
@@ -159,7 +172,7 @@ class HintableDeclarationVisitor(m.MatcherDecoratableVisitor, _traversal.Travers
     def _apply_visit(
         self,
         targets: _traversal.Targets,
-        visitor: typing.Callable[[_T, libcst.Name | libcst.Attribute], None],
+        visitor: typing.Callable[[_T, Union[libcst.Name, libcst.Attribute]], None],
         original_node: _T,
     ) -> None:
         for target in targets.unchanged:

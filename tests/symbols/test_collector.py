@@ -2,6 +2,7 @@ import collections
 import pathlib
 import textwrap
 import typing
+from typing import Union
 
 import libcst
 import pandas as pd
@@ -127,7 +128,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
 def test_hints_found(
     code_path: pathlib.Path,
     category: TypeCollectionCategory,
-    hinted_symbols: list[tuple[str, str | missing.NAType]],
+    hinted_symbols: list[tuple[str, Union[str, missing.NAType]]],
 ) -> None:
     collection = build_type_collection(code_path)
 

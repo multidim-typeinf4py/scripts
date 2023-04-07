@@ -1,4 +1,5 @@
 import abc
+from typing import Union, Optional
 
 import libcst
 import pandera.typing as pt
@@ -14,14 +15,14 @@ class _SSATransformer(
     def __init__(self, context: c.CodemodContext) -> None:
         super().__init__(context)
 
-    def transform_target(self, target: libcst.Name | libcst.Attribute) -> t.Actions:
+    def transform_target(self, target: Union[libcst.Name, libcst.Attribute]) -> t.Actions:
         scope = self.qualified_scope()
         qname = self.qualified_name(target)
 
         if (new_target := self.lookup(target, scope, qname)) is not None:
             assert isinstance(
                 replacement := libcst.parse_expression(new_target),
-                libcst.Name | libcst.Attribute,
+                (libcst.Name, libcst.Attribute),
             )
 
             if isinstance(target, libcst.Name):
@@ -40,10 +41,10 @@ class _SSATransformer(
     @abc.abstractmethod
     def lookup(
         self,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
-    ) -> str | None:
+    ) -> Optional[str]:
         ...
 
     # variations of INSTANCE_ATTR, globals and nonlocals, annotation hints remain untouched
@@ -58,12 +59,12 @@ class _SSATransformer(
         return t.Actions((t.Untouched(),))
 
     def global_target(
-        self, _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
+        self, _: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
     def nonlocal_target(
-        self, _1: libcst.Assign | libcst.AnnAssign | libcst.AugAssign, _2: libcst.Name
+        self, _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
@@ -71,26 +72,26 @@ class _SSATransformer(
     def annotated_assignment(
         self,
         annassign: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
         return self.transform_target(target)
 
     def unannotated_assign_single_target(
         self,
         assign: libcst.Assign,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
         return self.transform_target(target)
 
     def unannotated_assign_multiple_targets(
         self,
-        assign: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
+        assign: Union[libcst.Assign, libcst.AugAssign],
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
         return self.transform_target(target)
 
     def for_target(
-        self, forloop: libcst.For, target: libcst.Name | libcst.Attribute
+        self, forloop: libcst.For, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
         return self.transform_target(target)
 
@@ -100,7 +101,7 @@ class _SSATransformer(
     #    return self.transform_target(target)
 
     def withitem_target(
-        self, withstmt: libcst.With, target: libcst.Name | libcst.Attribute
+        self, withstmt: libcst.With, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
         return self.transform_target(target)
 
@@ -115,7 +116,7 @@ class QName2SSATransformer(_SSATransformer):
         self.annotations = annotations.assign(consumed=0)
 
     def annotated_hint(
-        self, annassign: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self, annassign: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
         new_target = self._lookup(
             target,
@@ -125,7 +126,7 @@ class QName2SSATransformer(_SSATransformer):
         )
         assert isinstance(
             replacement_target := libcst.parse_expression(new_target),
-            libcst.Name | libcst.Attribute,
+            (libcst.Name, libcst.Attribute),
         )
 
         matcher = m.AnnAssign(
@@ -142,7 +143,7 @@ class QName2SSATransformer(_SSATransformer):
 
     def lookup(
         self,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
     ) -> str:
@@ -150,7 +151,7 @@ class QName2SSATransformer(_SSATransformer):
 
     def _lookup(
         self,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
         consume: bool,
@@ -186,13 +187,13 @@ class SSA2QNameTransformer(_SSATransformer):
         self.annotations = annotations
 
     def annotated_hint(
-        self, annassign: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self, annassign: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
         return self.transform_target(target)
 
     def lookup(
         self,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
     ) -> str:

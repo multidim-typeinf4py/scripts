@@ -1,3 +1,5 @@
+from typing import Optional
+
 import libcst as cst
 import pandas as pd
 import typing
@@ -5,7 +7,7 @@ import typing
 from common.schemas import ContextSymbolSchema, InferredSchema, SymbolSchema, TypeCollectionCategory
 
 
-def _stringify(node: cst.CSTNode | None) -> str | None:
+def _stringify(node: Optional[cst.CSTNode]) -> Optional[str]:
     if node is None:
         return None
 

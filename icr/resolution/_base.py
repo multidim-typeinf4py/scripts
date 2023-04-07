@@ -1,6 +1,7 @@
 import abc
 from dataclasses import dataclass
 import pathlib
+from typing import Optional
 
 from common.schemas import (
     SymbolSchema,
@@ -30,16 +31,18 @@ class ConflictResolution(abc.ABC):
     def method(self) -> str:
         ...
 
-    def __init__(self, project: pathlib.Path, reference: pt.DataFrame[SymbolSchema]) -> None:
+    def __init__(
+        self, project: pathlib.Path, reference: pt.DataFrame[SymbolSchema]
+    ) -> None:
         super().__init__()
         self.project = project
         self.reference = reference
 
     def resolve(
         self,
-        static: pt.DataFrame[InferredSchema] | None = None,
-        dynamic: pt.DataFrame[InferredSchema] | None = None,
-        probabilistic: pt.DataFrame[InferredSchema] | None = None,
+        static: Optional[pt.DataFrame[InferredSchema]] = None,
+        dynamic: Optional[pt.DataFrame[InferredSchema]] = None,
+        probabilistic: Optional[pt.DataFrame[InferredSchema]] = None,
     ) -> pt.DataFrame[InferredSchema]:
         # Defaulting
         static = (
@@ -60,7 +63,11 @@ class ConflictResolution(abc.ABC):
 
         # Discover common symbols
         how = "right"
-        common_cols = [InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa]
+        common_cols = [
+            InferredSchema.file,
+            InferredSchema.category,
+            InferredSchema.qname_ssa,
+        ]
 
         static_safe: pt.DataFrame[InferredSchema] = pd.merge(
             left=static, right=self.reference, how=how, on=common_cols
@@ -133,7 +140,7 @@ class IterativeResolution(ConflictResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
         metadata: Metadata,
-    ) -> pt.DataFrame[InferredSchema] | None:
+    ) -> Optional[pt.DataFrame[InferredSchema]]:
         ...
 
     def _resolve(
@@ -142,10 +149,9 @@ class IterativeResolution(ConflictResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
     ) -> pt.DataFrame[InferredSchema]:
-
         updates: list[pt.DataFrame[InferredSchema]] = []
 
-        for (file, category, qname, qname_ssa) in self.reference.itertuples(index=False):
+        for file, category, qname, qname_ssa in self.reference.itertuples(index=False):
             _static = static[
                 (static[InferredSchema.file] == file)
                 & (static[InferredSchema.category] == category)
@@ -161,7 +167,9 @@ class IterativeResolution(ConflictResolution):
                 & (probabilistic[InferredSchema.category] == category)
                 & (probabilistic[InferredSchema.qname_ssa] == qname_ssa)
             ]
-            _metadata = Metadata(file=file, category=category, qname=qname, qname_ssa=qname_ssa)
+            _metadata = Metadata(
+                file=file, category=category, qname=qname, qname_ssa=qname_ssa
+            )
 
             update = self.forward(
                 static=_static,
@@ -177,7 +185,9 @@ class IterativeResolution(ConflictResolution):
                         (
                             _static["method"].iloc[0] if not _static.empty else "",
                             _dynamic["method"].iloc[0] if not _dynamic.empty else "",
-                            _probabilistic["method"].iloc[0] if not _probabilistic.empty else "",
+                            _probabilistic["method"].iloc[0]
+                            if not _probabilistic.empty
+                            else "",
                         ),
                     )
                 )

@@ -14,7 +14,7 @@ pandas = "1.5.2"
 pandera = {extras = ["mypy"], version = "^0.13.4"}
 pydantic = "^1.10.2"
 pyre-check = "^0.9.17"
-python = "^3.10"
+python = "^3.9"
 
 hityper = {git = "https://github.com/multidim-typeinf4py/HiTyper.git"}
 hypothesis = "^6.64.0"

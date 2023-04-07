@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 def looping():
     # For loop loopage
     for _ in range(10):
@@ -55,7 +58,7 @@ def g():
     a = bytes([1, 2, 3])
 
 
-def parammed(p: int | None):
+def parammed(p: Optional[int]):
     p: int = p or 10
 
 def branching():

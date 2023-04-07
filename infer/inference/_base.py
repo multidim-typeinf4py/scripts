@@ -68,5 +68,5 @@ class PerFileInference(Inference):
             )
 
     @abc.abstractmethod
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         pass

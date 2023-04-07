@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+from typing import Optional, Union
 
 import libcst
 from libcst import metadata
@@ -9,16 +10,16 @@ from libcst import metadata
 from common import visitors as v
 
 
-@dataclasses.dataclass
-class TrackedAnnotation:
-    labelled: libcst.Annotation | None
-    inferred: libcst.Annotation | None
-    lowered: Lowered
-
-
 class Lowered(enum.Enum):
     UNALTERED = enum.auto()
     ALTERED = enum.auto()
+
+
+@dataclasses.dataclass
+class TrackedAnnotation:
+    labelled: Optional[libcst.Annotation]
+    inferred: Optional[libcst.Annotation]
+    lowered: Lowered
 
 
 class _Consumption(enum.Enum):
@@ -39,10 +40,14 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         #   a = 5
         # else:
         #   a = None
-        self._outer_hinting: list[dict[str, tuple[libcst.Annotation, _Consumption, Lowered]]] = []
+        self._outer_hinting: list[
+            dict[str, tuple[libcst.Annotation, _Consumption, Lowered]]
+        ] = []
 
         # Hints within the active scope
-        self._scope_local_hinting: dict[str, tuple[libcst.Annotation, _Consumption, Lowered]] = {}
+        self._scope_local_hinting: dict[
+            str, tuple[libcst.Annotation, _Consumption, Lowered]
+        ] = {}
 
     def visit_If_body(self, _: libcst.If) -> None:
         self._visit_flow_diverging_body(_)
@@ -93,7 +98,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def _leave_flow_diverging_body(self, _: libcst.CSTNode):
         self._scope_local_hinting = self._outer_hinting.pop()
 
-    def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> None:
+    def instance_attribute_hint(
+        self, original_node: libcst.AnnAssign, target: libcst.Name
+    ) -> None:
         meta = TrackedAnnotation(
             labelled=original_node.annotation,
             inferred=original_node.annotation,
@@ -108,7 +115,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         )
 
     def annotated_assignment(
-        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self,
+        original_node: libcst.AnnAssign,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         meta = TrackedAnnotation(
             labelled=original_node.annotation,
@@ -124,7 +133,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         )
 
     def annotated_hint(
-        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self,
+        original_node: libcst.AnnAssign,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._track_annotation(
             qname=self.qualified_name(target),
@@ -136,7 +147,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def unannotated_assign_single_target(
         self,
         original_node: libcst.Assign,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         if tracked := self._retrieve_for_unannotated(target):
             annotation, _, lowered = tracked
@@ -150,59 +161,71 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         else:
             self.provider.set_metadata(
                 target,
-                TrackedAnnotation(labelled=None, inferred=None, lowered=Lowered.UNALTERED),
+                TrackedAnnotation(
+                    labelled=None, inferred=None, lowered=Lowered.UNALTERED
+                ),
             )
 
     def unannotated_assign_multiple_targets(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
+        original_node: Union[libcst.Assign, libcst.AugAssign],
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
-    def for_target(self, original_node: libcst.For, target: libcst.Name | libcst.Attribute) -> None:
+    def for_target(
+        self, original_node: libcst.For, target: Union[libcst.Name, libcst.Attribute]
+    ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
     def withitem_target(
-        self, original_node: libcst.With, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.With, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._handle_only_indirectly_annotatable(target)
 
-    def _handle_only_indirectly_annotatable(self, target: libcst.Name | libcst.Attribute):
+    def _handle_only_indirectly_annotatable(
+        self, target: Union[libcst.Name, libcst.Attribute]
+    ):
         if tracked := self._retrieve_for_unannotated(target):
             annotation, consumption, lowered = tracked
             if consumption is _Consumption.UNUSED:
                 self.provider.set_metadata(
                     target,
-                    TrackedAnnotation(labelled=annotation, inferred=annotation, lowered=lowered),
+                    TrackedAnnotation(
+                        labelled=annotation, inferred=annotation, lowered=lowered
+                    ),
                 )
             else:
                 self.provider.set_metadata(
                     target,
-                    TrackedAnnotation(labelled=None, inferred=annotation, lowered=lowered),
+                    TrackedAnnotation(
+                        labelled=None, inferred=annotation, lowered=lowered
+                    ),
                 )
         else:
             self.provider.set_metadata(
                 target,
-                TrackedAnnotation(labelled=None, inferred=None, lowered=Lowered.UNALTERED),
+                TrackedAnnotation(
+                    labelled=None, inferred=None, lowered=Lowered.UNALTERED
+                ),
             )
 
     def global_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         pass
 
     def nonlocal_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         pass
 
     def _retrieve_for_unannotated(
-        self, target: libcst.Name | libcst.Attribute
+        self, target: Union[libcst.Name, libcst.Attribute]
     ) -> tuple[libcst.Annotation, _Consumption, Lowered] | None:
         result: tuple[libcst.Annotation, _Consumption, Lowered] | None = None
         qname = self.qualified_name(target)
@@ -219,7 +242,9 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
             # Add entry to local hinting as ALTERED
             anno, _, _ = hints[qname]
             result = (anno, _Consumption.USED, Lowered.ALTERED)
-            self._track_annotation(qname, _Consumption.USED, Lowered.ALTERED, annotation=anno)
+            self._track_annotation(
+                qname, _Consumption.USED, Lowered.ALTERED, annotation=anno
+            )
 
         return result
 
@@ -237,10 +262,12 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
         return annotation
 
 
-class Annotation4InstanceProvider(metadata.BatchableMetadataProvider[TrackedAnnotation]):
+class Annotation4InstanceProvider(
+    metadata.BatchableMetadataProvider[TrackedAnnotation]
+):
     METADATA_DEPENDENCIES = (metadata.ParentNodeProvider,)
 
     def visit_Module(self, node: libcst.Module) -> None:
-        metadata.MetadataWrapper(node, unsafe_skip_copy=True, cache=self.metadata).visit(
-            _Annotation4InstanceVisitor(self)
-        )
+        metadata.MetadataWrapper(
+            node, unsafe_skip_copy=True, cache=self.metadata
+        ).visit(_Annotation4InstanceVisitor(self))

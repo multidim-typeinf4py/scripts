@@ -2,6 +2,7 @@ import collections
 import enum
 import pathlib
 from dataclasses import dataclass
+from typing import Optional
 
 import hityper.__main__ as hityper
 import libcst
@@ -71,7 +72,7 @@ class _HiTyperPredictionCategory(str, enum.Enum):
 class _HiTyperPrediction(pydantic.BaseModel):
     category: _HiTyperPredictionCategory
     name: str
-    type: list[str | None]
+    type: list[Optional[str]]
 
     class Config:
         use_enum_values = True
@@ -172,7 +173,7 @@ class HiTyper(PerFileInference):
                         parameters: list[libcst.Param] = [libcst.Param(name=libcst.Name("self"))]
                     else:
                         parameters = []
-                    returns: libcst.Annotation | None = None
+                    returns: Optional[libcst.Annotation] = None
 
                     for prediction in filter(
                         lambda p: p.category != _HiTyperPredictionCategory.LOCAL, predictions

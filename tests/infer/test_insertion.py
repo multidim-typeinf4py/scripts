@@ -1,6 +1,8 @@
 import collections
 import textwrap
 import typing
+from typing import Optional
+
 import libcst
 
 import pandas as pd
@@ -33,7 +35,7 @@ class AnnotationTesting(codemod.CodemodTest):
         self,
         before: str,
         after: str,
-        annotations: typing.Sequence[CodemodAnnotation] | None = None,
+        annotations: Optional[typing.Sequence[CodemodAnnotation]] = None,
     ):
         before, after = textwrap.dedent(before), textwrap.dedent(after)
 
