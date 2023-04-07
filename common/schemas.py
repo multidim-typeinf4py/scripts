@@ -52,7 +52,7 @@ class ContextSymbolSchema(TypeCollectionSchema):
     loop: pt.Series[int] = pa.Field()
     reassigned: pt.Series[int] = pa.Field()
     nested: pt.Series[int] = pa.Field()
-    user_defined: pt.Series[int] = pa.Field()
+    builtin: pt.Series[int] = pa.Field()
     branching: pt.Series[int] = pa.Field()
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 

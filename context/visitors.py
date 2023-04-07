@@ -1,18 +1,17 @@
 import builtins
 import collections
 import pathlib
+import typing
 from typing import Union, Optional
 
 import libcst
+import pandas as pd
+import pandera.typing as pt
+import tqdm
 from libcst import metadata, codemod as c, matchers as m
 from libcst.helpers import get_full_name_for_node_or_raise
-
-import tqdm
-from tqdm.contrib.concurrent import process_map
-
-import pandas as pd
 from pandas._libs import missing
-import pandera.typing as pt
+from tqdm.contrib.concurrent import process_map
 
 from common import visitors
 from common._traversal import T
@@ -80,7 +79,7 @@ class ContextVectorVisitor(
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
             ContextSymbolSchema.nested,
-            ContextSymbolSchema.user_defined,
+            ContextSymbolSchema.builtin,
             ContextSymbolSchema.branching,
             ContextSymbolSchema.ctxt_category,
         ],
@@ -331,16 +330,6 @@ class ContextVectorVisitor(
     ) -> None:
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
 
-        self.visible_symbols[self.scope_components()].add(identifier)
-
-        loopf = int(self.features.loop and self._is_in_loop(annotatable))
-        nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
-        user_definedf = int(self.features.user_defined and self._is_userdefined(annotation))
-        branching = int(self.features.branching and self._is_in_branch())
-
-        categoryf = self._ctxt_category(category)
-        qname = self.qname_within_scope(identifier)
-
         if m.matches(annotatable, m.Name()):
             simple_name = annotatable.value
         elif m.matches(annotatable, m.Attribute()):
@@ -349,6 +338,17 @@ class ContextVectorVisitor(
             simple_name = annotatable.name.value
         elif m.matches(annotatable, m.Param()):
             simple_name = annotatable.name.value
+
+        self.visible_symbols[self.scope_components()].add(identifier)
+
+        loopf = int(self.features.loop and self._is_in_loop(annotatable))
+        nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
+        builtinf = int(self.features.builtin and self.is_builtin(annotation))
+        branching = int(self.features.branching and self._is_in_branch())
+
+        categoryf = self._ctxt_category(category)
+        qname = self.qname_within_scope(identifier)
+
 
         self.dfrs.append(
             ContextVectorVisitor.ContextVector(
@@ -360,18 +360,14 @@ class ContextVectorVisitor(
                 loopf,
                 reassignedf,
                 nestedf,
-                user_definedf,
+                builtinf,
                 branching,
                 categoryf,
             )
         )
 
     def _is_in_loop(self, _: libcst.CSTNode) -> bool:
-        # Break out of unpackable
-        # while isinstance((parent := self.get_metadata(metadata.ParentNodeProvider, annotatable)), libcst.Tuple | libcst.List):
-        #    ...
-
-        return any(isinstance(s, (libcst.For, libcst.While)) for s in self.full_scope_nodes)
+       return any(isinstance(s, (libcst.For, libcst.While)) for s in self.full_scope_nodes)
 
     def _is_reassigned(self, identifier: str) -> bool:
         scope = self.scope_components()
@@ -401,15 +397,21 @@ class ContextVectorVisitor(
     def _is_in_branch(self) -> bool:
         return any(isinstance(s, (libcst.If, libcst.Else)) for s in self.full_scope_nodes)
 
-    def _is_userdefined(self, annotation: Optional[libcst.Annotation]) -> bool:
+    def is_builtin(self, annotation: Optional[libcst.Annotation]) -> bool:
         if annotation is None:
             return False
 
-        a = _stringify(annotation.annotation)
-        sanitised = "".join(a.split())
-        unions = sanitised.split("|")
+        if isinstance(annotation.annotation, libcst.Subscript):
+            annotation = annotation.annotation.value
+        else:
+            annotation = annotation.annotation
 
-        return any(u not in dir(builtins) for u in unions)
+        if isinstance(annotation, libcst.Name):
+            ty = annotation.value
+        else:
+            ty = annotation.attr.value
+
+        return ty in dir(builtins) or ty in dir(typing)
 
     @m.visit(m.FunctionDef() | m.ClassDef())
     def _enter_scope(self, node: Union[libcst.FunctionDef, libcst.ClassDef]) -> None:

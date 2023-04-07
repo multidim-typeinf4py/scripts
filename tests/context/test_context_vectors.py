@@ -1,14 +1,12 @@
 import pathlib
-import libcst
 
 import pandas as pd
 import pandera.typing as pt
+import pytest
 
 from common.schemas import ContextSymbolSchema
 from context.features import RelevantFeatures
 from context.visitors import generate_context_vectors_for_file
-
-import pytest
 
 
 @pytest.fixture(scope="class")
@@ -19,7 +17,7 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
 
     cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(
-            loop=True, reassigned=True, nested=True, user_defined=True, branching=True
+            loop=True, reassigned=True, nested=True, builtin=True, branching=True
         ),
         repo=repo,
         file2code=(filepath, filepath.open().read()),
@@ -53,10 +51,16 @@ class TestFeatures:
         self.exact_check(context_dataset, ["f.g", "f.g.a"], ContextSymbolSchema.nested)
 
     def test_userdeffed(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
-        self.exact_check(context_dataset, ["userdeffed.udc"], ContextSymbolSchema.user_defined)
+        self.exact_check(
+            context_dataset,
+            ["userdeffed.abc", "userdeffed.efg", "parammed.p"],
+            ContextSymbolSchema.builtin,
+        )
 
     def test_branching(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
-        self.all_positive_check(context_dataset, ["branching.b"], ContextSymbolSchema.branching)
+        self.all_positive_check(
+            context_dataset, ["branching.b"], ContextSymbolSchema.branching
+        )
         self.all_negative_check(
             context_dataset,
             [
@@ -81,11 +85,18 @@ class TestFeatures:
             ],
             ContextSymbolSchema.branching,
         )
-        self.one_positive_check(context_dataset, ["branching.a"], ContextSymbolSchema.branching)
-        self.one_negative_check(context_dataset, ["branching.a"], ContextSymbolSchema.branching)
+        self.one_positive_check(
+            context_dataset, ["branching.a"], ContextSymbolSchema.branching
+        )
+        self.one_negative_check(
+            context_dataset, ["branching.a"], ContextSymbolSchema.branching
+        )
 
     def one_positive_check(
-        self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
+        self,
+        context_dataset: pt.DataFrame[ContextSymbolSchema],
+        qnames: list[str],
+        feature: str,
     ):
         """Check for at least one occurrence of a qname with a 1 set in the corresponding feature"""
         qnames_ser = pd.Series(qnames)
@@ -99,7 +110,10 @@ class TestFeatures:
             ].any(), f"{qname} is not marked as '{feature}'"
 
     def one_negative_check(
-        self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
+        self,
+        context_dataset: pt.DataFrame[ContextSymbolSchema],
+        qnames: list[str],
+        feature: str,
     ):
         """Check for at least one occurrence of a qname with a 0 set in the corresponding feature"""
         qnames_ser = pd.Series(qnames)
@@ -113,7 +127,10 @@ class TestFeatures:
             ].all(), f"{qname} should not be marked as '{feature}'"
 
     def all_positive_check(
-        self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
+        self,
+        context_dataset: pt.DataFrame[ContextSymbolSchema],
+        qnames: list[str],
+        feature: str,
     ):
         qnames_ser = pd.Series(qnames)
         present = qnames_ser.isin(context_dataset[ContextSymbolSchema.qname])
@@ -130,7 +147,10 @@ class TestFeatures:
             )
 
     def all_negative_check(
-        self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
+        self,
+        context_dataset: pt.DataFrame[ContextSymbolSchema],
+        qnames: list[str],
+        feature: str,
     ):
         qnames_ser = pd.Series(qnames)
         present = qnames_ser.isin(context_dataset[ContextSymbolSchema.qname])
@@ -146,7 +166,10 @@ class TestFeatures:
         ), f"{neg_failing[ContextSymbolSchema.qname].unique()} are not marked as '{feature}'"
 
     def exact_check(
-        self, context_dataset: pt.DataFrame[ContextSymbolSchema], qnames: list[str], feature: str
+        self,
+        context_dataset: pt.DataFrame[ContextSymbolSchema],
+        qnames: list[str],
+        feature: str,
     ):
         qnames_ser = pd.Series(qnames)
         present = qnames_ser.isin(context_dataset[ContextSymbolSchema.qname])
@@ -178,7 +201,7 @@ def tuple_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "context"
     cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(
-            loop=True, reassigned=True, nested=True, user_defined=True, branching=True
+            loop=True, reassigned=True, nested=True, builtin=True, branching=True
         ),
         repo=repo,
         path=repo / "tuples.py",

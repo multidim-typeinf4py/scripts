@@ -119,7 +119,7 @@ def cli_entrypoint(
         loop=loop,
         reassigned=reassigned,
         nested=nested,
-        user_defined=user_defined,
+        builtin=user_defined,
         branching=flow,
     )
 

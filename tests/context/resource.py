@@ -1,4 +1,4 @@
-from typing import Optional
+import typing
 
 
 def looping():
@@ -58,7 +58,7 @@ def g():
     a = bytes([1, 2, 3])
 
 
-def parammed(p: Optional[int]):
+def parammed(p: typing.Optional[int]):
     p: int = p or 10
 
 def branching():
