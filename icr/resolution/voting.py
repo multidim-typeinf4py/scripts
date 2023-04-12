@@ -1,5 +1,6 @@
 import itertools
 import operator
+from typing import Optional
 import pydoc
 
 from ._base import IterativeResolution, Metadata
@@ -18,7 +19,7 @@ class SubtypeVoting(IterativeResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
         metadata: Metadata,
-    ) -> pt.DataFrame[InferredSchema] | None:
+    ) -> Optional[pt.DataFrame[InferredSchema]]:
 
         # if (df := self._basic_voting(static, dynamic, probabilistic, metadata)) is not None:
         #    return df
@@ -35,7 +36,7 @@ class SubtypeVoting(IterativeResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
         metadata: Metadata,
-    ) -> pt.DataFrame[InferredSchema] | None:
+    ) -> Optional[pt.DataFrame[InferredSchema]]:
         # Basic voting procedure; If more than one approach predicts the same type,
         # then infer this type, and mark accordingly
         combined = pd.concat([static, dynamic, probabilistic], ignore_index=True)
@@ -76,7 +77,7 @@ class SubtypeVoting(IterativeResolution):
         dynamic: pt.DataFrame[InferredSchema],
         probabilistic: pt.DataFrame[InferredSchema],
         metadata: Metadata,
-    ) -> pt.DataFrame[InferredSchema] | None:
+    ) -> Optional[pt.DataFrame[InferredSchema]]:
         """Perform n rounds of discussions, and select discussion with the most approvers"""
 
         Gs, profiles = build_discussion_from_predictions(static, dynamic, probabilistic)

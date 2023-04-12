@@ -2,6 +2,7 @@ import os
 import pathlib
 import re
 import shutil
+from typing import Union
 
 import pandas._libs.missing as missing
 import pandera.typing as pt
@@ -17,6 +18,7 @@ from pyre_check.client.commands import start, stop, initialize, ExitCode
 from pyre_check.client import configuration, command_arguments
 
 import pandas as pd
+from pyre_check.client.identifiers import PyreFlavor
 
 from common import ast_helper, visitors
 from common.schemas import InferredSchema, TypeCollectionCategory, TypeCollectionSchema
@@ -72,7 +74,7 @@ class PyreQuery(PerFileInference):
                 super().infer()
 
             finally:
-                stop.run(config)
+                stop.run(config, flavor=PyreFlavor.CLASSIC)
 
         if (dotdir := self.project / ".pyre").is_dir():
             shutil.rmtree(str(dotdir))
@@ -120,7 +122,7 @@ class _PyreQuery2Annotations(
         self.annotations: list[tuple[TypeCollectionCategory, str, str]] = []
 
     def libsa4py_hint(
-        self, _: libcst.Assign | libcst.AnnAssign, target: libcst.Name
+        self, _: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
     ) -> None:
         self._instance_attribute(target)
 
@@ -150,34 +152,34 @@ class _PyreQuery2Annotations(
     def annotated_hint(
         self,
         original_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._variable(target)
 
     def annotated_assignment(
-        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._variable(target)
 
     def unannotated_assign_single_target(
-        self, original_node: libcst.Assign, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.Assign, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._variable(target)
 
     def unannotated_assign_multiple_targets(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
+        original_node: Union[libcst.Assign, libcst.AugAssign],
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._variable(target)
 
     def for_target(
-        self, original_node: libcst.For, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.For, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._variable(target)
 
     def withitem_target(
-        self, original_node: libcst.With, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.With, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._variable(target)
 
@@ -186,7 +188,7 @@ class _PyreQuery2Annotations(
         functy = self._infer_type(target)
         self.annotations.append((TypeCollectionCategory.VARIABLE, qname, functy))
 
-    def _variable(self, target: libcst.Name | libcst.Attribute) -> None:
+    def _variable(self, target: Union[libcst.Name, libcst.Attribute]) -> None:
         qname = self.qualified_name(target)
         functy = self._infer_type(target)
         self.annotations.append((TypeCollectionCategory.VARIABLE, qname, functy))
@@ -205,19 +207,19 @@ class _PyreQuery2Annotations(
 
     def global_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         pass
 
     def nonlocal_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         pass
 
-    def _infer_type(self, node: libcst.Name) -> str | missing.NAType:
+    def _infer_type(self, node: libcst.Name) -> Union[str, missing.NAType]:
         if (
             anno := self.get_metadata(metadata.TypeInferenceProvider, node, None)
         ) is None:
@@ -225,7 +227,7 @@ class _PyreQuery2Annotations(
 
         return anno.removeprefix(self.modpkg.name + ".")
 
-    def _infer_rettype(self, node: libcst.FunctionDef) -> str | missing.NAType:
+    def _infer_rettype(self, node: libcst.FunctionDef) -> Union[str, missing.NAType]:
         if (
             anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)
         ) is None:

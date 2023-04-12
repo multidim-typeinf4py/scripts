@@ -2,6 +2,7 @@ import abc
 import dataclasses
 import itertools
 import typing
+from typing import Union, Optional
 
 import libcst
 from libcst import metadata, matchers as m, helpers as h, codemod as c
@@ -19,20 +20,20 @@ class ScopeAwareTransformer(c.ContextAwareTransformer):
     def qualified_scope(self) -> tuple[str, ...]:
         return tuple(self._qualifier)
 
-    def qualified_name(self, name: libcst.CSTNode | str) -> str:
+    def qualified_name(self, name: Union[libcst.CSTNode, str]) -> str:
         name = h.get_full_name_for_node_or_raise(name)
         return ".".join((*self._qualifier, name))
 
     @m.visit(m.FunctionDef() | m.ClassDef())
-    def __on_enter_scope(self, node: libcst.FunctionDef | libcst.ClassDef) -> None:
+    def __on_enter_scope(self, node: Union[libcst.FunctionDef, libcst.ClassDef]) -> None:
         self._qualifier.append(node.name.value)
 
     @m.leave(m.FunctionDef() | m.ClassDef())
     def __on_leave_scope(
         self,
-        _1: libcst.FunctionDef | libcst.ClassDef,
-        _2: libcst.FunctionDef | libcst.ClassDef,
-    ) -> libcst.FunctionDef | libcst.ClassDef:
+        _1: Union[libcst.FunctionDef, libcst.ClassDef],
+        _2: Union[libcst.FunctionDef, libcst.ClassDef],
+    ) -> Union[libcst.FunctionDef, libcst.ClassDef]:
         self._qualifier.pop()
         return _2
 
@@ -40,9 +41,9 @@ class ScopeAwareTransformer(c.ContextAwareTransformer):
 class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_Param(
         self, original_node: libcst.Param, updated_node: libcst.Param
-    ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
+    ) -> Union[libcst.Param, libcst.MaybeSentinel, libcst.FlattenSentinel[
         libcst.Param
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         if updated_node.annotation is not None:
             return self.annotated_param(updated_node, updated_node.annotation)
         else:
@@ -51,26 +52,26 @@ class HintableParameterTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def annotated_param(
         self, param: libcst.Param, annotation: libcst.Annotation
-    ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
+    ) -> Union[libcst.Param, libcst.MaybeSentinel, libcst.FlattenSentinel[
         libcst.Param
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         ...
 
     @abc.abstractmethod
     def unannotated_param(
         self, param: libcst.Param
-    ) -> libcst.Param | libcst.MaybeSentinel | libcst.FlattenSentinel[
+    ) -> Union[libcst.Param, libcst.MaybeSentinel, libcst.FlattenSentinel[
         libcst.Param
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         ...
 
 
 class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
     def leave_FunctionDef(
         self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
-    ) -> libcst.BaseStatement | libcst.FlattenSentinel[
+    ) -> Union[libcst.BaseStatement, libcst.FlattenSentinel[
         libcst.BaseStatement
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         if updated_node.returns is not None:
             return self.annotated_function(updated_node, updated_node.returns)
         else:
@@ -79,17 +80,17 @@ class HintableReturnTransformer(c.ContextAwareTransformer, abc.ABC):
     @abc.abstractmethod
     def annotated_function(
         self, function: libcst.FunctionDef, annotation: libcst.Annotation
-    ) -> libcst.BaseStatement | libcst.FlattenSentinel[
+    ) -> Union[libcst.BaseStatement, libcst.FlattenSentinel[
         libcst.BaseStatement
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         ...
 
     @abc.abstractmethod
     def unannotated_function(
         self, function: libcst.FunctionDef
-    ) -> libcst.BaseStatement | libcst.FlattenSentinel[
+    ) -> Union[libcst.BaseStatement, libcst.FlattenSentinel[
         libcst.BaseStatement
-    ] | libcst.RemovalSentinel:
+    ], libcst.RemovalSentinel]:
         ...
 
 
@@ -119,7 +120,7 @@ class Untouched:
     ...
 
 
-Actions = list[Untouched | Prepend | Append | Replace | Remove]
+Actions = list[Union[Untouched, Prepend, Append, Replace, Remove]]
 
 
 class HintableDeclarationTransformer(
@@ -139,9 +140,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.annassign)
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
-    ) -> libcst.FlattenSentinel[
+    ) -> Union[libcst.FlattenSentinel[
         libcst.BaseSmallStatement
-    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
+    ], libcst.RemovalSentinel, libcst.BaseSmallStatement]:
         if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, original_node):
             transformer = self.instance_attribute_hint
 
@@ -163,9 +164,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.assign)
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
-    ) -> libcst.FlattenSentinel[
+    ) -> Union[libcst.FlattenSentinel[
         libcst.BaseSmallStatement
-    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
+    ], libcst.RemovalSentinel, libcst.BaseSmallStatement]:
         if targets := _traversal.Recognition.libsa4py_hint(self.metadata, original_node):
             transformer = self.libsa4py_hint
 
@@ -188,9 +189,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.augassign)
     def leave_AugAssign(
         self, original_node: libcst.AugAssign, updated_node: libcst.AugAssign
-    ) -> libcst.FlattenSentinel[
+    ) -> Union[libcst.FlattenSentinel[
         libcst.BaseSmallStatement
-    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
+    ], libcst.RemovalSentinel, libcst.BaseSmallStatement]:
         if targets := _traversal.Recognition.augassign_targets(self.metadata, original_node):
             transformer = self.unannotated_assign_multiple_targets
         else:
@@ -202,7 +203,7 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.fortargets)
     def leave_For(
         self, original_node: libcst.For, updated_node: libcst.For
-    ) -> libcst.FlattenSentinel[libcst.BaseStatement] | libcst.RemovalSentinel:
+    ) -> Union[libcst.FlattenSentinel[libcst.BaseStatement], libcst.RemovalSentinel, libcst.BaseStatement]:
         if targets := _traversal.Recognition.for_targets(self.metadata, original_node):
             transformer = self.for_target
         else:
@@ -214,9 +215,9 @@ class HintableDeclarationTransformer(
     @m.call_if_inside(_traversal.Matchers.withitems)
     def leave_With(
         self, original_node: libcst.With, updated_node: libcst.With
-    ) -> libcst.FlattenSentinel[
+    ) -> Union[libcst.FlattenSentinel[
         libcst.BaseStatement
-    ] | libcst.RemovalSentinel | libcst.BaseSmallStatement:
+    ], libcst.RemovalSentinel, libcst.BaseStatement]:
         if targets := _traversal.Recognition.with_targets(self.metadata, original_node):
             transformer = self.withitem_target
         else:
@@ -226,7 +227,7 @@ class HintableDeclarationTransformer(
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
     # Visitors ignore Lambdas, so Transformer should too
-    def visit_Lambda(self, node: libcst.Lambda) -> bool | None:
+    def visit_Lambda(self, node: libcst.Lambda) -> Optional[bool]:
         return False
 
     _T = typing.TypeVar("_T", libcst.BaseSmallStatement, libcst.BaseStatement)
@@ -234,10 +235,10 @@ class HintableDeclarationTransformer(
     def _apply_actions(
         self,
         targets: _traversal.Targets,
-        transformer: typing.Callable[[_T, libcst.Name | libcst.Attribute], Actions],
+        transformer: typing.Callable[[_T, Union[libcst.Name, libcst.Attribute]], Actions],
         original_node: _T,
         updated_node: _T,
-    ) -> libcst.FlattenSentinel[_T] | libcst.RemovalSentinel:
+    ) -> Union[libcst.FlattenSentinel[_T], libcst.RemovalSentinel]:
 
         unchanged_actions = list(
             itertools.chain.from_iterable(

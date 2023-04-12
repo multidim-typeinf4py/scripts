@@ -4,7 +4,7 @@ import operator
 import pathlib
 import pickle
 import re
-from typing import List, no_type_check
+from typing import List, no_type_check, Optional
 from os.path import splitext, basename, join
 import libcst as cst
 import libcst.metadata as metadata
@@ -458,7 +458,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
         self.returns = returns
         self.annotations = MultiVarAnnotations.empty()
 
-    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool | None:
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> Optional[bool]:
         is_fn = None
         scope = self.get_metadata(metadata.ScopeProvider, node)
         if isinstance(scope, metadata.ClassScope):
@@ -507,7 +507,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
 
     def _load_parameters(
         self, node: cst.FunctionDef, function: bool
-    ) -> list[tuple[str, str | None]] | None:
+    ) -> Optional[list[tuple[str, Optional[str]]]]:
         if not self.parameters:
             return None
 
@@ -536,7 +536,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
 
         return [(arg, _handle_missing_coverage(anno)) for arg, anno in hints]
 
-    def _load_return(self, node: cst.FunctionDef) -> tuple[bool, str | None]:
+    def _load_return(self, node: cst.FunctionDef) -> tuple[bool, Optional[str]]:
         if not self.returns:
             return False, None
 
@@ -548,7 +548,7 @@ class Typewriter2Annotations(cst.CSTVisitor):
         return True, _handle_missing_coverage(hint)
 
 
-def _handle_missing_coverage(annotation: str | None) -> str | None:
+def _handle_missing_coverage(annotation: Optional[str]) -> Optional[str]:
     if annotation is None or annotation == "other":
         return None
     return annotation

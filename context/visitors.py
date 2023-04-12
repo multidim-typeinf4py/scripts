@@ -1,17 +1,17 @@
 import builtins
 import collections
 import pathlib
+import typing
+from typing import Union, Optional
 
 import libcst
+import pandas as pd
+import pandera.typing as pt
+import tqdm
 from libcst import metadata, codemod as c, matchers as m
 from libcst.helpers import get_full_name_for_node_or_raise
-
-import tqdm
-from tqdm.contrib.concurrent import process_map
-
-import pandas as pd
 from pandas._libs import missing
-import pandera.typing as pt
+from tqdm.contrib.concurrent import process_map
 
 from common import visitors
 from common._traversal import T
@@ -79,7 +79,7 @@ class ContextVectorVisitor(
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
             ContextSymbolSchema.nested,
-            ContextSymbolSchema.user_defined,
+            ContextSymbolSchema.builtin,
             ContextSymbolSchema.branching,
             ContextSymbolSchema.ctxt_category,
         ],
@@ -179,19 +179,19 @@ class ContextVectorVisitor(
         )
 
     def annotated_hint(
-        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> T:
         pass
 
     def annotated_assignment(
-        self, original_node: libcst.AnnAssign, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> T:
         self.handle_variable_target(target)
 
     def unannotated_assign_single_target(
         self,
         original_node: libcst.Assign,
-        target: libcst.Name | libcst.Attribute,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         return self.handle_variable_target(
             target,
@@ -199,20 +199,20 @@ class ContextVectorVisitor(
 
     def unannotated_assign_multiple_targets(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
+        original_node: Union[libcst.Assign, libcst.AugAssign],
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         return self.handle_variable_target(target)
 
-    def for_target(self, original_node: libcst.For, target: libcst.Name | libcst.Attribute) -> None:
+    def for_target(self, original_node: libcst.For, target: Union[libcst.Name, libcst.Attribute]) -> None:
         return self.handle_variable_target(target)
 
     def withitem_target(
-        self, original_node: libcst.With, target: libcst.Name | libcst.Attribute
+        self, original_node: libcst.With, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         return self.handle_variable_target(target)
 
-    def handle_variable_target(self, target: libcst.Name | libcst.Attribute) -> None:
+    def handle_variable_target(self, target: Union[libcst.Name, libcst.Attribute]) -> None:
         name = get_full_name_for_node_or_raise(target)
 
         annotation = self.get_metadata(anno4inst.Annotation4InstanceProvider, target).labelled
@@ -227,14 +227,14 @@ class ContextVectorVisitor(
 
     def global_target(
         self,
-        _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        _: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         self.scope_overwritten_target(target)
 
     def nonlocal_target(
         self,
-        _: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        _: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
         target: libcst.Name,
     ) -> None:
         self.scope_overwritten_target(target)
@@ -243,13 +243,13 @@ class ContextVectorVisitor(
         self.keyword_modified_targets.add(get_full_name_for_node_or_raise(target))
 
     @m.visit(m.If() | m.Else())
-    def _enter_branch(self, branch: libcst.If | libcst.Else):
+    def _enter_branch(self, branch: Union[libcst.If, libcst.Else]):
         self.full_scope_nodes.append(branch)
         self.full_scope_names.append(tuple((*self.scope_components(), branch.__class__.__name__)))
         self.visible_symbols[self.scope_components()] = set()
 
     @m.leave(m.If() | m.Else())
-    def _leave_branch(self, branch: libcst.If | libcst.Else):
+    def _leave_branch(self, branch: Union[libcst.If, libcst.Else]):
         *outer, _ = leaving = self.scope_components()
 
         # Branches attached to non-branching nodes
@@ -301,11 +301,7 @@ class ContextVectorVisitor(
     @m.visit(m.Try() | m.TryStar() | m.ExceptHandler() | m.ExceptStarHandler() | m.Finally())
     def _enter_exception_block(
         self,
-        block: libcst.Try
-        | libcst.TryStar
-        | libcst.ExceptHandler
-        | libcst.ExceptStarHandler
-        | libcst.Finally,
+        block: Union[libcst.Try, libcst.TryStar, libcst.ExceptHandler, libcst.ExceptStarHandler, libcst.Finally],
     ):
         self.full_scope_nodes.append(block)
         self.full_scope_names.append(tuple((*self.scope_components(), block.__class__.__name__)))
@@ -313,7 +309,7 @@ class ContextVectorVisitor(
 
     @m.leave(m.Try() | m.TryStar() | m.ExceptHandler() | m.Finally())
     def _leave_exception_block(
-        self, _: libcst.Try | libcst.TryStar | libcst.ExceptHandler | libcst.Finally
+        self, _: Union[libcst.Try, libcst.TryStar, libcst.ExceptHandler, libcst.Finally]
     ):
         *outer, _ = leaving = self.scope_components()
 
@@ -327,22 +323,12 @@ class ContextVectorVisitor(
 
     def _handle_annotatable(
         self,
-        annotatable: libcst.Name | libcst.Attribute | libcst.FunctionDef | libcst.Param,
+        annotatable: Union[libcst.Name, libcst.Attribute, libcst.FunctionDef, libcst.Param],
         identifier: str,
-        annotation: libcst.Annotation | None,
+        annotation: Optional[libcst.Annotation],
         category: TypeCollectionCategory,
     ) -> None:
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
-
-        self.visible_symbols[self.scope_components()].add(identifier)
-
-        loopf = int(self.features.loop and self._is_in_loop(annotatable))
-        nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
-        user_definedf = int(self.features.user_defined and self._is_userdefined(annotation))
-        branching = int(self.features.branching and self._is_in_branch())
-
-        categoryf = self._ctxt_category(category)
-        qname = self.qname_within_scope(identifier)
 
         if m.matches(annotatable, m.Name()):
             simple_name = annotatable.value
@@ -352,6 +338,17 @@ class ContextVectorVisitor(
             simple_name = annotatable.name.value
         elif m.matches(annotatable, m.Param()):
             simple_name = annotatable.name.value
+
+        self.visible_symbols[self.scope_components()].add(identifier)
+
+        loopf = int(self.features.loop and self._is_in_loop(annotatable))
+        nestedf = int(self.features.nested and self._is_nested_scope(annotatable))
+        builtinf = int(self.features.builtin and self.is_builtin(annotation))
+        branching = int(self.features.branching and self._is_in_branch())
+
+        categoryf = self._ctxt_category(category)
+        qname = self.qname_within_scope(identifier)
+
 
         self.dfrs.append(
             ContextVectorVisitor.ContextVector(
@@ -363,18 +360,14 @@ class ContextVectorVisitor(
                 loopf,
                 reassignedf,
                 nestedf,
-                user_definedf,
+                builtinf,
                 branching,
                 categoryf,
             )
         )
 
     def _is_in_loop(self, _: libcst.CSTNode) -> bool:
-        # Break out of unpackable
-        # while isinstance((parent := self.get_metadata(metadata.ParentNodeProvider, annotatable)), libcst.Tuple | libcst.List):
-        #    ...
-
-        return any(isinstance(s, libcst.For | libcst.While) for s in self.full_scope_nodes)
+       return any(isinstance(s, (libcst.For, libcst.While)) for s in self.full_scope_nodes)
 
     def _is_reassigned(self, identifier: str) -> bool:
         scope = self.scope_components()
@@ -384,7 +377,7 @@ class ContextVectorVisitor(
             if identifier in self.visible_symbols.get(window_scope, set()):
                 return True
 
-            if isinstance(self.full_scope_nodes[window], libcst.FunctionDef | libcst.ClassDef):
+            if isinstance(self.full_scope_nodes[window], (libcst.FunctionDef, libcst.ClassDef)):
                 return False
 
         return identifier in self.visible_symbols.get((), set())
@@ -402,20 +395,26 @@ class ContextVectorVisitor(
         return fncount >= 2 or czcount >= 2
 
     def _is_in_branch(self) -> bool:
-        return any(isinstance(s, libcst.If | libcst.Else) for s in self.full_scope_nodes)
+        return any(isinstance(s, (libcst.If, libcst.Else)) for s in self.full_scope_nodes)
 
-    def _is_userdefined(self, annotation: libcst.Annotation | None) -> bool:
+    def is_builtin(self, annotation: Optional[libcst.Annotation]) -> bool:
         if annotation is None:
             return False
 
-        a = _stringify(annotation.annotation)
-        sanitised = "".join(a.split())
-        unions = sanitised.split("|")
+        if isinstance(annotation.annotation, libcst.Subscript):
+            annotation = annotation.annotation.value
+        else:
+            annotation = annotation.annotation
 
-        return any(u not in dir(builtins) for u in unions)
+        if isinstance(annotation, libcst.Name):
+            ty = annotation.value
+        else:
+            ty = annotation.attr.value
+
+        return ty in dir(builtins) or ty in dir(typing)
 
     @m.visit(m.FunctionDef() | m.ClassDef())
-    def _enter_scope(self, node: libcst.FunctionDef | libcst.ClassDef) -> None:
+    def _enter_scope(self, node: Union[libcst.FunctionDef, libcst.ClassDef]) -> None:
         self.full_scope_nodes.append(node)
 
         self.full_scope_names.append(tuple((*self.scope_components(), node.name.value)))
@@ -424,7 +423,7 @@ class ContextVectorVisitor(
         self.visible_symbols[self.scope_components()] = set()
 
     @m.leave(m.FunctionDef() | m.ClassDef())
-    def _leave_scope(self, _: libcst.FunctionDef | libcst.ClassDef) -> None:
+    def _leave_scope(self, _: Union[libcst.FunctionDef, libcst.ClassDef]) -> None:
         del self.visible_symbols[self.scope_components()]
         self.full_scope_nodes.pop()
 
@@ -432,14 +431,14 @@ class ContextVectorVisitor(
         self.real_scope_names.pop()
 
     @m.visit(m.While() | m.For() | m.CompFor())
-    def _enter_loop(self, node: libcst.While | libcst.For | libcst.CompFor) -> None:
+    def _enter_loop(self, node: Union[libcst.While, libcst.For, libcst.CompFor]) -> None:
         self.full_scope_nodes.append(node)
         self.full_scope_names.append(tuple((*self.scope_components(), node.__class__.__name__)))
 
         self.visible_symbols[self.scope_components()] = set()
 
     @m.leave(m.While() | m.For() | m.CompFor())
-    def _leave_loop(self, _: libcst.While | libcst.For | libcst.CompFor) -> None:
+    def _leave_loop(self, _: Union[libcst.While, libcst.For, libcst.CompFor]) -> None:
         # Symbols declared here persist into lower scope, merge them in
         *outer, _ = leaving = self.scope_components()
         self.visible_symbols[tuple(outer)] |= self.visible_symbols.pop(leaving, set())
@@ -468,18 +467,15 @@ class ContextVectorVisitor(
         return ".".join((*self.real_scope_components(), identifier))
 
     def _ctxt_category(self, category: TypeCollectionCategory) -> ContextCategory:
-        match category:
-            case TypeCollectionCategory.CALLABLE_RETURN:
-                return ContextCategory.CALLABLE_RETURN
+        if category is TypeCollectionCategory.CALLABLE_RETURN:
+            return ContextCategory.CALLABLE_RETURN
 
-            case TypeCollectionCategory.CALLABLE_PARAMETER:
-                return ContextCategory.CALLABLE_PARAMETER
+        if category is TypeCollectionCategory.CALLABLE_PARAMETER:
+            return ContextCategory.CALLABLE_PARAMETER
 
-            case TypeCollectionCategory.VARIABLE:
-                return ContextCategory.VARIABLE
+        if category is TypeCollectionCategory.VARIABLE:
+            return ContextCategory.VARIABLE
 
-            case TypeCollectionCategory.VARIABLE:
-                return ContextCategory.VARIABLE
 
     def build(self) -> pt.DataFrame[ContextSymbolSchema]:
         if not self.dfrs:

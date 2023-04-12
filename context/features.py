@@ -5,6 +5,6 @@ class RelevantFeatures:
     loop: bool
     reassigned: bool
     nested: bool
-    user_defined: bool
+    builtin: bool
     branching: bool
 #    scope: bool    

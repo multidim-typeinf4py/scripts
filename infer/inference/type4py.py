@@ -1,4 +1,6 @@
 import pathlib
+from typing import Optional
+
 import requests
 
 
@@ -17,8 +19,8 @@ import pydantic
 
 
 class _Type4PyAnswer(pydantic.BaseModel):
-    error: str | None
-    response: dict | None
+    error: Optional[str]
+    response: Optional[dict]
 
 
 class Type4Py(PerFileInference):
