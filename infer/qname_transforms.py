@@ -47,17 +47,7 @@ class _SSATransformer(
     ) -> Optional[str]:
         ...
 
-    # variations of INSTANCE_ATTR, globals and nonlocals, annotation hints remain untouched
-    def instance_attribute_hint(
-        self,
-        _1: libcst.AnnAssign,
-        _2: libcst.Name,
-    ) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
-    def libsa4py_hint(self, _1: libcst.Assign, _2: libcst.Name) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
+    # globals and nonlocals remain untouched
     def global_target(
         self, _: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
     ) -> t.Actions:
@@ -67,6 +57,16 @@ class _SSATransformer(
         self, _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
+
+    def instance_attribute_hint(
+        self,
+        _1: libcst.AnnAssign,
+        target: libcst.Name,
+    ) -> t.Actions:
+        return self.transform_target(target)
+
+    def libsa4py_hint(self, _1: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name) -> t.Actions:
+        return self.transform_target(target)
 
     # actual assignments; simply rename targets
     def annotated_assignment(

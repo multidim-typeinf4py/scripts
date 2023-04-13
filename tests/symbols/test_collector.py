@@ -93,8 +93,16 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                     "Clazz.multiline_method.self",
                     missing.NA,
                 ),
-                ("Clazz.multiline_method.a", "Clazz.multiline_method.a", "builtins.str"),
-                ("Clazz.multiline_method.b", "Clazz.multiline_method.b", "builtins.int"),
+                (
+                    "Clazz.multiline_method.a",
+                    "Clazz.multiline_method.a",
+                    "builtins.str",
+                ),
+                (
+                    "Clazz.multiline_method.b",
+                    "Clazz.multiline_method.b",
+                    "builtins.int",
+                ),
                 ("Clazz.multiline_method.c", "Clazz.multiline_method.c", missing.NA),
                 # Clazz.function
                 ("Clazz.function.self", "Clazz.function.self", missing.NA),
@@ -103,8 +111,6 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("Clazz.function.c", "Clazz.function.c", "cmod.C"),
                 # outer.nested
                 ("outer.nested.a", "outer.nested.a", "builtins.int"),
-                # Clazz.a
-                [("Clazz.a", "Clazz.a", "builtins.int")],
             ],
         ),
         (
@@ -120,6 +126,7 @@ def code_path() -> typing.Iterator[pathlib.Path]:
                 ("Clazz.function.v", "Clazz.function.vλ1", missing.NA),
                 ("a", "aλ1", "builtins.int"),
                 ("outer.nested.result", "outer.nested.resultλ1", "builtins.str"),
+                ("Clazz.a", "Clazz.aλ1", "builtins.int"),
             ],
         ),
     ],
@@ -128,10 +135,11 @@ def code_path() -> typing.Iterator[pathlib.Path]:
 def test_hints_found(
     code_path: pathlib.Path,
     category: TypeCollectionCategory,
-    hinted_symbols: list[tuple[str, Union[str, missing.NAType]]],
+    hinted_symbols: list[tuple[str, str, Union[str, missing.NAType]]],
 ) -> None:
     collection = build_type_collection(code_path)
 
+    print(hinted_symbols)
     hints = [
         (str(code_path.name), category, qname, qname_ssa, anno)
         for qname, qname_ssa, anno in hinted_symbols
@@ -267,8 +275,14 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.default", "builtins.str"),
+                CR(
+                    TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"
+                ),
+                CR(
+                    TypeCollectionCategory.VARIABLE,
+                    "C.__init__.default",
+                    "builtins.str",
+                ),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.self.x",
@@ -293,7 +307,9 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
+        )
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -464,7 +480,9 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
+        )
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -504,7 +522,9 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
+        )
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -521,7 +541,9 @@ class Test_HintTracking(AnnotationTracking):
             df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -536,7 +558,9 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -665,13 +689,21 @@ class Test_HintTracking(AnnotationTracking):
         self.assertMatchingAnnotating(
             df,
             [
-                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.column_display_pk", missing.NA),
                 CR(
-                    TypeCollectionCategory.VARIABLE, "UserAdminView.column_exclude_list", missing.NA
+                    TypeCollectionCategory.VARIABLE,
+                    "UserAdminView.column_display_pk",
+                    missing.NA,
+                ),
+                CR(
+                    TypeCollectionCategory.VARIABLE,
+                    "UserAdminView.column_exclude_list",
+                    missing.NA,
                 ),
                 CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", missing.NA),
                 CR(
-                    TypeCollectionCategory.VARIABLE, "UserAdminView.column_default_sort", missing.NA
+                    TypeCollectionCategory.VARIABLE,
+                    "UserAdminView.column_default_sort",
+                    missing.NA,
                 ),
             ],
         )

@@ -223,44 +223,10 @@ class TypeCollection:
 
             return vs
 
-        def attributes() -> dict[str, cst.ClassDef]:
-            attrs: dict[str, cst.ClassDef] = {}
-            attr_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
-
-            sep_df = attr_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
-            if sep_df.empty:
-                return attrs
-            sep_df = sep_df.set_axis(["cqname", "attrname"], axis=1)
-            attr_df = pd.merge(attr_df, sep_df, left_index=True, right_index=True)
-
-            for cqname, group in attr_df.groupby(by="cqname"):
-                *_, cname = cqname.split(".")
-                hints = [
-                    cst.SimpleStatementLine(
-                        [
-                            cst.AnnAssign(
-                                target=cst.Name(aname),
-                                annotation=cst.Annotation(cst.parse_expression(hint)),
-                                value=cst.Ellipsis(),
-                            )
-                        ]
-                    )
-                    for aname, hint in group[
-                        ["attrname", TypeCollectionSchema.anno]
-                    ].itertuples(index=False)
-                    if pd.notna(hint)
-                ]
-                attrs[cqname] = cst.ClassDef(
-                    name=cst.Name(cname),
-                    body=cst.IndentedBlock(body=hints),
-                )
-
-            return attrs
-
         annos = Annotations(
             functions=functions(),
             attributes=variables(),
-            class_definitions=attributes(),
+            class_definitions=dict(),
             typevars=dict(),
             names=set(),
         )

@@ -1000,12 +1000,15 @@ class ApplyTypeAnnotationsVisitor(
     def instance_attribute_hint(
         self, updated_node: libcst.AnnAssign, target: libcst.Name
     ) -> t.Actions:
-        return self._handle_instance_attr(updated_node, target)
+        return self._handle_annotated_target(updated_node, target)
 
     def libsa4py_hint(
-        self, updated_node: libcst.Assign, target: libcst.Name
+        self, updated_node: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
     ) -> t.Actions:
-        return self._handle_instance_attr(updated_node, target)
+        if isinstance(updated_node, libcst.AnnAssign):
+            return self._handle_annotated_target(updated_node, target)
+        else:
+            return self.unannotated_assign_single_target(updated_node, target)
 
     def _handle_instance_attr(
         self, updated_node: Union[libcst.AnnAssign, libcst.Assign], target: libcst.Name

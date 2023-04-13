@@ -170,6 +170,25 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file)
         )
 
+    def test_instance_attribute(self):
+        self.assertCodemod(
+            """
+            class Clazz:
+                a: int
+            """,
+            """
+            class Clazz:
+                aλ1: int
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
 
 class Test_SSA2QName(codemod.CodemodTest):
     TRANSFORM = SSA2QNameTransformer
@@ -296,6 +315,25 @@ class Test_SSA2QName(codemod.CodemodTest):
             """
             class Clazz:
                 a: int = 5
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_instance_attribute(self):
+        self.assertCodemod(
+            """
+            class Clazz:
+                aλ1: int
+            """,
+            """
+            class Clazz:
+                a: int
             """,
             annotations=pd.DataFrame(
                 {
