@@ -1,4 +1,5 @@
 import pathlib
+import typing
 
 import pandas as pd
 import pandera.typing as pt
@@ -62,7 +63,7 @@ def train(inpath: pathlib.Path) -> None:
     required=False,
 )
 def dataset(
-    inpath: list[tuple[pathlib.Path, pathlib.Path, str]], append_to: pathlib.Path | None
+    inpath: list[tuple[pathlib.Path, pathlib.Path, str]], append_to: typing.Union[pathlib.Path, None]
 ) -> None:
     ground_truth_df = [build_type_collection(ip).df for ip, _, _ in inpath]
 
