@@ -1010,50 +1010,6 @@ class ApplyTypeAnnotationsVisitor(
         else:
             return self.unannotated_assign_single_target(updated_node, target)
 
-    def _handle_instance_attr(
-        self, updated_node: Union[libcst.AnnAssign, libcst.Assign], target: libcst.Name
-    ) -> t.Actions:
-        if (
-            isinstance(updated_node, libcst.AnnAssign)
-            and not self.overwrite_existing_annotations
-        ):
-            return t.Actions((t.Untouched(),))
-
-        clazz_def = self.annotations.class_definitions.get(
-            ".".join(self.qualified_scope())
-        )
-        if clazz_def is None:
-            return t.Actions((t.Untouched(),))
-
-        attr = m.SimpleStatementLine(
-            [m.AnnAssign(target=m.Name(target.value), value=m.Ellipsis())]
-        )
-        clazz_def_hint: Optional[libcst.SimpleStatementLine] = next(
-            filter(lambda a: m.matches(a, attr), clazz_def.body.body), None
-        )
-        if clazz_def_hint is None:
-            return t.Actions((t.Untouched(),))
-
-        if isinstance(updated_node, libcst.AnnAssign):
-            matcher = m.AnnAssign(
-                updated_node.target, updated_node.annotation, updated_node.value
-            )
-        else:
-            matcher = m.Assign(updated_node.targets, updated_node.value)
-
-        return t.Actions(
-            (
-                t.Replace(
-                    matcher=matcher,
-                    replacement=libcst.AnnAssign(
-                        target=target,
-                        annotation=clazz_def_hint.body[0].annotation,
-                        value=updated_node.value,
-                    ),
-                ),
-            ),
-        )
-
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
     def _visit_Assign(
