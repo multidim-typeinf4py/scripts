@@ -85,7 +85,6 @@ def cli_entrypoint(
 
     if remove_var_annos:
         removing.append(TypeCollectionCategory.VARIABLE)
-        removing.append(TypeCollectionCategory.INSTANCE_ATTR)
 
     if remove_param_annos:
         removing.append(TypeCollectionCategory.CALLABLE_PARAMETER)
@@ -148,7 +147,7 @@ def cli_entrypoint(
     ):
         df = inference_tool.inferred.copy(deep=True)
         df = df[
-            df[TypeCollectionSchema.category].isin(removing) & df[TypeCollectionSchema.anno].notna()
+            df[TypeCollectionSchema.category].isin(removing)
         ]
 
         print(df.sample(n=min(len(df), 20)).sort_index())
