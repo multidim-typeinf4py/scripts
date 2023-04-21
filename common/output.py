@@ -6,6 +6,7 @@ import pandera.typing as pt
 from common.schemas import (
     ContextSymbolSchema,
     TypeCollectionCategory,
+    TypeCollectionSchema,
     InferredSchema,
 )
 
@@ -47,7 +48,9 @@ def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> N
     )
 
 
-def read_inferred(inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]) -> pt.DataFrame[InferredSchema]:
+def read_inferred(
+    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
+) -> pt.DataFrame[InferredSchema]:
     outpath = inference_output_path(inpath, tool, removed)
     ipath = inferred_path(outpath)
     df = pd.read_csv(ipath, converters={"category": lambda c: TypeCollectionCategory[c]})
@@ -60,3 +63,18 @@ def inference_output_path(
 ) -> pathlib.Path:
     removed_names = ",".join(map(str, removed))
     return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]"
+
+
+def dataset_output_path(inpath: pathlib.Path, kind: str) -> pathlib.Path:
+    assert inpath.is_dir(), f"Expected {inpath = } to be a folder to the dataset"
+    return inpath / f"{inpath.name}-{kind}.csv"
+
+
+def write_dataset(inpath: pathlib.Path, kind: str, df: pt.DataFrame[TypeCollectionSchema]) -> None:
+    opath = dataset_output_path(inpath, kind)
+    print(f"Writing to {opath}")
+    df.to_csv(
+        opath,
+        index=False,
+        header=InferredSchema.to_schema().columns,
+    )
