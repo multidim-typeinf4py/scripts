@@ -1,8 +1,7 @@
 import pathlib
 import click
 
-from . import DatasetConsumer
-from .manytypes4py import ManyTypes4PyConsumerFull, ManyTypes4PyConsumerNeat
+from . import consumer as c, manytypes4py
 
 
 from common import output
@@ -18,16 +17,16 @@ from common import output
     "-k", "--kind", type=click.Choice(["manytypes4py", "manytypes4py-full"], case_sensitive=False)
 )
 def cli_entrypoint(inpath: pathlib.Path, kind: str) -> None:
-    consumer: DatasetConsumer
+    consumer: c.DatasetConsumer
     if kind == "manytypes4py":
-        consumer = ManyTypes4PyConsumerNeat(
+        consumer = manytypes4py.ManyTypes4PyConsumerNeat(
             duplicates=inpath / "duplicate_files.txt",
             type_checked_files=inpath / "type_checked_files.txt",
             split=inpath / "dataset_split.csv",
         )
         dataset = inpath / "repos"
     elif kind == "manytypes4py-full":
-        consumer = ManyTypes4PyConsumerFull(split=inpath / "dataset_split.csv")
+        consumer = manytypes4py.ManyTypes4PyConsumerFull(split=inpath / "dataset_split.csv")
         dataset = inpath / "repos"
     else:
         assert f"Unknown kind: {kind}"
