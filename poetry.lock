@@ -28,6 +28,18 @@ files = [
 frozenlist = ">=1.1.0"
 
 [[package]]
+name = "annoy"
+version = "1.17.2"
+description = "Approximate Nearest Neighbors in C++/Python optimized for memory usage and loading/saving to disk."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "annoy-1.17.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:6012ca1e9c77beb27dc43b210e2ced08a438908cb15fd06abba5eade04439831"},
+    {file = "annoy-1.17.2.tar.gz", hash = "sha256:e67bfbb837d1306da4555c883860c7b215cb32a864e40022292d5847ad1fa0bb"},
+]
+
+[[package]]
 name = "astor"
 version = "0.8.1"
 description = "Read/rewrite/write Python ASTs"
@@ -398,6 +410,24 @@ files = [
 ]
 
 [[package]]
+name = "coloredlogs"
+version = "15.0.1"
+description = "Colored terminal output for Python's logging module"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+files = [
+    {file = "coloredlogs-15.0.1-py2.py3-none-any.whl", hash = "sha256:612ee75c546f53e92e70049c9dbfcc18c935a2b9a53b66085ce9ef6a6e5c0934"},
+    {file = "coloredlogs-15.0.1.tar.gz", hash = "sha256:7c991aa71a4577af2f82600d8f8f3a89f936baeaf9b50a9c197da014e5bf16b0"},
+]
+
+[package.dependencies]
+humanfriendly = ">=9.1"
+
+[package.extras]
+cron = ["capturer (>=2.4)"]
+
+[[package]]
 name = "contourpy"
 version = "1.0.7"
 description = "Python library for calculating contours of 2D quadrilateral grids"
@@ -718,6 +748,18 @@ files = [
 mccabe = ">=0.7.0,<0.8.0"
 pycodestyle = ">=2.9.0,<2.10.0"
 pyflakes = ">=2.5.0,<2.6.0"
+
+[[package]]
+name = "flatbuffers"
+version = "23.3.3"
+description = "The FlatBuffers serialization format for Python"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "flatbuffers-23.3.3-py2.py3-none-any.whl", hash = "sha256:5ad36d376240090757e8f0a2cfaf6abcc81c6536c0dc988060375fd0899121f8"},
+    {file = "flatbuffers-23.3.3.tar.gz", hash = "sha256:cabd87c4882f37840f6081f094b2c5bc28cefc2a6357732746936d055ab45c3d"},
+]
 
 [[package]]
 name = "fonttools"
@@ -1245,6 +1287,21 @@ tensorflow = ["graphviz", "pydot", "tensorflow"]
 testing = ["InquirerPy (==0.3.4)", "Jinja2", "Pillow", "jedi", "pytest", "pytest-cov", "pytest-env", "pytest-xdist", "soundfile"]
 torch = ["torch"]
 typing = ["types-PyYAML", "types-requests", "types-simplejson", "types-toml", "types-tqdm", "types-urllib3"]
+
+[[package]]
+name = "humanfriendly"
+version = "10.0"
+description = "Human friendly output for text interfaces using Python"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+files = [
+    {file = "humanfriendly-10.0-py2.py3-none-any.whl", hash = "sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477"},
+    {file = "humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc"},
+]
+
+[package.dependencies]
+pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_version >= \"3.8\""}
 
 [[package]]
 name = "hypothesis"
@@ -1835,6 +1892,24 @@ files = [
 ]
 
 [[package]]
+name = "mpmath"
+version = "1.3.0"
+description = "Python library for arbitrary-precision floating-point arithmetic"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"},
+    {file = "mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f"},
+]
+
+[package.extras]
+develop = ["codecov", "pycodestyle", "pytest (>=4.6)", "pytest-cov", "wheel"]
+docs = ["sphinx"]
+gmpy = ["gmpy2 (>=2.1.0a4)"]
+tests = ["pytest (>=4.6)"]
+
+[[package]]
 name = "msal"
 version = "1.21.0"
 description = "The Microsoft Authentication Library (MSAL) for Python library enables your app to access the Microsoft Cloud by supporting authentication of users with Microsoft Azure Active Directory accounts (AAD) and Microsoft Accounts (MSA) using industry standard OAuth2 and OpenID Connect."
@@ -2173,6 +2248,98 @@ files = [
 rsa = ["cryptography (>=3.0.0)"]
 signals = ["blinker (>=1.4.0)"]
 signedtoken = ["cryptography (>=3.0.0)", "pyjwt (>=2.0.0,<3)"]
+
+[[package]]
+name = "onnx"
+version = "1.11.0"
+description = "Open Neural Network Exchange"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "onnx-1.11.0-cp36-cp36m-macosx_10_12_x86_64.whl", hash = "sha256:a6e9135f1d02539ca7573f699fb0d31d3c43d10fac1d2d2239a9a1c553506c29"},
+    {file = "onnx-1.11.0-cp36-cp36m-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:b2de0b117ad77689d308824a0c9eb89539ec28a799b4e2e05b3bb977b0da0b45"},
+    {file = "onnx-1.11.0-cp36-cp36m-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:f335d982b8ed201cf767459b993630acfd20c32b100529f70af9f28a26e72167"},
+    {file = "onnx-1.11.0-cp36-cp36m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:593ca9e11f15afa26b3aaf2d170bb803d4bd86dbd560aa7be4e5f535d03f83d5"},
+    {file = "onnx-1.11.0-cp36-cp36m-win32.whl", hash = "sha256:df85666ab2b88fd9cf9b2504bcb551da39422eab65a143926a8db58f81b09164"},
+    {file = "onnx-1.11.0-cp36-cp36m-win_amd64.whl", hash = "sha256:82221a07707b1ccf71fb18c6abb77f2566517a55d5185809775b5ff008bfb35c"},
+    {file = "onnx-1.11.0-cp37-cp37m-macosx_10_12_x86_64.whl", hash = "sha256:4aa899f74acd4c5543f0efed8bfe98a3b701df75c5ffa179212e3088c51971bb"},
+    {file = "onnx-1.11.0-cp37-cp37m-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:58d4873ec587ac14c44227d8027787edc88cd61596e646e3417f2a826a920898"},
+    {file = "onnx-1.11.0-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:7a2f5d6998fe79aed80fad9d4522140d02c4d29513047e335d5c5355c1ebda5e"},
+    {file = "onnx-1.11.0-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:eb46f31f12bb0bfdcfb68497d10b20447cf8fa6c4f693120c013e052645357b8"},
+    {file = "onnx-1.11.0-cp37-cp37m-win32.whl", hash = "sha256:997d91ffd7b7ae7aee09c6d652a896d906be430d425865c759b51a8de5df9fe0"},
+    {file = "onnx-1.11.0-cp37-cp37m-win_amd64.whl", hash = "sha256:ea06dbf57a287657b6dc4e189918e4cb451450308589d482117216194d6f83d6"},
+    {file = "onnx-1.11.0-cp38-cp38-macosx_10_12_x86_64.whl", hash = "sha256:c3d3503110f2cab2c818f4a7b2bc8abc3bc79649daa39e70d5fb504b208ddb1e"},
+    {file = "onnx-1.11.0-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:9b9f58ea01c1b20b057f55f628df4fc0403bbc160b7282a56e3bb4df5c7fb96f"},
+    {file = "onnx-1.11.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:89420e5b824d7e182846fe2aa09190ddb41162b261465c6ca928174bc2ac10b7"},
+    {file = "onnx-1.11.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d6ddbe89e32f885db736d36fcb132784e368331a18c3b6168ac9f561eb462057"},
+    {file = "onnx-1.11.0-cp38-cp38-win32.whl", hash = "sha256:0cf47c205b376b3763beef92a6de4152f3b1552d6f640d93044938500baf5958"},
+    {file = "onnx-1.11.0-cp38-cp38-win_amd64.whl", hash = "sha256:d6581dd2122525549d1d8b431b8bf375298993c77bddb8fd0bf0d92611df76a1"},
+    {file = "onnx-1.11.0-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:4454906de80a351de6929b0896ad605d106c324c3112c92249240e531f68fbba"},
+    {file = "onnx-1.11.0-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:ae74bf8fa343b64e2b7fe205091b7f3728887c018ae061d161dd86ec95eb66a8"},
+    {file = "onnx-1.11.0-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:67c6d2654c1c203e5c839a47900b51f588fd0de71bbd497fb193d30a0b3ec1e9"},
+    {file = "onnx-1.11.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:43b32a2f20c94aa98866deae9e4218faf0495144ad05402e918fa279674b6df9"},
+    {file = "onnx-1.11.0-cp39-cp39-win32.whl", hash = "sha256:7924d9baa13dbbf335737229f6d068f380d153679f357e495da60007b61cf56d"},
+    {file = "onnx-1.11.0-cp39-cp39-win_amd64.whl", hash = "sha256:3403884c482859f8cf2e0c276da84bd9ac2235d266726f4ddc9625d3fd263218"},
+    {file = "onnx-1.11.0.tar.gz", hash = "sha256:eca224c7c2c8ee4072a0743e4898a84a9bdf8297b5e5910a2632e4c4182ffb2a"},
+]
+
+[package.dependencies]
+numpy = ">=1.16.6"
+protobuf = ">=3.12.2"
+typing-extensions = ">=3.6.2.1"
+
+[package.extras]
+mypy = ["mypy (==0.782)", "types-protobuf (==3.18.4)"]
+
+[[package]]
+name = "onnxruntime"
+version = "1.14.1"
+description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "onnxruntime-1.14.1-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:193ef1ac512e530c6e6e259c26e67212e2cd3f2bfaad6ff935ed3f4281053056"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:d2853bbb36cb272d99f6c225e5040eb0ddb37a667fce20d186ecdf0a6fac8af8"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8e1b173365c6894616b8207e23cbb891da9638c5373668d6653e4081ef5f04d0"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:24bf0401c5f92be7230ac660ff07ba06f7c175e99e225d5d48ff09062a3b76e9"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-manylinux_2_27_aarch64.whl", hash = "sha256:0a2d09260bbdbe1df678e0a237a5f7b1a44fd11a2f52688d8b6a53a9d03a26db"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-manylinux_2_27_x86_64.whl", hash = "sha256:d99d35b9d5c3f46cad1673a39cc753fb57d60784369b59e6f8cd3dfb77df1885"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-win32.whl", hash = "sha256:f400356df1b27d9adc5513319e8a89753e48ef0d6c5084caf5db8e132f46e7e8"},
+    {file = "onnxruntime-1.14.1-cp310-cp310-win_amd64.whl", hash = "sha256:96a4059dbab162fe5cdb6750f8c70b2106ef2de5d49a7f72085171937d0e36d3"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:fa23df6a349218636290f9fe56d7baaceb1a50cf92255234d495198b47d92327"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bc70e44d9e123d126648da24ffb39e56464272a1660a3eb91f4f5b74263be3ba"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:deff8138045a3affb6be064b598e3ec69a88e4d445359c50464ee5379b8eaf19"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-manylinux_2_27_aarch64.whl", hash = "sha256:7c02acdc1107cbf698dcbf6dadc6f5b6aa179e7fa9a026251e99cf8613bd3129"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-manylinux_2_27_x86_64.whl", hash = "sha256:6efa3b2f4b1eaa6c714c07861993bfd9bb33bd73cdbcaf5b4aadcf1ec13fcaf7"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-win32.whl", hash = "sha256:72fc0acc82c54bf03eba065ad9025baa438c00c54a2ee0beb8ae4b6085cd3a0d"},
+    {file = "onnxruntime-1.14.1-cp37-cp37m-win_amd64.whl", hash = "sha256:4d6f08ea40d63ccf90f203f4a2a498f4e590737dcaf16867075cc8e0a86c5554"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:c2d9e8f1bc6037f14d8aaa480492792c262fc914936153e40b06b3667bb25549"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:e7424d3befdd95b537c90787bbfaa053b2bb19eb60135abb898cb0e099d7d7ad"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9066d275e6e41d0597e234d2d88c074d4325e650c74a9527a52cadbcf42a0fe2"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8224d3c1f2cd0b899cea7b5a39f28b971debe0da30fcbc61382801d97d6f5740"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-manylinux_2_27_aarch64.whl", hash = "sha256:f4ac52ff4ac793683ebd1fbd1ee24197e3b4ca825ee68ff739296a820867debe"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-manylinux_2_27_x86_64.whl", hash = "sha256:b1dd8cdd3be36c32ddd8f5763841ed571c3e81da59439a622947bd97efee6e77"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-win32.whl", hash = "sha256:95d0f0cd95360c07f1c3ba20962b9bb813627df4bfc1b4b274e1d40044df5ad1"},
+    {file = "onnxruntime-1.14.1-cp38-cp38-win_amd64.whl", hash = "sha256:de40a558e00fc00f92e298d5be99eb8075dba51368dabcb259670a00f4670e56"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:c65b587a42a89fceceaad367bd69d071ee5c9c7010b76e2adac5e9efd9356fb5"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:6e47ef6a2c6e6dd6ff48bc13f2331d124dff00e1d76627624bb3268c8058f19c"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0afd0f671d068dd99b9d071d88e93a9a57a5ed59af440c0f4d65319ee791603f"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fc65e9061349cdf98ce16b37722b557109f16076632fbfed9a3151895cfd3bb7"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-manylinux_2_27_aarch64.whl", hash = "sha256:2ff17c71187391a71e6ccc78ca89aed83bcaed1c085c95267ab1a70897868bdd"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-manylinux_2_27_x86_64.whl", hash = "sha256:9b795189916942ce848192200dde5b1f32799ee6c84fc600969a44d88e8a5404"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-win32.whl", hash = "sha256:17ca3100112af045118750d24643a01ed4e6d86071a8efaef75cc1d434ea64aa"},
+    {file = "onnxruntime-1.14.1-cp39-cp39-win_amd64.whl", hash = "sha256:b5e8c489329ba0fa0639dfd7ec02d6b07cece1bab52ef83884b537247efbda74"},
+]
+
+[package.dependencies]
+coloredlogs = "*"
+flatbuffers = "*"
+numpy = ">=1.21.6"
+packaging = "*"
+protobuf = "*"
+sympy = "*"
 
 [[package]]
 name = "packaging"
@@ -2704,6 +2871,18 @@ files = [
 [package.dependencies]
 typing-extensions = "*"
 typing-inspect = "*"
+
+[[package]]
+name = "pyreadline3"
+version = "3.4.1"
+description = "A python implementation of GNU readline."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pyreadline3-3.4.1-py3-none-any.whl", hash = "sha256:b0efb6516fd4fb07b45949053826a62fa4cb353db5be2bbb4a7aa1fdd1e345fb"},
+    {file = "pyreadline3-3.4.1.tar.gz", hash = "sha256:6f3d1f7b8a31ba32b73917cefc1f28cc660562f39aea8646d30bd6eff21f7bae"},
+]
 
 [[package]]
 name = "pyrsistent"
@@ -3403,6 +3582,21 @@ files = [
 ]
 
 [[package]]
+name = "sympy"
+version = "1.11.1"
+description = "Computer algebra system (CAS) in Python"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "sympy-1.11.1-py3-none-any.whl", hash = "sha256:938f984ee2b1e8eae8a07b884c8b7a1146010040fccddc6539c54f401c8f6fcf"},
+    {file = "sympy-1.11.1.tar.gz", hash = "sha256:e32380dce63cb7c0108ed525570092fd45168bdae2faa17e528221ef72e88658"},
+]
+
+[package.dependencies]
+mpmath = ">=0.19"
+
+[[package]]
 name = "tabulate"
 version = "0.9.0"
 description = "Pretty-print tabular data"
@@ -3706,6 +3900,33 @@ torch-vision = ["Pillow", "torchvision"]
 torchhub = ["filelock", "huggingface-hub (>=0.11.0,<1.0)", "importlib-metadata", "numpy (>=1.17)", "packaging (>=20.0)", "protobuf (<=3.20.2)", "regex (!=2019.12.17)", "requests", "sentencepiece (>=0.1.91,!=0.1.92)", "tokenizers (>=0.11.1,!=0.11.3,<0.14)", "torch (>=1.7,!=1.12.0)", "tqdm (>=4.27)"]
 video = ["av (==9.2.0)", "decord (==0.6.0)"]
 vision = ["Pillow"]
+
+[[package]]
+name = "type4py"
+version = "0.1"
+description = "Type4Py: Deep Similarity Learning-Based Type Inference for Python"
+category = "main"
+optional = false
+python-versions = "*"
+files = []
+develop = false
+
+[package.dependencies]
+annoy = ">=1.17.0"
+gensim = ">=4.0.0"
+libsa4py = "*"
+numpy = "*"
+onnx = "*"
+onnxruntime = "*"
+pandas = "*"
+scikit-learn = "*"
+torch = "*"
+
+[package.source]
+type = "git"
+url = "https://github.com/multidim-typeinf4py/type4py.git"
+reference = "compat/fixes"
+resolved_reference = "ac64b0dc613947483dcd5d129ca0e8e42315ceee"
 
 [[package]]
 name = "typeguard"
@@ -4055,4 +4276,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "2ea6470f2329322a1f71d215af269f29e66359b263b18eb3c16d34b0a0247f50"
+content-hash = "99a566a094cd0df1ed4e7ee11c18f6d8def844f3d23ce6c31abe08fa22f0dec5"
