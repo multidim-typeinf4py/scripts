@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import pathlib
 
 import libcst as cst
@@ -48,7 +49,15 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
         [str(root)] if root.is_file() else c.gather_files([str(root)], include_stubs=allow_stubs)
     )
 
-    file2code = {file: open(file).read() for file in tqdm.tqdm(files)}
+    file2code = dict()
+    for file in tqdm.tqdm(files):
+        if os.path.isdir(file):
+            continue
+        try:
+            file2code[file] = open(file).read()
+        except UnicodeDecodeError as e:
+            print(f"WARNING: Could not decode {file} - {e}")
+            continue
 
     collector = _ParallelTypeCollector(repo_root=repo_root, files=files)
     collections = process_map(
