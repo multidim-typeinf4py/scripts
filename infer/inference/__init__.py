@@ -6,6 +6,6 @@ from .pyrequery import PyreQuery
 
 from .hity import HiTyper
 from .typewriter import TypeWriter
-from .type4py import Type4Py
+from .t4py import Type4Py
 
 __all__ = ["Inference", "MyPy", "PyreInfer", "PyreQuery", "TypeWriter", "Type4Py", "HiTyper"]

@@ -40,11 +40,18 @@ from libcst import codemod
     help="Supported inference methods",
 )
 @click.option(
-    "-i",
-    "--inpath",
+    "-d",
+    "--dataset",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
-    help="Project to infer over",
+    help="Dataset to infer over",
+)
+@click.option(
+    "-f",
+    "--format-style",
+    type=click.Choice(["manytypes4py", "typilus"]),
+    required=True,
+    help="How are the repositories stored (mt4py: $author/$repo/*, typilus: $author.$repo/*)"
 )
 @click.option(
     "-w",
@@ -74,7 +81,8 @@ from libcst import codemod
 @click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
 def cli_entrypoint(
     tool: type[Inference],
-    inpath: pathlib.Path,
+    dataset: pathlib.Path,
+    format_style: str,
     overwrite: bool,
     remove_var_annos: bool,
     remove_param_annos: bool,
@@ -92,7 +100,7 @@ def cli_entrypoint(
     if remove_ret_annos:
         removing.append(TypeCollectionCategory.CALLABLE_RETURN)
 
-    with scratchpad(inpath) as sc:
+    with scratchpad(dataset) as sc:
         print(f"Using {sc} as a scratchpad for inference!")
 
         if remove_var_annos or remove_param_annos or remove_ret_annos:
@@ -110,9 +118,9 @@ def cli_entrypoint(
             print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
         inference_tool = tool(sc)
-        inference_tool.infer()
+        inference_tool.infer(format_style)
 
-        outdir = output.inference_output_path(inpath, tool=inference_tool.method, removed=removing)
+        outdir = output.inference_output_path(dataset, tool=inference_tool.method, removed=removing)
         if outdir.is_dir() and overwrite:
             shutil.rmtree(outdir)
 
@@ -146,9 +154,7 @@ def cli_entrypoint(
         "display.max_rows", None, "display.max_columns", None, "display.expand_frame_repr", False
     ):
         df = inference_tool.inferred.copy(deep=True)
-        df = df[
-            df[TypeCollectionSchema.category].isin(removing)
-        ]
+        df = df[df[TypeCollectionSchema.category].isin(removing)]
 
         print(df.sample(n=min(len(df), 20)).sort_index())
 
