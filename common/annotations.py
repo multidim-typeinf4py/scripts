@@ -26,7 +26,13 @@ from libcst.codemod.visitors._gather_global_names import GatherGlobalNamesVisito
 from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
 from libcst.codemod.visitors._imports import ImportItem
 from libcst.helpers import get_full_name_for_node
-from libcst.metadata import PositionProvider, QualifiedNameProvider, ScopeProvider
+from libcst.metadata import (
+    PositionProvider,
+    ScopeProvider,
+    QualifiedNameProvider,
+    FullyQualifiedNameProvider,
+)
+from libcst.metadata.name_provider import FullyQualifiedNameVisitor
 
 from common import transformers as t
 from common.metadata.anno4inst import Annotation4InstanceProvider
@@ -342,8 +348,8 @@ class MultiVarTypeCollector(
         if m.matches(node, m.Name("None")):
             return node
 
-        qualified_name = _get_unique_qualified_name(self, node)
-        _ = self._handle_qualification_and_should_qualify(qualified_name, node)
+        qualified_name = self._get_unique_qualified_name(node)
+        # _ = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
 
         qualified_node = (
@@ -379,14 +385,14 @@ class MultiVarTypeCollector(
             new_node = node.with_changes(value=self._handle_NameOrAttribute(value))
         else:
             raise ValueError("Expected any indexed type to have")
-        if _get_unique_qualified_name(self, node) in ("Type", "typing.Type"):
+        if self._get_unique_qualified_name(node) in ("Type", "typing.Type"):
             # Note: we are intentionally not handling qualification of
             # anything inside `Type` because it's common to have nested
             # classes, which we cannot currently distinguish from classes
             # coming from other modules, appear here.
             return new_node
         slice = node.slice
-        if isinstance(slice, tuple):
+        if isinstance(slice, (tuple, list)):
             new_slice = []
             for item in slice:
                 value = item.slice.value
@@ -459,6 +465,34 @@ class MultiVarTypeCollector(
             return updated_parameters
 
         return parameters.with_changes(params=update_annotations(parameters.params))
+
+    def _get_unique_qualified_name(self, node: libcst.CSTNode) -> str:
+        name = None
+        names = [q for q in self.get_metadata(QualifiedNameProvider, node)]
+        if len(names) == 0:
+            # we hit this branch if the stub is directly using a fully
+            # qualified name, which is not technically valid python but is
+            # convenient to allow.
+            name = h.get_full_name_for_node_or_raise(node).replace(".<locals>.", ".")
+        elif len(names) >= 1:
+            n = next(
+                filter(lambda qname: not qname.name.startswith("."), names), names[0]
+            )
+            n = FullyQualifiedNameVisitor._fully_qualify(
+                module_name=self.context.full_module_name,
+                package_name=self.context.full_package_name,
+                qname=n,
+            )
+            name = n.name.replace(".<locals>.", ".")
+
+        if name is None:
+            start = self.get_metadata(PositionProvider, node).start
+            raise ValueError(
+                "Could not resolve a unique qualified name for type "
+                + f"{get_full_name_for_node(node)} at {start.line}:{start.column}. "
+                + f"Candidate names were: {names!r}"
+            )
+        return name
 
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations
@@ -794,23 +828,30 @@ class ApplyTypeAnnotationsVisitor(
 
     def annotated_param(
         self, param: libcst.Param, annotation: libcst.Annotation
-    ) -> (
-            Union[libcst.Param, libcst.MaybeSentinel, libcst.FlattenSentinel[libcst.Param], libcst.RemovalSentinel]
-    ):
+    ) -> Union[
+        libcst.Param,
+        libcst.MaybeSentinel,
+        libcst.FlattenSentinel[libcst.Param],
+        libcst.RemovalSentinel,
+    ]:
         return param
 
     def annotated_function(
         self, function: libcst.FunctionDef, _: libcst.Annotation
-    ) -> (
-            Union[libcst.BaseStatement, libcst.FlattenSentinel[libcst.BaseStatement], libcst.RemovalSentinel]
-    ):
+    ) -> Union[
+        libcst.BaseStatement,
+        libcst.FlattenSentinel[libcst.BaseStatement],
+        libcst.RemovalSentinel,
+    ]:
         return self._handle_function(function)
 
     def unannotated_function(
         self, function: libcst.FunctionDef
-    ) -> (
-            Union[libcst.BaseStatement, libcst.FlattenSentinel[libcst.BaseStatement], libcst.RemovalSentinel]
-    ):
+    ) -> Union[
+        libcst.BaseStatement,
+        libcst.FlattenSentinel[libcst.BaseStatement],
+        libcst.RemovalSentinel,
+    ]:
         return self._handle_function(function)
 
     def _handle_function(
@@ -1112,12 +1153,16 @@ class ApplyTypeAnnotationsVisitor(
 
     # no-op; do not annotate these targets
     def global_target(
-        self, _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
+        self,
+        _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
+        _2: libcst.Name,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
     def nonlocal_target(
-        self, _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign], _2: libcst.Name
+        self,
+        _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],
+        _2: libcst.Name,
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
@@ -1240,32 +1285,3 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
                 value=original_node.value,
             )
         return updated_node
-
-
-def _get_unique_qualified_name(
-    visitor: m.MatcherDecoratableVisitor, node: libcst.CSTNode
-) -> str:
-    name = None
-    names = [q.name for q in visitor.get_metadata(QualifiedNameProvider, node)]
-    if len(names) == 0:
-        # we hit this branch if the stub is directly using a fully
-        # qualified name, which is not technically valid python but is
-        # convenient to allow.
-        name = get_full_name_for_node(node)
-    elif len(names) >= 1 and isinstance(names[0], str):
-        name = next(filter(lambda qname: not qname.startswith("."), names), None)
-        # name = name or h.get_full_name_for_node_or_raise(node)
-        name = name.replace(".<locals>.", ".") or h.get_full_name_for_node_or_raise(
-            node
-        )
-
-        # print("NAMES:", names, "FULL-NAME", h.get_full_name_for_node_or_raise(node), "NAME:", name)
-
-    if name is None:
-        start = visitor.get_metadata(PositionProvider, node).start
-        raise ValueError(
-            "Could not resolve a unique qualified name for type "
-            + f"{get_full_name_for_node(node)} at {start.line}:{start.column}. "
-            + f"Candidate names were: {names!r}"
-        )
-    return name
