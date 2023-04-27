@@ -1,18 +1,18 @@
 import pathlib
 import shutil
+from typing import Optional
 
 import click
 import pandas
 from common.annotations import TypeAnnotationRemover
 from common import output
-from common import factory
 from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 
 from infer.insertion import TypeAnnotationApplierTransformer
 
 from utils import format_parallel_exec_result, scratchpad, top_preds_only
 
-from .inference import Inference, MyPy, PyreInfer, PyreQuery, TypeWriter, Type4Py, HiTyper
+from .inference import Inference, factory, SUPPORTED_TOOLS
 
 from libcst import codemod
 
@@ -25,33 +25,28 @@ from libcst import codemod
     "-t",
     "--tool",
     type=click.Choice(
-        choices=[
-            MyPy.__name__.lower(),
-            PyreInfer.__name__.lower(),
-            PyreQuery.__name__.lower(),
-            HiTyper.__name__.lower(),
-            TypeWriter.__name__.lower(),
-            Type4Py.__name__.lower(),
-        ],
+        choices=list(SUPPORTED_TOOLS),
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: factory._inference_factory(value),
+    callback=lambda ctx, _, value: factory(value),
     required=True,
     help="Supported inference methods",
 )
 @click.option(
-    "-d",
-    "--dataset",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    "-i",
+    "--inpath",
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
-    help="Dataset to infer over",
+    help="Project to infer over",
 )
 @click.option(
-    "-f",
-    "--format-style",
-    type=click.Choice(["manytypes4py", "typilus"]),
-    required=True,
-    help="How are the repositories stored (mt4py: $author/$repo/*, typilus: $author.$repo/*)"
+    "-c",
+    "--cache-path",
+    type=click.Path(path_type=pathlib.Path),
+    required=False,
+    help="Folder to put ML inference cache inside of",
 )
 @click.option(
     "-w",
@@ -64,43 +59,71 @@ from libcst import codemod
     "-rv",
     "--remove-var-annos",
     is_flag=True,
-    help="Remove all variable annotations in the codebase before inferring",
+    help="Remove all variable annotations in the codebase",
 )
 @click.option(
     "-rp",
     "--remove-param-annos",
     is_flag=True,
-    help="Remove all parameter annotations in the codebase before inferring",
+    help="Remove all parameter annotations in the codebase",
 )
 @click.option(
     "-rr",
     "--remove-ret-annos",
     is_flag=True,
-    help="Remove all return annotations in the codebase before inferring",
+    help="Remove all return annotations in the codebase",
 )
-@click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
+@click.option(
+    "-iv",
+    "--infer-var-annos",
+    is_flag=True,
+    help="Infer variable annotations in the codebase",
+)
+@click.option(
+    "-ip",
+    "--infer-param-annos",
+    is_flag=True,
+    help="Infer param annotations in the codebase",
+)
+@click.option(
+    "-ir",
+    "--infer-ret-annos",
+    is_flag=True,
+    help="Infer return annotations in the codebase",
+)
+@click.option(
+    "-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase"
+)
 def cli_entrypoint(
     tool: type[Inference],
-    dataset: pathlib.Path,
-    format_style: str,
+    inpath: pathlib.Path,
+    cache_path: Optional[pathlib.Path],
     overwrite: bool,
     remove_var_annos: bool,
     remove_param_annos: bool,
     remove_ret_annos: bool,
+    infer_var_annos: bool,
+    infer_param_annos: bool,
+    infer_ret_annos: bool,
     annotate: bool,
 ) -> None:
     removing = []
-
     if remove_var_annos:
         removing.append(TypeCollectionCategory.VARIABLE)
-
     if remove_param_annos:
         removing.append(TypeCollectionCategory.CALLABLE_PARAMETER)
-
     if remove_ret_annos:
         removing.append(TypeCollectionCategory.CALLABLE_RETURN)
 
-    with scratchpad(dataset) as sc:
+    inferring = []
+    if infer_var_annos:
+        inferring.append(TypeCollectionCategory.VARIABLE)
+    if infer_param_annos:
+        inferring.append(TypeCollectionCategory.CALLABLE_PARAMETER)
+    if infer_ret_annos:
+        inferring.append(TypeCollectionCategory.CALLABLE_RETURN)
+
+    with scratchpad(inpath) as sc:
         print(f"Using {sc} as a scratchpad for inference!")
 
         if remove_var_annos or remove_param_annos or remove_ret_annos:
@@ -115,12 +138,16 @@ def cli_entrypoint(
                 files=codemod.gather_files([str(sc)]),
                 repo_root=str(sc),
             )
-            print(format_parallel_exec_result(action="Annotation Removal", result=result))
+            print(
+                format_parallel_exec_result(action="Annotation Removal", result=result)
+            )
 
-        inference_tool = tool(sc)
-        inference_tool.infer(format_style)
+        inference_tool = tool(mutable=sc, readonly=inpath, cache=cache_path)
+        inference_tool.infer()
 
-        outdir = output.inference_output_path(dataset, tool=inference_tool.method, removed=removing)
+        outdir = output.inference_output_path(
+            inpath, tool=inference_tool.method, removed=removing, inferred=inferring
+        )
         if outdir.is_dir() and overwrite:
             shutil.rmtree(outdir)
 
@@ -129,8 +156,9 @@ def cli_entrypoint(
                 f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
             )
 
-    print(f"Inference completed; writing results to {outdir}")
+        print(f"Inference completed; writing results to {outdir}")
 
+    # Copy original project and reremove annotations
     shutil.copytree(inpath, outdir, symlinks=True)
     if remove_var_annos or remove_param_annos or remove_ret_annos:
         result = codemod.parallel_exec_transform_with_prettyprint(
@@ -140,8 +168,8 @@ def cli_entrypoint(
                 parameters=remove_param_annos,
                 rets=remove_ret_annos,
             ),
-            files=codemod.gather_files([str(inpath)]),
-            repo_root=str(inpath),
+            files=codemod.gather_files([str(outdir)]),
+            repo_root=str(outdir),
         )
         print(
             format_parallel_exec_result(
@@ -151,10 +179,15 @@ def cli_entrypoint(
         )
 
     with pandas.option_context(
-        "display.max_rows", None, "display.max_columns", None, "display.expand_frame_repr", False
+        "display.max_rows",
+        None,
+        "display.max_columns",
+        None,
+        "display.expand_frame_repr",
+        False,
     ):
         df = inference_tool.inferred.copy(deep=True)
-        df = df[df[TypeCollectionSchema.category].isin(removing)]
+        df = df[df[TypeCollectionSchema.category].isin(inferring)]
 
         print(df.sample(n=min(len(df), 20)).sort_index())
 
@@ -171,7 +204,9 @@ def cli_entrypoint(
             # jobs=1,
             repo_root=str(outdir),
         )
-        print(format_parallel_exec_result(action="Annotation Application", result=result))
+        print(
+            format_parallel_exec_result(action="Annotation Application", result=result)
+        )
 
 
 if __name__ == "__main__":

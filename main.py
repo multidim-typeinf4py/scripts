@@ -2,6 +2,7 @@
 import click
 
 import context
+# import dataset
 import logregr
 import harness
 import infer
@@ -21,7 +22,7 @@ if __name__ == "__main__":
             context.cli_entrypoint,
             infer.cli_entrypoint,
             harness.cli_entrypoint,
-            # hintdiff.cli_entrypoint,
+            # dataset.cli_entrypoint,
             symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
             logregr.cli_entrypoint,

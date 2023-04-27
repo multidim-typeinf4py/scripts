@@ -59,10 +59,11 @@ def read_inferred(
 
 
 def inference_output_path(
-    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
+    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory], inferred: list[TypeCollectionCategory]
 ) -> pathlib.Path:
     removed_names = ",".join(map(str, removed))
-    return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]"
+    inferred_names = ",".join(map(str, inferred))
+    return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]+[{inferred_names}]"
 
 
 def dataset_output_path(inpath: pathlib.Path, kind: str) -> pathlib.Path:

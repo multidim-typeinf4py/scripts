@@ -5,10 +5,10 @@ import click
 from libcst import codemod
 
 from common.schemas import InferredSchema, TypeCollectionCategory
-from common import factory, output
+from common import output
 
 from context.features import RelevantFeatures
-from infer.inference import Inference, MyPy, PyreInfer, PyreQuery, HiTyper, TypeWriter, Type4Py
+from infer.inference import Inference, factory, SUPPORTED_TOOLS
 from infer.insertion import TypeAnnotationApplierTransformer
 from utils import format_parallel_exec_result, scratchpad
 
@@ -31,17 +31,10 @@ class Purpose(str, enum.Enum):
     "-t",
     "--tool",
     type=click.Choice(
-        choices=[
-            MyPy.__name__.lower(),
-            PyreInfer.__name__.lower(),
-            PyreQuery.__name__.lower(),
-            HiTyper.__name__.lower(),
-            TypeWriter.__name__.lower(),
-            Type4Py.__name__.lower(),
-        ],
+        choices=SUPPORTED_TOOLS,
         case_sensitive=False,
     ),
-    callback=lambda ctx, _, value: factory._inference_factory(value),
+    callback=lambda ctx, _, value: factory(value),
     required=True,
     help="Which inference tool was used Supported inference methods",
 )

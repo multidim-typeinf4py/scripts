@@ -1,7 +1,9 @@
 import abc
 import enum
 import pathlib
+import pickle
 import typing
+from typing import Optional
 
 from common.schemas import (
     InferredSchema,
@@ -42,21 +44,72 @@ class DatasetFolderStructure(enum.Enum):
             )
             yield from repos
 
+    def author_repo(self, repo: pathlib.Path) -> dict:
+        if self == DatasetFolderStructure.MANYTYPES4PY:
+            return {"author": repo.parent.name, "repo": repo.name}
+        elif self == DatasetFolderStructure.TYPILUS:
+            return dict(
+                zip(
+                    ("author", "repo"),
+                    repo.name.split("."),
+                    strict=True,
+                )
+            )
+
 
 class Inference(abc.ABC):
-    dataset: pathlib.Path
     inferred: pt.DataFrame[InferredSchema]
+    cache_storage: dict[pathlib.Path, typing.Any]
 
-    def __init__(self, dataset: pathlib.Path) -> None:
+    def __init__(self, mutable: pathlib.Path, readonly: pathlib.Path, cache: Optional[pathlib.Path]) -> None:
         super().__init__()
-        self.dataset = dataset.resolve()
+        self.mutable = mutable.resolve()
+        self.readonly = readonly.resolve()
+        self.cache = cache.resolve() if cache else None
         self.inferred = InferredSchema.example(size=0)
 
         self.logger = logging.getLogger(type(self).__qualname__)
+        self.cache_storage: dict[pathlib.Path, typing.Any] = dict()
 
     @abc.abstractmethod
-    def infer(self, structure: DatasetFolderStructure) -> None:
+    def infer(self) -> None:
         pass
+
+    def register_cache(self, relative: pathlib.Path, data: typing.Any) -> None:
+        if not self.cache:
+            print("WARNING: Cache argument was not supplied, skipping registration...")
+        else:
+            assert relative not in self.cache_storage
+            self.cache_storage[relative] = data
+
+    def _write_cache(self) -> None:
+        if not self.cache:
+            print("WARNING: Cache argument was not supplied, skipping writing...")
+        else:
+            outpath = self._cache_path()
+            outpath.parent.mkdir(parents=True, exist_ok=True)
+            print(f"Writing {self.method}'s cache to {outpath}")
+
+            with outpath.open("wb") as f:
+                pickle.dump(self.cache_storage, f)
+
+    def _load_cache(self) -> dict[pathlib.Path, typing.Any]:
+        if not self.cache:
+            print("WARNING: Cache argument was not supplied, assuming empty collection")
+            return dict()
+
+        inpath = self._cache_path()
+        print(f"Loading cache from {inpath}")
+
+        try:
+            with inpath.open("rb") as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            print("Cache not found, assuming empty collection")
+            return dict()
+
+    def _cache_path(self) -> pathlib.Path:
+        return self.cache / f"{self.readonly.name}@{self.method}"
 
     @property
     @abc.abstractmethod
@@ -64,49 +117,27 @@ class Inference(abc.ABC):
         pass
 
 
-class DatasetWideInference(Inference):
-    def __init__(self, dataset: pathlib.Path) -> None:
-        super().__init__(dataset)
-        self.structure = None
-
-    def infer(self, structure: DatasetFolderStructure) -> None:
-        self.inferred = self._infer_dataset(structure)
-
-    @abc.abstractmethod
-    def _infer_dataset(
-        self, structure: DatasetFolderStructure
-    ) -> pt.DataFrame[InferredSchema]:
-        ...
-
-
 class ProjectWideInference(Inference):
-    def infer(self, structure: DatasetFolderStructure) -> None:
-        for project in structure.project_iter(self.dataset):
-            self.logger.debug(f"Inferring project-wide on {project}")
-            proj_inf = self._infer_project(project)
-            self.inferred = (
-                proj_inf.assign(method=self.method)
-                .reindex(columns=InferredSchemaColumns)
-                .pipe(pt.DataFrame[InferredSchema])
-            )
+    def infer(self) -> None:
+        self.logger.debug(f"Inferring project-wide on {self.mutable}")
+        self.inferred = self._infer_project()
+
+        self._write_cache()
 
     @abc.abstractmethod
-    def _infer_project(self, project: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
         pass
 
 
 class PerFileInference(Inference):
-    def infer(self, structure: DatasetFolderStructure) -> None:
+    def infer(self) -> None:
         updates = list()
-        for project in structure.project_iter(self.dataset):
-            for subfile in project.rglob("*.py"):
-                relative = subfile.relative_to(project)
-                if str(relative) not in self.inferred["file"]:
-                    self.logger.debug(f"Inferring per-file on {project} @ {relative}")
-                    reldf: pt.DataFrame[InferredSchema] = self._infer_file(
-                        project, relative
-                    )
-                    updates.append(reldf)
+        for subfile in self.mutable.rglob("*.py"):
+            relative = subfile.relative_to(self.mutable)
+            if str(relative) not in self.inferred["file"]:
+                self.logger.debug(f"Inferring per-file on {self.mutable} @ {relative}")
+                reldf: pt.DataFrame[InferredSchema] = self._infer_file(relative)
+                updates.append(reldf)
         if updates:
             self.inferred = (
                 pd.concat([self.inferred, *updates], ignore_index=True)
@@ -114,8 +145,8 @@ class PerFileInference(Inference):
                 .pipe(pt.DataFrame[InferredSchema])
             )
 
+        self._write_cache()
+
     @abc.abstractmethod
-    def _infer_file(
-        self, project: pathlib.Path, relative: pathlib.Path
-    ) -> pt.DataFrame[InferredSchema]:
+    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         pass
