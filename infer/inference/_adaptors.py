@@ -17,7 +17,7 @@ def stubs2df(folder: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
 
     # Remove all source files to avoid skewing results
     source = df[TypeCollectionSchema.file].str.endswith(".py")
-    df = df.drop(source.index)
+    df = df[~source]
 
     # Rename stub files to match their corresponding filename
     stubs = df[TypeCollectionSchema.file].str.endswith(".pyi")
