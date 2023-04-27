@@ -158,7 +158,7 @@ def cli_entrypoint(
 
         print(f"Inference completed; writing results to {outdir}")
 
-    # Copy original project and reremove annotations
+    # Copy original project and re-remove annotations
     shutil.copytree(inpath, outdir, symlinks=True)
     if remove_var_annos or remove_param_annos or remove_ret_annos:
         result = codemod.parallel_exec_transform_with_prettyprint(

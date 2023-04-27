@@ -35,9 +35,9 @@ class PyreQuery(PerFileInference):
         mutable: pathlib.Path,
         readonly: pathlib.Path,
         cache: Optional[pathlib.Path],
-    ) -> None:
-        super().__init__(mutable, readonly, cache)
-
+        subset: Optional[set[pathlib.Path]] = None,
+    ):
+        super().__init__(mutable, readonly, cache, subset)
         self.repo_manager: Optional[metadata.FullRepoManager] = None
 
     def infer(self) -> None:

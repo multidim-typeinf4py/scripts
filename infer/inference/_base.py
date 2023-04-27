@@ -56,16 +56,60 @@ class DatasetFolderStructure(enum.Enum):
                 )
             )
 
+    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, list[str]]:
+        if self == DatasetFolderStructure.MANYTYPES4PY:
+
+            def mt4py_impl(
+                path2mt4py: pathlib.Path,
+            ) -> dict[pathlib.Path, list[str]]:
+                splits = pd.read_csv(
+                    path2mt4py / "dataset_split.csv",
+                    header=None,
+                    names=["split", "filepath"],
+                )
+                test_split = splits[splits["split"] == "test"]["filepath"]
+
+                test_set: dict[pathlib.Path, list[pathlib.Path]] = {}
+                for key, g in (
+                    test_split.str.strip(to_strip='"')
+                    .str.removeprefix("repos/")
+                    .str.split(pat=r"\/", n=2, expand=True)
+                    .set_axis(["author", "project", "file"], axis=1)
+                    .head(n=10)
+                    .groupby(by=["author", "project"])
+                ):
+                    test_set[
+                        path2mt4py / str(key["author"]) / str(key["project"])
+                    ] = g.tolist()
+
+            return mt4py_impl(dataset_root)
+
+        elif self == DatasetFolderStructure.TYPILUS:
+
+            def typilus_impl(
+                path2typilus: pathlib.Path,
+            ) -> dict[pathlib.Path, list[str]]:
+                ...
+
+            return typilus_impl(dataset_root)
+
 
 class Inference(abc.ABC):
     inferred: pt.DataFrame[InferredSchema]
     cache_storage: dict[pathlib.Path, typing.Any]
 
-    def __init__(self, mutable: pathlib.Path, readonly: pathlib.Path, cache: Optional[pathlib.Path]) -> None:
+    def __init__(
+        self,
+        mutable: pathlib.Path,
+        readonly: pathlib.Path,
+        cache: Optional[pathlib.Path],
+        subset: Optional[set[pathlib.Path]] = None,
+    ) -> None:
         super().__init__()
         self.mutable = mutable.resolve()
         self.readonly = readonly.resolve()
         self.cache = cache.resolve() if cache else None
+        self._subset = subset
         self.inferred = InferredSchema.example(size=0)
 
         self.logger = logging.getLogger(type(self).__qualname__)
@@ -132,18 +176,16 @@ class ProjectWideInference(Inference):
 class PerFileInference(Inference):
     def infer(self) -> None:
         updates = list()
-        for subfile in self.mutable.rglob("*.py"):
+        for subfile in self._subset or self.mutable.rglob("*.py"):
             relative = subfile.relative_to(self.mutable)
             if str(relative) not in self.inferred["file"]:
                 self.logger.debug(f"Inferring per-file on {self.mutable} @ {relative}")
                 reldf: pt.DataFrame[InferredSchema] = self._infer_file(relative)
                 updates.append(reldf)
         if updates:
-            self.inferred = (
-                pd.concat([self.inferred, *updates], ignore_index=True)
-                .reindex(columns=InferredSchemaColumns)
-                .pipe(pt.DataFrame[InferredSchema])
-            )
+            self.inferred = pd.concat(
+                [self.inferred, *updates], ignore_index=True
+            ).pipe(pt.DataFrame[InferredSchema])
 
         self._write_cache()
 
