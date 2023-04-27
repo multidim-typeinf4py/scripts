@@ -1,3 +1,4 @@
+import pandas as pd
 import pandera.typing as pt
 from pyre_check.client import command_arguments, commands, configuration
 
@@ -38,8 +39,11 @@ class PyreInfer(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            return (
-                _adaptors.hints2df(self.mutable)
-                .assign(method=self.method, topn=1)
-                .pipe(pt.DataFrame[InferredSchema])
+            hintdf = _adaptors.stubs2df(self.mutable / PyreInfer._OUTPUT_DIR / "types")
+            if self._subset is not None:
+                retainable = list(map(str, self._subset))
+                hintdf = hintdf[~hintdf[InferredSchema.file].isin(retainable)]
+
+            return hintdf.assign(method=self.method, topn=1).pipe(
+                pt.DataFrame[InferredSchema]
             )
