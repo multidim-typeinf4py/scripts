@@ -10,6 +10,7 @@ import pandera.typing as pt
 import pytest
 from libcst import codemod
 from libcst import metadata
+from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
 
 from common.ast_helper import generate_qname_ssas_for_file
@@ -193,8 +194,10 @@ class AnnotationTracking(codemod.CodemodTest):
             context=codemod.CodemodContext(
                 filename="x.py",
                 metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[]
+                    repo_root_dir=".", paths=["x.py"], providers=[FullyQualifiedNameProvider]
                 ),
+                full_module_name="x",
+                full_package_name="pkg"
             ),
         )
 
@@ -641,11 +644,14 @@ class Test_HintTracking(AnnotationTracking):
             """
             from typing import Callable
             import amod
+            
+            from .relative import Something
 
             a: int = 5
             b: amod.B = amod.B(10)
             c: Callable = lambda: _
             # d: notimported.buthereanyway = 10
+            e: Something = Something("sneaky")
             """
         )
         self.assertMatchingAnnotating(
@@ -654,7 +660,7 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "a", "builtins.int"),
                 CR(TypeCollectionCategory.VARIABLE, "b", "amod.B"),
                 CR(TypeCollectionCategory.VARIABLE, "c", "typing.Callable"),
-                # CR(TypeCollectionCategory.VARIABLE, "d", "notimported.buthereanyway"),
+                CR(TypeCollectionCategory.VARIABLE, "e", "pkg.relative.Something"),
             ],
         )
 
@@ -675,6 +681,7 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "b", "typing.Callable"),
             ],
         )
+
 
     def test_multi_assignment_class(self):
         df = self.performTracking(
