@@ -103,8 +103,6 @@ class TypeCollectorVisitor(c.ContextAwareVisitor):
             GatherImportsVisitor,
         )
 
-        # metadataed = metadata.MetadataWrapper(tree)
-
         imports_visitor = GatherImportsVisitor(context=self.context)
         tree.visit(imports_visitor)
 
@@ -116,7 +114,7 @@ class TypeCollectorVisitor(c.ContextAwareVisitor):
             context=self.context,
         )
 
-        metadata.MetadataWrapper(tree).visit(type_collector)
+        metadata.MetadataWrapper(tree, unsafe_skip_copy=True).visit(type_collector)
         update = TypeCollection.from_annotations(
             file=file, annotations=type_collector.annotations, strict=self._strict
         )
