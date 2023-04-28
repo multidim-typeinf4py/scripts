@@ -75,7 +75,7 @@ class DatasetFolderStructure(enum.Enum):
     ) -> dict[pathlib.Path, set[pathlib.Path]]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
             splits = pd.read_csv(
-                dataset_root / "dataset_split.csv",
+                dataset_root / "data" / "dataset_split.csv",
                 header=None,
                 names=["split", "filepath"],
             )
@@ -87,12 +87,11 @@ class DatasetFolderStructure(enum.Enum):
                 .str.removeprefix("repos/")
                 .str.split(pat=r"\/", n=2, expand=True)
                 .set_axis(["author", "project", "file"], axis=1)
-                .head(n=10)
                 .groupby(by=["author", "project"])
             ):
                 test_set[
                     dataset_root / str(key["author"]) / str(key["project"])
-                ] = set(map(pathlib.Path, g.tolist()))
+                ] = set(map(pathlib.Path, g["file"].tolist()))
             return test_set
 
         elif self == DatasetFolderStructure.TYPILUS:
