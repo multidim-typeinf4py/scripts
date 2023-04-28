@@ -1,3 +1,3 @@
-from .cli import cli_entrypoint
+from .collector import TypeCollectorVisitor
 
-__all__ = ["cli_entrypoint"]
+__all__ = ["TypeCollectorVisitor"]
