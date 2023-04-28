@@ -37,7 +37,7 @@ class DatasetFolderStructure(enum.Enum):
         if self == DatasetFolderStructure.MANYTYPES4PY:
             authors = (
                 author
-                for author in dataset_root.iterdir()
+                for author in (dataset_root / "repos").iterdir()
                 if author.is_dir() and not author.name.startswith(".")
             )
             for author in authors:

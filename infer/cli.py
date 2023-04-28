@@ -102,6 +102,7 @@ def cli_entrypoint(
     inferring = list(map(TypeCollectionCategory.__getitem__, infer))
 
     structure = DatasetFolderStructure.from_folderpath(dataset)
+    print(dataset, structure)
     test_set = structure.test_set(dataset)
 
     projects = list(structure.project_iter(dataset))
