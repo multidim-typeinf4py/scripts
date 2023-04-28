@@ -101,6 +101,13 @@ def cli_entrypoint(
     removing = list(map(TypeCollectionCategory.__getitem__, remove))
     inferring = list(map(TypeCollectionCategory.__getitem__, infer))
 
+    if illegal := set(inferring) - set(removing):
+        print(
+            f"Refusing to perform inference; asking to infer {illegal}, while not removing them will deliver "
+            f"inaccurate results"
+        )
+        return
+
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
     test_set = structure.test_set(dataset)
@@ -134,10 +141,15 @@ def cli_entrypoint(
                 )
 
             inference_tool = tool(cache=cache_path)
-            inference_tool.infer(mutable=sc, readonly=inpath, subset=test_set.get(inpath, None))
+            inference_tool.infer(
+                mutable=sc, readonly=inpath, subset=test_set.get(inpath, None)
+            )
 
             outdir = output.inference_output_path(
-                inpath, tool=inference_tool.method, removed=removing, inferred=inferring
+                dataset,
+                tool=inference_tool.method,
+                removed=removing,
+                inferred=inferring,
             )
             if outdir.is_dir() and overwrite:
                 shutil.rmtree(outdir)
