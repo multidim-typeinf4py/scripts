@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 manytypes4py_repos() {
     find "$1" -maxdepth 2 -mindepth 2 -type d -print0
@@ -8,23 +8,23 @@ manytypes4py_repos() {
 
 parameter_inference() {
     echo "Tool: $1 - Inferring: Parameters"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-param-annos
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER
 }
 
 variable_inference() {
     echo "Tool: $1 - Inferring: Variables"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-var-annos
+        --remove VARIABLE --infer VARIABLE
 }
 
 return_inference() {
     echo "Tool: $1 - Inferring: Returns"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-ret-annos
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
 }
 
 
@@ -32,32 +32,37 @@ return_inference() {
 
 parameter_return_inference() {
     echo "Tool: $1 - Inferring: Parameters and Returns"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-param-annos --remove-ret-annos
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
 }
 
 
 variable_return_inference() {
     echo "Tool: $1 - Inferring: Variables and Returns"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-var-annos --remove-ret-annos
+        --remove VARIABLE --infer VARIABLE \
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
 }
 
 
 variable_parameter_inference() {
     echo "Tool: $1 - Inferring: Variables and Params"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-var-annos --remove-param-annos
+        --remove VARIABLE --infer VARIABLE \
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER
 }
 
 ## Triple
 
 variable_parameter_return_inference() {
     echo "Tool: $1 - Inferring: Variables, Parameters and Returns"
-    ./.venv/bin/python3 main.py infer --inpath "$2" --overwrite \
+    python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove-var-annos --remove-param-annos --remove-ret-annos
+        --remove VARIABLE --infer VARIABLE \
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
 }

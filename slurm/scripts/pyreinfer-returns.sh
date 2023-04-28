@@ -1,12 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-#SBATCH --output=REP-%x.%j.out
-#SBATCH --error=REP-%x.%j.err
+#SBATCH --output=slurm-runs/%x.%j.out
+#SBATCH --error=slurm-runs/%x.%j.err
+
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+
 #SBATCH --mail-user=ab270@stud.uni-heidelberg.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 
+set -o nounset
+
+source ./slurm/scripts/_env.sh
 source ./slurm/scripts/_common.sh
 
-manytypes4py_repos "$1" | while IFS= read -r -d $'\0' repository; do
-    return_inference "pyreinfer" "$repository"
-done
+return_inference "pyreinfer" "$1"
