@@ -4,7 +4,7 @@ import re
 import shutil
 from typing import Union, Optional
 
-import pandas._libs.missing as missing
+from pandas._libs import missing
 import pandera.typing as pt
 
 import libcst
@@ -30,26 +30,25 @@ import utils
 class PyreQuery(PerFileInference):
     method = "pyre-query"
 
-    def __init__(
+    def __init__(self, cache: Optional[pathlib.Path]):
+        super().__init__(cache)
+        self.repo_manager: Optional[metadata.FullRepoManager] = None
+
+    def infer(
         self,
         mutable: pathlib.Path,
         readonly: pathlib.Path,
-        cache: Optional[pathlib.Path],
         subset: Optional[set[pathlib.Path]] = None,
-    ):
-        super().__init__(mutable, readonly, cache, subset)
-        self.repo_manager: Optional[metadata.FullRepoManager] = None
-
-    def infer(self) -> None:
-        with utils.working_dir(wd=self.mutable):
+    ) -> None:
+        with utils.working_dir(wd=mutable):
             try:
-                pyre.clean_pyre_config(project_path=str(self.mutable))
+                pyre.clean_pyre_config(project_path=str(mutable))
                 cmd_args = command_arguments.CommandArguments(
-                    source_directories=[str(self.mutable)]
+                    source_directories=[str(mutable)]
                 )
                 config = configuration.create_configuration(
                     arguments=cmd_args,
-                    base_directory=self.mutable,
+                    base_directory=mutable,
                 )
 
                 initialize.write_configuration(
@@ -57,7 +56,7 @@ class PyreQuery(PerFileInference):
                         site_package_search_strategy="pep561",
                         source_directories=["."],
                     ),
-                    configuration_path=self.mutable / ".pyre_configuration",
+                    configuration_path=mutable / ".pyre_configuration",
                 )
 
                 assert (
@@ -70,29 +69,31 @@ class PyreQuery(PerFileInference):
                     == ExitCode.SUCCESS
                 )
 
-                paths = codemod.gather_files([str(self.mutable)])
-                relpaths = [os.path.relpath(path, str(self.mutable)) for path in paths]
+                paths = codemod.gather_files([str(mutable)])
+                relpaths = [os.path.relpath(path, str(mutable)) for path in paths]
                 self.repo_manager = metadata.FullRepoManager(
-                    repo_root_dir=str(self.mutable),
+                    repo_root_dir=str(mutable),
                     paths=relpaths,
                     providers=[metadata.TypeInferenceProvider],
                 )
 
-                super().infer()
+                super().infer(mutable=mutable, readonly=readonly, subset=subset)
 
             finally:
                 stop.run(config, flavor=PyreFlavor.CLASSIC)
 
-        if (dotdir := self.mutable / ".pyre").is_dir():
+        if (dotdir := mutable / ".pyre").is_dir():
             shutil.rmtree(str(dotdir))
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_file(
+        self, root: pathlib.Path, relative: pathlib.Path
+    ) -> pt.DataFrame[InferredSchema]:
         assert self.repo_manager is not None
-        fullpath = str(self.mutable / relative)
+        fullpath = str(root / relative)
         module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
 
         modpkg = helpers.calculate_module_and_package(
-            repo_root=str(self.mutable), filename=fullpath
+            repo_root=str(root), filename=fullpath
         )
         visitor = _PyreQuery2Annotations(modpkg)
 
@@ -117,7 +118,7 @@ class _PyreQuery2Annotations(
     visitors.HintableReturnVisitor,
     visitors.ScopeAwareVisitor,
 ):
-    _CALLABLE_RETTYPE_REGEX = re.compile(rf", ([^\]]+)\]$")
+    _CALLABLE_RETTYPE_REGEX = re.compile(rf", ([^]]+)]$")
 
     METADATA_DEPENDENCIES = (
         metadata.TypeInferenceProvider,

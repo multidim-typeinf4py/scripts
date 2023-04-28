@@ -1,3 +1,6 @@
+import pathlib
+from typing import Optional
+
 import pandas as pd
 import pandera.typing as pt
 from pyre_check.client import command_arguments, commands, configuration
@@ -13,17 +16,17 @@ class PyreInfer(ProjectWideInference):
 
     _OUTPUT_DIR = ".pyre-stubs"
 
-    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
-        with working_dir(self.mutable):
+    def _infer_project(self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None) -> pt.DataFrame[InferredSchema]:
+        with working_dir(root):
             config = configuration.create_configuration(
                 arguments=command_arguments.CommandArguments(
-                    dot_pyre_directory=self.mutable / PyreInfer._OUTPUT_DIR,
-                    source_directories=[str(self.mutable)],
+                    dot_pyre_directory=root / PyreInfer._OUTPUT_DIR,
+                    source_directories=[str(root)],
                 ),
-                base_directory=self.mutable,
+                base_directory=root,
             )
             infargs = command_arguments.InferArguments(
-                working_directory=self.mutable,
+                working_directory=root,
                 annotate_attributes=True,
                 annotate_from_existing_stubs=False,
                 debug_infer=False,
@@ -39,9 +42,9 @@ class PyreInfer(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            hintdf = _adaptors.stubs2df(self.mutable / PyreInfer._OUTPUT_DIR / "types")
-            if self._subset is not None:
-                retainable = list(map(str, self._subset))
+            hintdf = _adaptors.stubs2df(root / PyreInfer._OUTPUT_DIR / "types")
+            if subset is not None:
+                retainable = list(map(str, subset))
                 hintdf = hintdf[~hintdf[InferredSchema.file].isin(retainable)]
 
             return hintdf.assign(method=self.method, topn=1).pipe(

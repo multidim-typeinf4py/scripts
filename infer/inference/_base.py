@@ -100,23 +100,22 @@ class Inference(abc.ABC):
 
     def __init__(
         self,
-        mutable: pathlib.Path,
-        readonly: pathlib.Path,
         cache: Optional[pathlib.Path],
-        subset: Optional[set[pathlib.Path]] = None,
     ) -> None:
         super().__init__()
-        self.mutable = mutable.resolve()
-        self.readonly = readonly.resolve()
         self.cache = cache.resolve() if cache else None
-        self._subset = subset
         self.inferred = InferredSchema.example(size=0)
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.cache_storage: dict[pathlib.Path, typing.Any] = dict()
 
     @abc.abstractmethod
-    def infer(self) -> None:
+    def infer(
+        self,
+        mutable: pathlib.Path,
+        readonly: pathlib.Path,
+        subset: Optional[set[pathlib.Path]] = None,
+    ) -> None:
         pass
 
     def register_cache(self, relative: pathlib.Path, data: typing.Any) -> None:
@@ -153,7 +152,7 @@ class Inference(abc.ABC):
             return dict()
 
     def _cache_path(self) -> pathlib.Path:
-        return self.cache / f"{self.readonly.name}@{self.method}"
+        return self.cache / self.method
 
     @property
     @abc.abstractmethod
@@ -162,26 +161,42 @@ class Inference(abc.ABC):
 
 
 class ProjectWideInference(Inference):
-    def infer(self) -> None:
-        self.logger.debug(f"Inferring project-wide on {self.mutable}")
-        self.inferred = self._infer_project()
+    def infer(
+        self,
+        mutable: pathlib.Path,
+        readonly: pathlib.Path,
+        subset: Optional[set[pathlib.Path]] = None,
+    ) -> None:
+        self.logger.debug(f"Inferring project-wide on {mutable}")
+        self.inferred = self._infer_project(mutable)
 
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None) -> pt.DataFrame[InferredSchema]:
         pass
 
 
 class PerFileInference(Inference):
-    def infer(self) -> None:
+    def infer(
+        self,
+        mutable: pathlib.Path,
+        readonly: pathlib.Path,
+        subset: Optional[set[pathlib.Path]] = None,
+    ) -> None:
         updates = list()
-        for subfile in self._subset or self.mutable.rglob("*.py"):
-            relative = subfile.relative_to(self.mutable)
-            if str(relative) not in self.inferred["file"]:
-                self.logger.debug(f"Inferring per-file on {self.mutable} @ {relative}")
-                reldf: pt.DataFrame[InferredSchema] = self._infer_file(relative)
-                updates.append(reldf)
+
+        if subset is not None:
+            paths = map(lambda p: mutable / p, subset)
+        else:
+            paths = mutable.rglob("*.py")
+
+        for subfile in paths:
+            relative = subfile.relative_to(mutable)
+            self.logger.debug(f"Inferring per-file on {mutable} @ {relative}")
+            reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
+            updates.append(reldf)
+
         if updates:
             self.inferred = pd.concat(
                 [self.inferred, *updates], ignore_index=True
@@ -190,5 +205,5 @@ class PerFileInference(Inference):
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_file(self, root: pathlib.Path, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         pass
