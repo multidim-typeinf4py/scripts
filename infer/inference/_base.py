@@ -20,6 +20,16 @@ import pandas as pd
 class DatasetFolderStructure(enum.Enum):
     MANYTYPES4PY = enum.auto()
     TYPILUS = enum.auto()
+    PROJECT = enum.auto()
+
+    @staticmethod
+    def from_folderpath(path: pathlib.Path) -> "DatasetFolderStructure":
+        if path.name.lower() == "many-types-4-py-dataset":
+            return DatasetFolderStructure.MANYTYPES4PY
+        elif path.name.lower() == "typilus":
+            return DatasetFolderStructure.TYPILUS
+        else:
+            return DatasetFolderStructure.PROJECT
 
     def project_iter(
         self, dataset_root: pathlib.Path
@@ -43,6 +53,8 @@ class DatasetFolderStructure(enum.Enum):
                 and len(repo.name.split(".")) == 2
             )
             yield from repos
+        elif self == DatasetFolderStructure.PROJECT:
+            yield dataset_root
 
     def author_repo(self, repo: pathlib.Path) -> dict:
         if self == DatasetFolderStructure.MANYTYPES4PY:
@@ -55,34 +67,33 @@ class DatasetFolderStructure(enum.Enum):
                     strict=True,
                 )
             )
+        else:
+            raise RuntimeError("Cannot determine author or repo of a simple folder")
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, list[str]]:
+    def test_set(
+        self, dataset_root: pathlib.Path
+    ) -> dict[pathlib.Path, set[pathlib.Path]]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
+            splits = pd.read_csv(
+                dataset_root / "dataset_split.csv",
+                header=None,
+                names=["split", "filepath"],
+            )
+            test_split = splits[splits["split"] == "test"]["filepath"]
 
-            def mt4py_impl(
-                path2mt4py: pathlib.Path,
-            ) -> dict[pathlib.Path, list[str]]:
-                splits = pd.read_csv(
-                    path2mt4py / "dataset_split.csv",
-                    header=None,
-                    names=["split", "filepath"],
-                )
-                test_split = splits[splits["split"] == "test"]["filepath"]
-
-                test_set: dict[pathlib.Path, list[pathlib.Path]] = {}
-                for key, g in (
-                    test_split.str.strip(to_strip='"')
-                    .str.removeprefix("repos/")
-                    .str.split(pat=r"\/", n=2, expand=True)
-                    .set_axis(["author", "project", "file"], axis=1)
-                    .head(n=10)
-                    .groupby(by=["author", "project"])
-                ):
-                    test_set[
-                        path2mt4py / str(key["author"]) / str(key["project"])
-                    ] = g.tolist()
-
-            return mt4py_impl(dataset_root)
+            test_set: dict[pathlib.Path, set[pathlib.Path]] = {}
+            for key, g in (
+                test_split.str.strip(to_strip='"')
+                .str.removeprefix("repos/")
+                .str.split(pat=r"\/", n=2, expand=True)
+                .set_axis(["author", "project", "file"], axis=1)
+                .head(n=10)
+                .groupby(by=["author", "project"])
+            ):
+                test_set[
+                    dataset_root / str(key["author"]) / str(key["project"])
+                ] = set(map(pathlib.Path, g.tolist()))
+            return test_set
 
         elif self == DatasetFolderStructure.TYPILUS:
 
@@ -92,6 +103,9 @@ class DatasetFolderStructure(enum.Enum):
                 ...
 
             return typilus_impl(dataset_root)
+
+        elif self == DatasetFolderStructure.PROJECT:
+            return dict()
 
 
 class Inference(abc.ABC):
@@ -173,7 +187,9 @@ class ProjectWideInference(Inference):
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_project(self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(
+        self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None
+    ) -> pt.DataFrame[InferredSchema]:
         pass
 
 
@@ -205,5 +221,7 @@ class PerFileInference(Inference):
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_file(self, root: pathlib.Path, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_file(
+        self, root: pathlib.Path, relative: pathlib.Path
+    ) -> pt.DataFrame[InferredSchema]:
         pass

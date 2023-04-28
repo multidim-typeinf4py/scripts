@@ -8,7 +8,7 @@ import harness
 import infer
 import srcdiff
 # import hintdiff
-import symbols
+# import symbols
 
 
 if __name__ == "__main__":
@@ -23,7 +23,7 @@ if __name__ == "__main__":
             infer.cli_entrypoint,
             harness.cli_entrypoint,
             # dataset.cli_entrypoint,
-            symbols.cli_entrypoint,
+            # symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
             logregr.cli_entrypoint,
         ]
