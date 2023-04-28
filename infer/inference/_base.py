@@ -89,9 +89,10 @@ class DatasetFolderStructure(enum.Enum):
                 .set_axis(["author", "project", "file"], axis=1)
                 .groupby(by=["author", "project"])
             ):
-                test_set[
-                    dataset_root / str(key["author"]) / str(key["project"])
-                ] = set(map(pathlib.Path, g["file"].tolist()))
+                author, project = key
+                test_set[dataset_root / author / project] = set(
+                    map(pathlib.Path, g["file"].tolist())
+                )
             return test_set
 
         elif self == DatasetFolderStructure.TYPILUS:
