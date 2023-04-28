@@ -3,7 +3,6 @@ import shutil
 from typing import Optional
 
 import click
-import cloup
 import pandas
 import tqdm
 
