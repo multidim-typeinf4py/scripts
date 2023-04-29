@@ -21,12 +21,6 @@ class MyPy(ProjectWideInference):
     def _infer_project(
         self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None
     ) -> pt.DataFrame[InferredSchema]:
-        files = (
-            list(map(lambda p: str(root / p), subset))
-            if subset is not None
-            else codemod.gather_files([str(root)], include_stubs=False)
-        )
-
         stubgen.generate_stubs(
             options=stubgen.Options(
                 ignore_errors=False,
