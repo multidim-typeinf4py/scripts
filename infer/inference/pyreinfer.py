@@ -16,7 +16,7 @@ class PyreInfer(ProjectWideInference):
 
     _OUTPUT_DIR = ".pyre-stubs"
 
-    def _infer_project(self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(self, root: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         with working_dir(root):
             config = configuration.create_configuration(
                 arguments=command_arguments.CommandArguments(
@@ -42,11 +42,8 @@ class PyreInfer(ProjectWideInference):
                 != commands.ExitCode.FAILURE
             )
 
-            hintdf = _adaptors.stubs2df(root / PyreInfer._OUTPUT_DIR / "types")
-            if subset is not None:
-                retainable = list(map(str, subset))
-                hintdf = hintdf[~hintdf[InferredSchema.file].isin(retainable)]
-
-            return hintdf.assign(method=self.method, topn=1).pipe(
-                pt.DataFrame[InferredSchema]
+            return (
+                _adaptors.stubs2df(root / PyreInfer._OUTPUT_DIR / "types")
+                .assign(method=self.method, topn=1)
+                .pipe(pt.DataFrame[InferredSchema])
             )

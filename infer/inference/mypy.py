@@ -18,9 +18,7 @@ class MyPy(ProjectWideInference):
 
     _OUTPUT_DIR = ".mypy-stubs"
 
-    def _infer_project(
-        self, root: pathlib.Path, subset: Optional[set[pathlib.Path]] = None
-    ) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(self, mutable: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         stubgen.generate_stubs(
             options=stubgen.Options(
                 ignore_errors=False,
@@ -29,8 +27,8 @@ class MyPy(ProjectWideInference):
                 include_private=True,
                 export_less=True,
                 pyversion=sys.version_info[:2],
-                output_dir=str(root / MyPy._OUTPUT_DIR),
-                files=codemod.gather_files([str(root)], include_stubs=False),
+                output_dir=str(mutable / MyPy._OUTPUT_DIR),
+                files=codemod.gather_files([str(mutable)], include_stubs=False),
                 doc_dir="",
                 search_path=[],
                 interpreter=sys.executable,
@@ -41,10 +39,8 @@ class MyPy(ProjectWideInference):
             )
         )
 
-        hintdf = _adaptors.stubs2df(root / MyPy._OUTPUT_DIR)
-        if hintdf is not None:
-            if subset is not None:
-                retainable = list(map(str, subset))
-                hintdf = hintdf[~hintdf[InferredSchema.file].isin(retainable)]
-
-        return hintdf
+        return (
+            _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR)
+            .assign(method=self.method, topn=1)
+            .pipe(pt.DataFrame[InferredSchema])
+        )
