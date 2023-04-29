@@ -50,6 +50,13 @@ from libcst import codemod
     help="Folder to put ML inference cache inside of",
 )
 @click.option(
+    "-o",
+    "--outpath",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    required=True,
+    help="Base folder for inference results to be written into",
+)
+@click.option(
     "-w",
     "--overwrite",
     is_flag=True,
@@ -80,7 +87,7 @@ from libcst import codemod
             str(TypeCollectionCategory.CALLABLE_RETURN),
         ],
     ),
-    help="Infer annotations in the codebase",
+    help="Retain only the given annotation categories in the codebase",
     multiple=True,
     required=True,
 )
@@ -89,6 +96,7 @@ def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     cache_path: Optional[pathlib.Path],
+    outpath: pathlib.Path,
     overwrite: bool,
     remove: list[str],
     infer: list[str],
@@ -112,6 +120,7 @@ def cli_entrypoint(
     for project in (pbar := tqdm.tqdm(projects)):
         if not (subset := test_set.get(project, set())):
             continue
+
         pbar.set_description(desc=f"Inferring over {project}")
 
         inpath = dataset / project
@@ -136,8 +145,10 @@ def cli_entrypoint(
             inference_tool = tool(cache=cache_path)
             inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
 
+            ar = structure.author_repo(project)
+            author_repo = f"{ar['author']}.{ar['repo']}"
             outdir = output.inference_output_path(
-                dataset,
+                outpath / structure.author_repo(author_repo),
                 tool=inference_tool.method,
                 removed=removing,
                 inferred=inferring,
