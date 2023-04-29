@@ -42,7 +42,7 @@ class DatasetFolderStructure(enum.Enum):
                 if author.is_dir() and not author.name.startswith(".")
             )
             for author in authors:
-                repos = (repo.relative_to(repo_suffix) for repo in author.iterdir() if repo.is_dir())
+                repos = (repo.relative_to(dataset_root) for repo in author.iterdir() if repo.is_dir())
                 yield from repos
 
         elif self == DatasetFolderStructure.TYPILUS:
@@ -89,7 +89,7 @@ class DatasetFolderStructure(enum.Enum):
                 .groupby(by=["author", "project"])
             ):
                 author, project = key
-                test_set[pathlib.Path(author) / project] = set(
+                test_set[pathlib.Path("repos") / author / project] = set(
                     map(pathlib.Path, g["file"].tolist())
                 )
             return test_set
