@@ -109,11 +109,12 @@ def cli_entrypoint(
     test_set = structure.test_set(dataset)
 
     projects = list(structure.project_iter(dataset))
-    for inpath in (pbar := tqdm.tqdm(projects)):
-        if not (subset := test_set.get(inpath, set())):
+    for project in (pbar := tqdm.tqdm(projects)):
+        if not (subset := test_set.get(project, set())):
             continue
-        pbar.set_description(desc=f"Inferring over {inpath}")
+        pbar.set_description(desc=f"Inferring over {project}")
 
+        inpath = dataset / inpath
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
