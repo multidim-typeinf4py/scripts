@@ -11,6 +11,7 @@ import pandas as pd
 
 from common.storage import MergedAnnotations
 from symbols.collector import TypeCollectorVisitor
+from utils import worker_count
 
 from . import coverage, hintstat
 
@@ -88,7 +89,7 @@ def _collect(
         result = codemod.parallel_exec_transform_with_prettyprint(
             transform=visitor,
             files=cstcli.gather_files([str(root)]),
-            jobs=1,
+            jobs=worker_count(),
             repo_root=str(root),
         )
 

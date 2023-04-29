@@ -13,7 +13,7 @@ from infer.inference._base import DatasetFolderStructure
 
 from infer.insertion import TypeAnnotationApplierTransformer
 
-from utils import format_parallel_exec_result, scratchpad, top_preds_only
+from utils import format_parallel_exec_result, scratchpad, top_preds_only, worker_count
 
 from .inference import Inference, factory, SUPPORTED_TOOLS
 
@@ -126,6 +126,7 @@ def cli_entrypoint(
                         parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                     ),
+                    jobs=worker_count(),
                     files=codemod.gather_files([str(sc)]),
                     repo_root=str(sc),
                 )
@@ -160,6 +161,7 @@ def cli_entrypoint(
                     parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
                     rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                 ),
+                jobs=worker_count(),
                 files=codemod.gather_files([str(outdir)]),
                 repo_root=str(outdir),
             )
@@ -193,7 +195,7 @@ def cli_entrypoint(
                     codemod.CodemodContext(), top_preds_only(df)
                 ),
                 files=codemod.gather_files([str(outdir)]),
-                # jobs=1,
+                jobs=worker_count(),
                 repo_root=str(outdir),
             )
             print(format_parallel_exec_result(action="Annotation Application", result=result))

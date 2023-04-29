@@ -60,4 +60,7 @@ def top_preds_only(df: pt.DataFrame[InferredSchema]) -> pt.DataFrame[InferredSch
     ]
 
 
-# def parallel_visiting()
+def worker_count() -> typing.Optional[int]:
+    if cpt := os.getenv("SLURM_CPUS_PER_TASK"):
+        return int(cpt)
+    return os.cpu_count()

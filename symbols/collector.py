@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import pathlib
@@ -14,6 +15,10 @@ from pandera import typing as pt
 
 from common import TypeCollection
 from common.schemas import TypeCollectionSchema
+from utils import worker_count
+
+
+# from infer.inference._base import DatasetFolderStructure
 
 
 class _ParallelTypeCollector:
@@ -65,8 +70,31 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
         file2code.items(),
         total=len(file2code),
         desc=f"Building Type Collection from {root}",
+        max_workers=worker_count(),
     )
     return TypeCollection(pd.concat(collections, ignore_index=True))
+
+
+# def build_type_collection_from_test_set(
+#     dataset: pathlib.Path, structure: DatasetFolderStructure
+# ) -> TypeCollection:
+#     test_files = structure.test_set(dataset)
+#
+#     collection: list[pt.DataFrame[TypeCollectionSchema]] = []
+#     for repo, files in test_files.items():
+#         file2code = dict()
+#         for file in tqdm.tqdm(files):
+#             file2code[file] = open(file).read()
+#
+#             collector = _ParallelTypeCollector(repo_root=str(repo), files=files)
+#             procc = process_map(
+#                 collector,
+#                 file2code.items(),
+#                 total=len(file2code),
+#                 desc=f"Building Type Collection from {repo}",
+#             )
+#             collection.extend(procc)
+#     return TypeCollection(pd.concat(collection, ignore_index=True))
 
 
 class TypeCollectorVisitor(c.ContextAwareVisitor):

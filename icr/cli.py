@@ -149,6 +149,7 @@ def cli_entrypoint(
             transform=TypeAnnotationApplierTransformer(
                 context=codemod.CodemodContext(), annotations=inference_df
             ),
+            jobs=utils.worker_count(),
             files=codemod.gather_files([str(outdir)]),
             repo_root=str(outdir),
         )

@@ -23,6 +23,7 @@ from common.schemas import (
     TypeCollectionCategory,
 )
 from context.features import RelevantFeatures
+from utils import worker_count
 
 
 def generate_context_vectors_for_project(
@@ -46,6 +47,7 @@ def generate_context_vectors_for_project(
         total=len(file2code),
         desc=f"Creating dataset for {repo_root}",
         position=0,
+        max_workers=worker_count()
     )
     return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
 

@@ -11,11 +11,15 @@ import srcdiff
 # import symbols
 
 
+import utils
+
 if __name__ == "__main__":
     # os.environ["LIBCST_PARSER_TYPE"] = "native"
 
     # FORMAT = "%(asctime)s %(clientip)-15s %(user)-8s %(message)s"
     # logging.basicConfig(format=FORMAT)
+
+    print(f"{utils.worker_count() = }")
 
     main = click.Group(
         commands=[

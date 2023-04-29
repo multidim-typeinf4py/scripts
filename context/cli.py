@@ -10,7 +10,7 @@ from common import output
 from context.features import RelevantFeatures
 from infer.inference import Inference, factory, SUPPORTED_TOOLS
 from infer.insertion import TypeAnnotationApplierTransformer
-from utils import format_parallel_exec_result, scratchpad
+from utils import format_parallel_exec_result, scratchpad, worker_count
 
 from .visitors import generate_context_vectors_for_project
 
@@ -138,7 +138,7 @@ def cli_entrypoint(
                     codemod.CodemodContext(), annotations=topx
                 ),
                 files=codemod.gather_files([str(sc)]),
-                # jobs=1,
+                jobs=worker_count(),
                 repo_root=str(sc),
             )
         print(format_parallel_exec_result(action="Annotation Application", result=result))
