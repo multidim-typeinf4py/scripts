@@ -35,13 +35,14 @@ class DatasetFolderStructure(enum.Enum):
         self, dataset_root: pathlib.Path
     ) -> typing.Generator[pathlib.Path, None, None]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
+            repo_suffix = dataset_root / "repos"
             authors = (
                 author
-                for author in (dataset_root / "repos").iterdir()
+                for author in repo_suffix.iterdir()
                 if author.is_dir() and not author.name.startswith(".")
             )
             for author in authors:
-                repos = (repo for repo in author.iterdir() if repo.is_dir())
+                repos = (repo.relative_to(repo_suffix) for repo in author.iterdir() if repo.is_dir())
                 yield from repos
 
         elif self == DatasetFolderStructure.TYPILUS:
