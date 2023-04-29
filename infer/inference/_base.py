@@ -182,7 +182,7 @@ class ProjectWideInference(Inference):
         subset: Optional[set[pathlib.Path]] = None,
     ) -> None:
         self.logger.debug(f"Inferring project-wide on {mutable}")
-        self.inferred = self._infer_project(mutable)
+        self.inferred = self._infer_project(mutable, subset)
 
         self._write_cache()
 
