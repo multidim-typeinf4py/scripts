@@ -114,7 +114,7 @@ def cli_entrypoint(
             continue
         pbar.set_description(desc=f"Inferring over {project}")
 
-        inpath = dataset / inpath
+        inpath = dataset / project
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
