@@ -148,7 +148,7 @@ def cli_entrypoint(
             ar = structure.author_repo(project)
             author_repo = f"{ar['author']}.{ar['repo']}"
             outdir = output.inference_output_path(
-                outpath / structure.author_repo(author_repo),
+                outpath / author_repo,
                 tool=inference_tool.method,
                 removed=removing,
                 inferred=inferring,
