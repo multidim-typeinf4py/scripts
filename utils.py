@@ -63,4 +63,6 @@ def top_preds_only(df: pt.DataFrame[InferredSchema]) -> pt.DataFrame[InferredSch
 def worker_count() -> typing.Optional[int]:
     if cpt := os.getenv("SLURM_CPUS_PER_TASK"):
         return int(cpt)
+    if cpt := os.getenv("MDTI4PY_CPUS"):
+        return int(cpt)
     return os.cpu_count()
