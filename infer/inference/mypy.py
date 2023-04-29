@@ -36,7 +36,7 @@ class MyPy(ProjectWideInference):
                 export_less=True,
                 pyversion=sys.version_info[:2],
                 output_dir=str(root / MyPy._OUTPUT_DIR),
-                files=files,
+                files=codemod.gather_files([str(root)], include_stubs=False),
                 doc_dir="",
                 search_path=[],
                 interpreter=sys.executable,
@@ -47,4 +47,10 @@ class MyPy(ProjectWideInference):
             )
         )
 
-        return _adaptors.stubs2df(root / MyPy._OUTPUT_DIR)
+        hintdf = _adaptors.stubs2df(root / MyPy._OUTPUT_DIR)
+        if hintdf is not None:
+            if subset is not None:
+                retainable = list(map(str, subset))
+                hintdf = hintdf[~hintdf[InferredSchema.file].isin(retainable)]
+
+        return hintdf
