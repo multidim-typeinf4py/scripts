@@ -38,9 +38,7 @@ from libcst import codemod
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(
-        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
@@ -86,9 +84,7 @@ from libcst import codemod
     multiple=True,
     required=True,
 )
-@click.option(
-    "-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase"
-)
+@click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
@@ -114,36 +110,29 @@ def cli_entrypoint(
 
     projects = list(structure.project_iter(dataset))
     for inpath in (pbar := tqdm.tqdm(projects)):
+        if not (subset := test_set.get(inpath, set())):
+            continue
         pbar.set_description(desc=f"Inferring over {inpath}")
 
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
             if removing:
-                print(
-                    f"annotation removal flag provided, removing annotations on '{sc}'"
-                )
+                print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
                         variables=TypeCollectionCategory.VARIABLE in removing,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER
-                        in removing,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                     ),
                     files=codemod.gather_files([str(sc)]),
                     repo_root=str(sc),
                 )
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Removal", result=result
-                    )
-                )
+                print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             inference_tool = tool(cache=cache_path)
-            inference_tool.infer(
-                mutable=sc, readonly=inpath, subset=test_set.get(inpath, None)
-            )
+            inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
 
             outdir = output.inference_output_path(
                 dataset,
@@ -207,11 +196,7 @@ def cli_entrypoint(
                 # jobs=1,
                 repo_root=str(outdir),
             )
-            print(
-                format_parallel_exec_result(
-                    action="Annotation Application", result=result
-                )
-            )
+            print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
