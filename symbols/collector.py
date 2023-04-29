@@ -72,7 +72,12 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
         desc=f"Building Type Collection from {root}",
         max_workers=worker_count(),
     )
-    return TypeCollection(pd.concat(collections, ignore_index=True))
+
+    if not collections:
+        cs = TypeCollectionSchema.example(size=0)
+    else:
+        cs = pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[TypeCollectionSchema])
+    return TypeCollection(cs)
 
 
 # def build_type_collection_from_test_set(
