@@ -1,5 +1,6 @@
 import collections
 import pathlib
+import tempfile
 import textwrap
 import typing
 from typing import Union
@@ -188,21 +189,13 @@ CR = collections.namedtuple(
 
 class AnnotationTracking(codemod.CodemodTest):
     def performTracking(self, code: str) -> pt.DataFrame[TypeCollectionSchema]:
-        module = libcst.parse_module(textwrap.dedent(code))
+        with tempfile.TemporaryDirectory() as td:
+            tempdir = pathlib.Path(td)
+            (tempdir / "pkg").mkdir(parents=True, exist_ok=True)
+            with (tempdir / "pkg" / "x.py").open("w") as f:
+                f.write(textwrap.dedent(code))
 
-        visitor = TypeCollectorVisitor.strict(
-            context=codemod.CodemodContext(
-                filename="x.py",
-                metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=".", paths=["x.py"], providers=[FullyQualifiedNameProvider]
-                ),
-                full_module_name="x",
-                full_package_name="pkg"
-            ),
-        )
-
-        module.visit(visitor)
-        return visitor.collection.df
+            return build_type_collection(root=tempdir, allow_stubs=False, subset=None).df
 
     def assertMatchingAnnotating(
         self,
@@ -212,7 +205,7 @@ class AnnotationTracking(codemod.CodemodTest):
         if expected:
             expected_df = (
                 pd.DataFrame(expected, columns=expected[0]._fields)
-                .assign(file="x.py")
+                .assign(file="pkg/x.py")
                 .pipe(generate_qname_ssas_for_file)
                 .pipe(pt.DataFrame[TypeCollectionSchema])
             )
@@ -278,9 +271,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(
-                    TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"
-                ),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.default",
@@ -310,9 +301,7 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)])
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -483,9 +472,7 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -525,9 +512,7 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -544,9 +529,7 @@ class Test_HintTracking(AnnotationTracking):
             df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -561,9 +544,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -681,7 +662,6 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "b", "typing.Callable"),
             ],
         )
-
 
     def test_multi_assignment_class(self):
         df = self.performTracking(

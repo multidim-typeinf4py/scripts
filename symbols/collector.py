@@ -4,9 +4,10 @@ import dataclasses
 import logging
 import os
 import pathlib
+from typing import Optional
 
 import libcst as cst
-from libcst import codemod as c, metadata
+from libcst import codemod, metadata, helpers
 import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -25,16 +26,24 @@ class _ParallelTypeCollector:
     def __init__(self, repo_root: str, files: list[str]) -> None:
         self.repo_root = repo_root
         self.files = files
+        self.metadata_manager = metadata.FullRepoManager(
+            repo_root_dir=self.repo_root,
+            paths=self.files,
+            providers={metadata.FullyQualifiedNameProvider},
+        )
+        self.metadata_manager.resolve_cache()
 
-    def __call__(self, filename2code: tuple[str, str]) -> pt.DataFrame[TypeCollectionSchema]:
+    def __call__(
+        self, filename2code: tuple[str, str]
+    ) -> pt.DataFrame[TypeCollectionSchema]:
         file, code = filename2code
-        context = c.CodemodContext(
+        modpkg = helpers.calculate_module_and_package(self.repo_root, filename=file)
+
+        context = codemod.CodemodContext(
             filename=file,
-            metadata_manager=metadata.FullRepoManager(
-                repo_root_dir=self.repo_root,
-                paths=self.files,
-                providers=[],
-            ),
+            metadata_manager=self.metadata_manager,
+            full_module_name=modpkg.name,
+            full_package_name=modpkg.package,
         )
         visitor = TypeCollectorVisitor.strict(context=context)
 
@@ -42,18 +51,27 @@ class _ParallelTypeCollector:
             module = cst.parse_module(code)
             module.visit(visitor)
         except Exception as e:
-            print(f"FILE {file}: EXCEPTION OCCURRED: {e}")
+            print(f"WARNING: {e}")
             return TypeCollectionSchema.example(size=0)
 
         return visitor.collection.df
 
 
-def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollection:
+def build_type_collection(
+    root: pathlib.Path, allow_stubs=False, subset: Optional[set[pathlib.Path]] = None
+) -> TypeCollection:
     repo_root = str(root.parent if root.is_file() else root)
-    files = (
-        [str(root)] if root.is_file() else c.gather_files([str(root)], include_stubs=allow_stubs)
-    )
 
+    if subset is None:
+        files = (
+            [str(root)]
+            if root.is_file()
+            else codemod.gather_files([str(root)], include_stubs=allow_stubs)
+        )
+    else:
+        files = list(map(lambda p: str(root / p), subset))
+
+    print(repo_root, files)
     file2code = dict()
     for file in tqdm.tqdm(files):
         if os.path.isdir(file):
@@ -76,7 +94,9 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
     if not collections:
         cs = TypeCollectionSchema.example(size=0)
     else:
-        cs = pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[TypeCollectionSchema])
+        cs = pd.concat(collections, ignore_index=True).pipe(
+            pt.DataFrame[TypeCollectionSchema]
+        )
     return TypeCollection(cs)
 
 
@@ -102,21 +122,25 @@ def build_type_collection(root: pathlib.Path, allow_stubs=False) -> TypeCollecti
 #     return TypeCollection(pd.concat(collection, ignore_index=True))
 
 
-class TypeCollectorVisitor(c.ContextAwareVisitor):
+class TypeCollectorVisitor(codemod.ContextAwareVisitor):
     collection: TypeCollection
 
-    def __init__(self, context: c.CodemodContext, collection: TypeCollection, strict: bool) -> None:
+    def __init__(
+        self, context: codemod.CodemodContext, collection: TypeCollection, strict: bool
+    ) -> None:
         super().__init__(context)
         self.collection = collection
         self._strict = strict
         self.logger = logging.getLogger(self.__class__.__qualname__)
 
     @staticmethod
-    def strict(context: c.CodemodContext) -> TypeCollectorVisitor:
-        return TypeCollectorVisitor(context=context, collection=TypeCollection.empty(), strict=True)
+    def strict(context: codemod.CodemodContext) -> TypeCollectorVisitor:
+        return TypeCollectorVisitor(
+            context=context, collection=TypeCollection.empty(), strict=True
+        )
 
     @staticmethod
-    def lax(context: c.CodemodContext) -> TypeCollectorVisitor:
+    def lax(context: codemod.CodemodContext) -> TypeCollectorVisitor:
         return TypeCollectorVisitor(
             context=context, collection=TypeCollection.empty(), strict=False
         )
@@ -139,7 +163,9 @@ class TypeCollectorVisitor(c.ContextAwareVisitor):
         imports_visitor = GatherImportsVisitor(context=self.context)
         tree.visit(imports_visitor)
 
-        existing_imports = set(item.module for item in imports_visitor.symbol_mapping.values())
+        existing_imports = set(
+            item.module for item in imports_visitor.symbol_mapping.values()
+        )
 
         type_collector = MultiVarTypeCollector(
             existing_imports=existing_imports,
@@ -147,7 +173,13 @@ class TypeCollectorVisitor(c.ContextAwareVisitor):
             context=self.context,
         )
 
-        metadata.MetadataWrapper(tree, unsafe_skip_copy=True).visit(type_collector)
+        metadata.MetadataWrapper(
+            tree,
+            unsafe_skip_copy=True,
+            cache=self.context.metadata_manager.get_cache_for_path(
+                self.context.filename
+            ),
+        ).visit(type_collector)
         update = TypeCollection.from_annotations(
             file=file, annotations=type_collector.annotations, strict=self._strict
         )

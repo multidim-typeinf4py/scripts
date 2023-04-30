@@ -1,4 +1,7 @@
 import collections
+import itertools
+import pathlib
+import tempfile
 import textwrap
 import typing
 from typing import Optional
@@ -9,12 +12,13 @@ import pandas as pd
 import pandera.typing as pt
 import pytest
 from libcst import codemod, metadata
+from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
 
 from common.ast_helper import generate_qname_ssas_for_file
 from common.schemas import TypeCollectionCategory, TypeCollectionSchema
 from infer.insertion import TypeAnnotationApplierTransformer
-from symbols.collector import TypeCollectorVisitor
+from symbols.collector import TypeCollectorVisitor, build_type_collection
 
 CodemodAnnotation = collections.namedtuple(
     typename="CodemodAnnotation",
@@ -39,32 +43,33 @@ class AnnotationTesting(codemod.CodemodTest):
     ):
         before, after = textwrap.dedent(before), textwrap.dedent(after)
 
-        context = codemod.CodemodContext(
-            filename="x.py",
-            metadata_manager=metadata.FullRepoManager(
-                repo_root_dir=".", paths=["x.py"], providers=[]
-            ),
-        )
+        with tempfile.TemporaryDirectory() as td:
+            tempdir = pathlib.Path(td)
+            with (tempdir / "x.py").open("w") as f:
+                f.write(after)
 
-        if annotations is not None:
-            df = (
-                pd.DataFrame(annotations, columns=list(annotations[0]._fields))
-                .assign(file="x.py")
-                .pipe(generate_qname_ssas_for_file)
-                .pipe(pt.DataFrame[TypeCollectionSchema])
+            if annotations is not None:
+                df = (
+                    pd.DataFrame(annotations, columns=list(annotations[0]._fields))
+                    .assign(file="x.py")
+                    .pipe(generate_qname_ssas_for_file)
+                    .pipe(pt.DataFrame[TypeCollectionSchema])
+                )
+
+            else:
+                df = build_type_collection(tempdir, allow_stubs=False, subset=None).df
+
+            self.assertCodemod(
+                before,
+                after,
+                annotations=df,
+                context_override=codemod.CodemodContext(
+                    filename=f"{td}/x.py",
+                    metadata_manager=metadata.FullRepoManager(
+                        repo_root_dir=td, paths=[f"{td}/x.py"], providers={FullyQualifiedNameProvider}
+                    ),
+                ),
             )
-
-        else:
-            visitor = TypeCollectorVisitor.strict(context)
-            libcst.parse_module(after).visit(visitor)
-            df = visitor.collection.df
-
-        self.assertCodemod(
-            before,
-            after,
-            annotations=df,
-            context_override=context,
-        )
 
 
 class Test_Unannotated(AnnotationTesting):
@@ -311,6 +316,32 @@ class Test_Unannotated(AnnotationTesting):
             (x := 4)
             """,
         )
+
+    def test_ordering(self):
+        annotations = [
+            CodemodAnnotation(TypeCollectionCategory.VARIABLE, "a", "int"),
+            CodemodAnnotation(TypeCollectionCategory.CALLABLE_RETURN, "f", "None"),
+            CodemodAnnotation(TypeCollectionCategory.CALLABLE_PARAMETER, "f.a", "A"),
+            CodemodAnnotation(TypeCollectionCategory.CALLABLE_PARAMETER, "f.b", "B"),
+            CodemodAnnotation(TypeCollectionCategory.CALLABLE_PARAMETER, "f.c", "C"),
+        ]
+        for _, permutation in enumerate(itertools.permutations(annotations)):
+            self.assertBuildCodemod(
+                before="""
+                a = 10
+                def f(a, b, c):
+                    ...
+                """,
+                after="""
+                from __future__ import annotations
+                
+                a: int = 10
+                def f(a: A, b: B, c: C) -> None:
+                    ...
+                """,
+                annotations=permutation,
+            )
+
 
 
 class Test_Annotated(AnnotationTesting):
