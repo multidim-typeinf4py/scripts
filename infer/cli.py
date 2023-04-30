@@ -122,6 +122,7 @@ def cli_entrypoint(
 
         # Skip if outside of dataset
         if not (subset := test_set.get(project, set())):
+            print(f"Skipping {project}, not found in test subset")
             continue
 
         inference_tool = tool(cache=cache_path)
@@ -137,6 +138,9 @@ def cli_entrypoint(
 
         # Skip if we are not overwriting results
         if outdir.is_dir() and not overwrite:
+            print(
+                f"Skipping {project}, results are already at {outdir}, and --overwrite was not given!"
+            )
             continue
 
         inpath = project
