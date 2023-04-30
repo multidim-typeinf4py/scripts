@@ -13,6 +13,10 @@ def hints2df(folder: pathlib.Path, subset: Optional[set[pathlib.Path]]) -> pt.Da
 
 
 def stubs2df(folder: pathlib.Path, subset: Optional[set[pathlib.Path]]) -> pt.DataFrame[TypeCollectionSchema]:
+    # Convert subset to stub naming
+    if subset is not None:
+        subset = {p.with_suffix(".pyi") for p in subset}
+
     collection = build_type_collection(folder, allow_stubs=True, subset=subset)
     df = collection.df
 
