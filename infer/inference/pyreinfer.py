@@ -16,17 +16,19 @@ class PyreInfer(ProjectWideInference):
 
     _OUTPUT_DIR = ".pyre-stubs"
 
-    def _infer_project(self, root: pathlib.Path) -> pt.DataFrame[InferredSchema]:
-        with working_dir(root):
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+    ) -> pt.DataFrame[InferredSchema]:
+        with working_dir(mutable):
             config = configuration.create_configuration(
                 arguments=command_arguments.CommandArguments(
-                    dot_pyre_directory=root / PyreInfer._OUTPUT_DIR,
-                    source_directories=[str(root)],
+                    dot_pyre_directory=mutable / PyreInfer._OUTPUT_DIR,
+                    source_directories=[str(mutable)],
                 ),
-                base_directory=root,
+                base_directory=mutable,
             )
             infargs = command_arguments.InferArguments(
-                working_directory=root,
+                working_directory=mutable,
                 annotate_attributes=True,
                 annotate_from_existing_stubs=False,
                 debug_infer=False,
@@ -43,7 +45,9 @@ class PyreInfer(ProjectWideInference):
             )
 
             return (
-                _adaptors.stubs2df(root / PyreInfer._OUTPUT_DIR / "types")
+                _adaptors.stubs2df(
+                    mutable / PyreInfer._OUTPUT_DIR / "types", subset=subset
+                )
                 .assign(method=self.method, topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )

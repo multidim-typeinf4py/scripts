@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import libcst
-from libcst import metadata, codemod as c, matchers as m, helpers as h
+from libcst import codemod as c, matchers as m, helpers as h
 from libcst.codemod.visitors._add_imports import AddImportsVisitor
 from libcst.codemod.visitors._apply_type_annotations import (
     NameOrAttribute,
@@ -29,10 +29,9 @@ from libcst.helpers import get_full_name_for_node
 from libcst.metadata import (
     PositionProvider,
     ScopeProvider,
-    QualifiedNameProvider,
     FullyQualifiedNameProvider,
+    ClassScope,
 )
-from libcst.metadata.name_provider import FullyQualifiedNameVisitor
 
 from common import transformers as t
 from common.metadata.anno4inst import Annotation4InstanceProvider
@@ -116,7 +115,7 @@ class MultiVarTypeCollector(
     METADATA_DEPENDENCIES = (
         ScopeProvider,
         PositionProvider,
-        QualifiedNameProvider,
+        FullyQualifiedNameProvider,
         Annotation4InstanceProvider,
     )
 
@@ -468,7 +467,7 @@ class MultiVarTypeCollector(
 
     def _get_unique_qualified_name(self, node: libcst.CSTNode) -> str:
         name = None
-        names = [q for q in self.get_metadata(QualifiedNameProvider, node)]
+        names = [q for q in self.get_metadata(FullyQualifiedNameProvider, node)]
         if len(names) == 0:
             # we hit this branch if the stub is directly using a fully
             # qualified name, which is not technically valid python but is
@@ -477,11 +476,6 @@ class MultiVarTypeCollector(
         elif len(names) >= 1:
             n = next(
                 filter(lambda qname: not qname.name.startswith("."), names), names[0]
-            )
-            n = FullyQualifiedNameVisitor._fully_qualify(
-                module_name=self.context.full_module_name,
-                package_name=self.context.full_package_name,
-                qname=n,
             )
             name = n.name.replace(".<locals>.", ".")
 
@@ -1216,7 +1210,7 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
     Based on LibSA4Py implementation
     """
 
-    METADATA_DEPENDENCIES = (metadata.ScopeProvider,)
+    METADATA_DEPENDENCIES = (ScopeProvider,)
 
     def __init__(
         self,
@@ -1270,8 +1264,8 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
             ),
         ):
             if isinstance(
-                self.get_metadata(metadata.ScopeProvider, original_node),
-                metadata.ClassScope,
+                self.get_metadata(ScopeProvider, original_node),
+                ClassScope,
             ):
                 updated_node = libcst.Assign(
                     targets=[libcst.AssignTarget(target=original_node.target)],

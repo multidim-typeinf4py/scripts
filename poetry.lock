@@ -1655,7 +1655,7 @@ rapidfuzz = ">=2.3.0,<3.0.0"
 
 [[package]]
 name = "libcst"
-version = "0.1.dev949+gb8a1773"
+version = "0.1.dev950+gdea1a84"
 description = "A concrete syntax tree with AST-like properties for Python 3.5, 3.6, 3.7, 3.8, 3.9, and 3.10 programs."
 category = "main"
 optional = false
@@ -1675,7 +1675,7 @@ dev = ["Sphinx (>=5.1.1)", "black (==22.12.0)", "coverage (>=4.5.4)", "fixit (==
 type = "git"
 url = "https://github.com/multidim-typeinf4py/LibCST.git"
 reference = "main"
-resolved_reference = "b8a17736b5f23a3ff97a50ae79097dab3184134d"
+resolved_reference = "d90803473067f62429ce93118693af3ad2245bc1"
 
 [[package]]
 name = "libsa4py"

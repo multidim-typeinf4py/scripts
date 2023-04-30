@@ -50,6 +50,13 @@ from libcst import codemod
     help="Folder to put ML inference cache inside of",
 )
 @click.option(
+    "-o",
+    "--outpath",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    required=True,
+    help="Base folder for inference results to be written into",
+)
+@click.option(
     "-w",
     "--overwrite",
     is_flag=True,
@@ -80,7 +87,7 @@ from libcst import codemod
             str(TypeCollectionCategory.CALLABLE_RETURN),
         ],
     ),
-    help="Infer annotations in the codebase",
+    help="Retain only the given annotation categories in the codebase",
     multiple=True,
     required=True,
 )
@@ -89,6 +96,7 @@ def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     cache_path: Optional[pathlib.Path],
+    outpath: pathlib.Path,
     overwrite: bool,
     remove: list[str],
     infer: list[str],
@@ -109,11 +117,33 @@ def cli_entrypoint(
     test_set = structure.test_set(dataset)
 
     projects = list(structure.project_iter(dataset))
-    for inpath in (pbar := tqdm.tqdm(projects)):
-        if not (subset := test_set.get(inpath, set())):
-            continue
-        pbar.set_description(desc=f"Inferring over {inpath}")
+    for project in (pbar := tqdm.tqdm(projects)):
+        pbar.set_description(desc=f"Inferring over {project}")
 
+        # Skip if outside of dataset
+        if not (subset := test_set.get(project, set())):
+            print(f"Skipping {project}, not found in test subset")
+            continue
+
+        inference_tool = tool(cache=cache_path)
+
+        ar = structure.author_repo(project)
+        author_repo = f"{ar['author']}.{ar['repo']}"
+        outdir = output.inference_output_path(
+            outpath / author_repo,
+            tool=inference_tool.method,
+            removed=removing,
+            inferred=inferring,
+        )
+
+        # Skip if we are not overwriting results
+        if outdir.is_dir() and not overwrite:
+            print(
+                f"Skipping {project}, results are already at {outdir}, and --overwrite was not given!"
+            )
+            continue
+
+        inpath = project
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
@@ -132,24 +162,12 @@ def cli_entrypoint(
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
-            inference_tool = tool(cache=cache_path)
             inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
 
-            outdir = output.inference_output_path(
-                dataset,
-                tool=inference_tool.method,
-                removed=removing,
-                inferred=inferring,
-            )
-            if outdir.is_dir() and overwrite:
-                shutil.rmtree(outdir)
+        if outdir.is_dir() and overwrite:
+            shutil.rmtree(outdir)
 
-            elif outdir.is_dir() and not overwrite:
-                raise RuntimeError(
-                    f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
-                )
-
-            print(f"Inference completed; writing results to {outdir}")
+        print(f"Inference completed; writing results to {outdir}")
 
         # Copy original project and re-remove annotations
         shutil.copytree(inpath, outdir, symlinks=True)

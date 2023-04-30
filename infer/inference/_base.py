@@ -13,6 +13,8 @@ from common.schemas import (
 
 import logging
 
+from libcst import codemod
+
 import pandera.typing as pt
 import pandas as pd
 
@@ -42,7 +44,7 @@ class DatasetFolderStructure(enum.Enum):
                 if author.is_dir() and not author.name.startswith(".")
             )
             for author in authors:
-                repos = (repo.relative_to(dataset_root) for repo in author.iterdir() if repo.is_dir())
+                repos = (repo for repo in author.iterdir() if repo.is_dir())
                 yield from repos
 
         elif self == DatasetFolderStructure.TYPILUS:
@@ -69,9 +71,11 @@ class DatasetFolderStructure(enum.Enum):
                 )
             )
         else:
-            raise RuntimeError("Cannot determine author or repo of a simple folder")
+            return {"author": repo.name, "repo": repo.name}
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(
+        self, dataset_root: pathlib.Path
+    ) -> dict[pathlib.Path, set[pathlib.Path]]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
             splits = pd.read_csv(
                 dataset_root / "data" / "dataset_split.csv",
@@ -89,7 +93,7 @@ class DatasetFolderStructure(enum.Enum):
                 .groupby(by=["author", "project"])
             ):
                 author, project = key
-                test_set[pathlib.Path("repos") / author / project] = set(
+                test_set[dataset_root / "repos" / author / project] = set(
                     map(pathlib.Path, g["file"].tolist())
                 )
             return test_set
@@ -98,13 +102,19 @@ class DatasetFolderStructure(enum.Enum):
 
             def typilus_impl(
                 path2typilus: pathlib.Path,
-            ) -> dict[pathlib.Path, list[str]]:
+            ) -> dict[pathlib.Path, set[pathlib.Path]]:
                 ...
 
             return typilus_impl(dataset_root)
 
         elif self == DatasetFolderStructure.PROJECT:
-            return dict()
+            subfiles = set(
+                map(
+                    lambda p: pathlib.Path(p).relative_to(dataset_root),
+                    codemod.gather_files([str(dataset_root)]),
+                )
+            )
+            return {dataset_root: subfiles}
 
 
 class Inference(abc.ABC):
@@ -182,15 +192,14 @@ class ProjectWideInference(Inference):
     ) -> None:
         self.logger.debug(f"Inferring project-wide on {mutable}")
 
-        self.inferred = self._infer_project(mutable)
-        if subset is not None:
-            retainable = list(map(str, subset))
-            self.inferred = self.inferred[~self.inferred[InferredSchema.file].isin(retainable)]
+        self.inferred = self._infer_project(mutable, subset)
 
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_project(self, mutable: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+    ) -> pt.DataFrame[InferredSchema]:
         pass
 
 
@@ -209,15 +218,17 @@ class PerFileInference(Inference):
             paths = mutable.rglob("*.py")
 
         for subfile in paths:
+            if not subfile.is_file():
+                continue
             relative = subfile.relative_to(mutable)
             self.logger.debug(f"Inferring per-file on {mutable} @ {relative}")
             reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
             updates.append(reldf)
 
         if updates:
-            self.inferred = pd.concat([self.inferred, *updates], ignore_index=True).pipe(
-                pt.DataFrame[InferredSchema]
-            )
+            self.inferred = pd.concat(
+                [self.inferred, *updates], ignore_index=True
+            ).pipe(pt.DataFrame[InferredSchema])
 
         self._write_cache()
 

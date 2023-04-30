@@ -1,4 +1,3 @@
-import os
 import pathlib
 import re
 import shutil
@@ -10,7 +9,6 @@ import pandera.typing as pt
 import libcst
 from libcst import metadata
 from libcst import helpers
-from libcst import codemod
 
 from libsa4py import pyre
 
@@ -29,10 +27,6 @@ import utils
 
 class PyreQuery(PerFileInference):
     method = "pyre-query"
-
-    def __init__(self, cache: Optional[pathlib.Path]):
-        super().__init__(cache)
-        self.repo_manager: Optional[metadata.FullRepoManager] = None
 
     def infer(
         self,
@@ -69,14 +63,6 @@ class PyreQuery(PerFileInference):
                     == ExitCode.SUCCESS
                 )
 
-                paths = codemod.gather_files([str(mutable)])
-                relpaths = [os.path.relpath(path, str(mutable)) for path in paths]
-                self.repo_manager = metadata.FullRepoManager(
-                    repo_root_dir=str(mutable),
-                    paths=relpaths,
-                    providers=[metadata.TypeInferenceProvider],
-                )
-
                 super().infer(mutable=mutable, readonly=readonly, subset=subset)
 
             finally:
@@ -88,14 +74,20 @@ class PyreQuery(PerFileInference):
     def _infer_file(
         self, root: pathlib.Path, relative: pathlib.Path
     ) -> pt.DataFrame[InferredSchema]:
-        assert self.repo_manager is not None
-        fullpath = str(root / relative)
-        module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
-
-        modpkg = helpers.calculate_module_and_package(
-            repo_root=str(root), filename=fullpath
+        repomanager = metadata.FullRepoManager(
+            repo_root_dir=str(root),
+            paths=[str(relative)],
+            providers={metadata.TypeInferenceProvider},
         )
-        visitor = _PyreQuery2Annotations(modpkg)
+
+        visitor = _PyreQuery2Annotations()
+
+        try:
+            # Calculates type inference data here
+            module = repomanager.get_metadata_wrapper_for_path(str(relative))
+        except Exception as e:
+            print(f"WARNING: pyre-query failed for {relative}")
+            return InferredSchema.example(size=0)
 
         module.visit(visitor)
 
@@ -125,9 +117,8 @@ class _PyreQuery2Annotations(
         metadata.ScopeProvider,
     )
 
-    def __init__(self, modpkg: helpers.ModuleNameAndPackage) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.modpkg = modpkg
         self.annotations: list[tuple[TypeCollectionCategory, str, str]] = []
 
     def libsa4py_hint(
@@ -232,7 +223,7 @@ class _PyreQuery2Annotations(
         ) is None:
             return missing.NA
 
-        return anno.removeprefix(self.modpkg.name + ".")
+        return anno
 
     def _infer_rettype(self, node: libcst.FunctionDef) -> Union[str, missing.NAType]:
         if (
@@ -243,6 +234,4 @@ class _PyreQuery2Annotations(
         functy = re.findall(_PyreQuery2Annotations._CALLABLE_RETTYPE_REGEX, anno)
         functy = functy[0] if functy else missing.NA
 
-        return (
-            functy.removeprefix(self.modpkg.name + ".") if pd.notna(functy) else functy
-        )
+        return functy if pd.notna(functy) else missing.NA

@@ -18,29 +18,47 @@ class MyPy(ProjectWideInference):
 
     _OUTPUT_DIR = ".mypy-stubs"
 
-    def _infer_project(self, mutable: pathlib.Path) -> pt.DataFrame[InferredSchema]:
-        stubgen.generate_stubs(
-            options=stubgen.Options(
-                ignore_errors=False,
-                no_import=False,
-                parse_only=False,
-                include_private=True,
-                export_less=True,
-                pyversion=sys.version_info[:2],
-                output_dir=str(mutable / MyPy._OUTPUT_DIR),
-                files=codemod.gather_files([str(mutable)], include_stubs=False),
-                doc_dir="",
-                search_path=[],
-                interpreter=sys.executable,
-                modules=[],
-                packages=[],
-                verbose=False,
-                quiet=True,
-            )
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+    ) -> pt.DataFrame[InferredSchema]:
+        options = stubgen.Options(
+            ignore_errors=True,
+            no_import=False,
+            parse_only=False,
+            include_private=True,
+            export_less=True,
+            pyversion=sys.version_info[:2],
+            output_dir=str(mutable / MyPy._OUTPUT_DIR),
+            files=codemod.gather_files([str(mutable)], include_stubs=False),
+            doc_dir="",
+            search_path=[],
+            interpreter=sys.executable,
+            modules=[],
+            packages=[],
+            verbose=False,
+            quiet=True,
         )
 
-        return (
-            _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR)
-            .assign(method=self.method, topn=1)
-            .pipe(pt.DataFrame[InferredSchema])
-        )
+        try:
+            stubgen.generate_stubs(options=options)
+
+        except SystemExit as e:
+            print(f"Falling back to --parse_only=True: {e}")
+            options.parse_only = True
+
+            try:
+                stubgen.generate_stubs(options=options)
+            except SystemExit as e:
+                print(f"Fallback failed too; {e}; giving up...")
+
+        except Exception as e:
+            print(f"Stub Generation failed: {e}")
+
+        finally:
+            if (mutable / MyPy._OUTPUT_DIR).is_dir():
+                return (
+                    _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
+                    .assign(method=self.method, topn=1)
+                    .pipe(pt.DataFrame[InferredSchema])
+                )
+            return InferredSchema.example(size=0)
