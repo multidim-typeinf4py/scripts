@@ -91,7 +91,13 @@ class PyreQuery(PerFileInference):
     ) -> pt.DataFrame[InferredSchema]:
         assert self.repo_manager is not None
         fullpath = str(root / relative)
-        module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
+        
+        try:
+            module = self.repo_manager.get_metadata_wrapper_for_path(str(relative))
+        except Exception as e:
+            print(f"Skipping {relative} due to error in pyre-query: {e}")
+            return InferredSchema.example(size=0)
+
 
         modpkg = helpers.calculate_module_and_package(
             repo_root=str(root), filename=fullpath
