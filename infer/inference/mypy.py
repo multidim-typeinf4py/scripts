@@ -45,7 +45,12 @@ class MyPy(ProjectWideInference):
         except SystemExit as e:
             print(f"Falling back to --parse_only=True: {e}")
             options.parse_only = True
-            stubgen.generate_stubs(options=options)
+
+            try:
+                stubgen.generate_stubs(options=options)
+            except SystemExit as e:
+                print(f"Fallback failed too; {e}; giving up...")
+                return InferredSchema.example(size=0)
 
         return (
             _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
