@@ -82,7 +82,13 @@ class PyreQuery(PerFileInference):
 
         visitor = _PyreQuery2Annotations()
 
-        module = repomanager.get_metadata_wrapper_for_path(str(relative))
+        try:
+            # Calculates type inference data here
+            module = repomanager.get_metadata_wrapper_for_path(str(relative))
+        except Exception as e:
+            print(f"WARNING: pyre-query failed for {relative}")
+            return InferredSchema.example(size=0)
+
         module.visit(visitor)
 
         df = pd.DataFrame(
