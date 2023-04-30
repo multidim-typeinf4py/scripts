@@ -91,7 +91,7 @@ class DatasetFolderStructure(enum.Enum):
                 .groupby(by=["author", "project"])
             ):
                 author, project = key
-                test_set[pathlib.Path("repos") / author / project] = set(
+                test_set[dataset_root / "repos" / author / project] = set(
                     map(pathlib.Path, g["file"].tolist())
                 )
             return test_set
