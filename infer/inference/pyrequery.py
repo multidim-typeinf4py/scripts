@@ -77,6 +77,7 @@ class PyreQuery(PerFileInference):
                     providers=[metadata.TypeInferenceProvider],
                     timeout=60,
                 )
+                self.repo_manager.resolve_cache()
 
                 super().infer(mutable=mutable, readonly=readonly, subset=subset)
 
