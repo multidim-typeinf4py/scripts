@@ -118,7 +118,8 @@ class TypeCollection:
         baseline: pt.DataFrame[TypeCollectionSchema],
     ) -> Annotations:
         """Create a LibCST Annotations object from the provided DataFrame.
-        NOTE: The keys of this Annotations object are QNAME_SSAs, not QNAMEs!"""
+        NOTE: The keys of this Annotations object are QNAME_SSAs, not QNAMEs!
+        """
 
         df = collection.df if isinstance(collection, TypeCollection) else collection
 
@@ -155,7 +156,8 @@ class TypeCollection:
         )
         if dups.any():
             raise RuntimeError(
-                "Cannot annotate source code when conflicts have not been resolved (this includes remnants of top-n predictions!)"
+                "Cannot annotate source code when conflicts have not been resolved (this includes remnants of top-n "
+                "predictions!)"
             )
 
         def functions() -> dict[FunctionKey, FunctionAnnotation]:
