@@ -50,7 +50,6 @@ class MyPy(ProjectWideInference):
                 stubgen.generate_stubs(options=options)
             except SystemExit as e:
                 print(f"Fallback failed too; {e}; giving up...")
-                return InferredSchema.example(size=0)
 
         except Exception as e:
             print(f"Stub Generation failed: {e}")
