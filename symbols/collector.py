@@ -70,6 +70,7 @@ def build_type_collection(
         )
     else:
         files = list(map(lambda p: str(root / p), subset))
+        files = list(map(lambda p: os.path.isfile(p), files))
 
     file2code = dict()
     for file in tqdm.tqdm(files):
@@ -77,6 +78,7 @@ def build_type_collection(
             continue
         try:
             file2code[file] = open(file).read()
+        
         except UnicodeDecodeError as e:
             print(f"WARNING: Could not decode {file} - {e}")
             continue
