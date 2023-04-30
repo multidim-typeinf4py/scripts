@@ -75,6 +75,7 @@ class PyreQuery(PerFileInference):
                     repo_root_dir=str(mutable),
                     paths=relpaths,
                     providers=[metadata.TypeInferenceProvider],
+                    timeout=60,
                 )
 
                 super().infer(mutable=mutable, readonly=readonly, subset=subset)
