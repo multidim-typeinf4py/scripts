@@ -118,12 +118,28 @@ def cli_entrypoint(
 
     projects = list(structure.project_iter(dataset))
     for project in (pbar := tqdm.tqdm(projects)):
+        pbar.set_description(desc=f"Inferring over {project}")
+
+        # Skip if outside of dataset
         if not (subset := test_set.get(project, set())):
             continue
 
-        pbar.set_description(desc=f"Inferring over {project}")
+        inference_tool = tool(cache=cache_path)
 
-        inpath = dataset / project
+        ar = structure.author_repo(project)
+        author_repo = f"{ar['author']}.{ar['repo']}"
+        outdir = output.inference_output_path(
+            outpath / author_repo,
+            tool=inference_tool.method,
+            removed=removing,
+            inferred=inferring,
+        )
+
+        # Skip if we are not overwriting results
+        if outdir.is_dir() and not overwrite:
+            continue
+
+        inpath = project
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
@@ -142,26 +158,12 @@ def cli_entrypoint(
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
-            inference_tool = tool(cache=cache_path)
             inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
 
-            ar = structure.author_repo(project)
-            author_repo = f"{ar['author']}.{ar['repo']}"
-            outdir = output.inference_output_path(
-                outpath / author_repo,
-                tool=inference_tool.method,
-                removed=removing,
-                inferred=inferring,
-            )
-            if outdir.is_dir() and overwrite:
-                shutil.rmtree(outdir)
+        if outdir.is_dir() and overwrite:
+            shutil.rmtree(outdir)
 
-            elif outdir.is_dir() and not overwrite:
-                raise RuntimeError(
-                    f"--overwrite was not given! Refraining from deleting already existing {outdir=}"
-                )
-
-            print(f"Inference completed; writing results to {outdir}")
+        print(f"Inference completed; writing results to {outdir}")
 
         # Copy original project and re-remove annotations
         shutil.copytree(inpath, outdir, symlinks=True)

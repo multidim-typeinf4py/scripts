@@ -13,6 +13,8 @@ from common.schemas import (
 
 import logging
 
+from libcst import codemod
+
 import pandera.typing as pt
 import pandas as pd
 
@@ -42,7 +44,7 @@ class DatasetFolderStructure(enum.Enum):
                 if author.is_dir() and not author.name.startswith(".")
             )
             for author in authors:
-                repos = (repo.relative_to(dataset_root) for repo in author.iterdir() if repo.is_dir())
+                repos = (repo for repo in author.iterdir() if repo.is_dir())
                 yield from repos
 
         elif self == DatasetFolderStructure.TYPILUS:
@@ -69,7 +71,7 @@ class DatasetFolderStructure(enum.Enum):
                 )
             )
         else:
-            raise RuntimeError("Cannot determine author or repo of a simple folder")
+            return {"author": repo.name, "repo": repo.name}
 
     def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
@@ -98,13 +100,19 @@ class DatasetFolderStructure(enum.Enum):
 
             def typilus_impl(
                 path2typilus: pathlib.Path,
-            ) -> dict[pathlib.Path, list[str]]:
+            ) -> dict[pathlib.Path, set[pathlib.Path]]:
                 ...
 
             return typilus_impl(dataset_root)
 
         elif self == DatasetFolderStructure.PROJECT:
-            return dict()
+            subfiles = set(
+                map(
+                    lambda p: pathlib.Path(p).relative_to(dataset_root),
+                    codemod.gather_files([str(dataset_root)]),
+                )
+            )
+            return {dataset_root: subfiles}
 
 
 class Inference(abc.ABC):

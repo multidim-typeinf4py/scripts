@@ -71,7 +71,6 @@ def build_type_collection(
     else:
         files = list(map(lambda p: str(root / p), subset))
 
-    print(repo_root, files)
     file2code = dict()
     for file in tqdm.tqdm(files):
         if os.path.isdir(file):
