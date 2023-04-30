@@ -218,6 +218,8 @@ class PerFileInference(Inference):
             paths = mutable.rglob("*.py")
 
         for subfile in paths:
+            if not subfile.is_file():
+                continue
             relative = subfile.relative_to(mutable)
             self.logger.debug(f"Inferring per-file on {mutable} @ {relative}")
             reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
