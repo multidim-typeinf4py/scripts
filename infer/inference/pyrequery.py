@@ -75,7 +75,7 @@ class PyreQuery(PerFileInference):
                     repo_root_dir=str(mutable),
                     paths=relpaths,
                     providers=[metadata.TypeInferenceProvider],
-                    timeout=60,
+                    timeout=600,
                 )
 
                 super().infer(mutable=mutable, readonly=readonly, subset=subset)
@@ -97,7 +97,6 @@ class PyreQuery(PerFileInference):
         except Exception as e:
             print(f"Skipping {relative} due to error in pyre-query: {e}")
             return InferredSchema.example(size=0)
-
 
         modpkg = helpers.calculate_module_and_package(
             repo_root=str(root), filename=fullpath
