@@ -49,7 +49,11 @@ def generate_context_vectors_for_project(
         position=0,
         max_workers=worker_count()
     )
-    return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
+
+    if not collections:
+        return ContextSymbolSchema.example(size=0)
+    else:
+        return pd.concat(collections, ignore_index=True).pipe(pt.DataFrame[ContextSymbolSchema])
 
 
 def generate_context_vectors_for_file(
