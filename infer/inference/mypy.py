@@ -52,8 +52,14 @@ class MyPy(ProjectWideInference):
                 print(f"Fallback failed too; {e}; giving up...")
                 return InferredSchema.example(size=0)
 
-        return (
-            _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
-            .assign(method=self.method, topn=1)
-            .pipe(pt.DataFrame[InferredSchema])
-        )
+        except Exception as e:
+            print(f"Stub Generation failed: {e}")
+
+        finally:
+            if (mutable / MyPy._OUTPUT_DIR).is_dir():
+                return (
+                    _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
+                    .assign(method=self.method, topn=1)
+                    .pipe(pt.DataFrame[InferredSchema])
+                )
+            return InferredSchema.example(size=0)
