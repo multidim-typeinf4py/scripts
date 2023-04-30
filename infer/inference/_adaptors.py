@@ -1,4 +1,5 @@
 import pathlib
+from typing import Optional
 
 import pandera.typing as pt
 
@@ -6,13 +7,13 @@ from common.schemas import TypeCollectionSchema
 from symbols.collector import build_type_collection
 
 
-def hints2df(folder: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
-    collection = build_type_collection(folder)
+def hints2df(folder: pathlib.Path, subset: Optional[set[pathlib.Path]]) -> pt.DataFrame[TypeCollectionSchema]:
+    collection = build_type_collection(folder, allow_stubs=False, subset=subset)
     return collection.df
 
 
-def stubs2df(folder: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
-    collection = build_type_collection(folder, allow_stubs=True)
+def stubs2df(folder: pathlib.Path, subset: Optional[set[pathlib.Path]]) -> pt.DataFrame[TypeCollectionSchema]:
+    collection = build_type_collection(folder, allow_stubs=True, subset=subset)
     df = collection.df
 
     # Remove all source files to avoid skewing results

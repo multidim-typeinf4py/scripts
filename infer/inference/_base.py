@@ -73,7 +73,9 @@ class DatasetFolderStructure(enum.Enum):
         else:
             return {"author": repo.name, "repo": repo.name}
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(
+        self, dataset_root: pathlib.Path
+    ) -> dict[pathlib.Path, set[pathlib.Path]]:
         if self == DatasetFolderStructure.MANYTYPES4PY:
             splits = pd.read_csv(
                 dataset_root / "data" / "dataset_split.csv",
@@ -190,15 +192,14 @@ class ProjectWideInference(Inference):
     ) -> None:
         self.logger.debug(f"Inferring project-wide on {mutable}")
 
-        self.inferred = self._infer_project(mutable)
-        if subset is not None:
-            retainable = list(map(str, subset))
-            self.inferred = self.inferred[~self.inferred[InferredSchema.file].isin(retainable)]
+        self.inferred = self._infer_project(mutable, subset)
 
         self._write_cache()
 
     @abc.abstractmethod
-    def _infer_project(self, mutable: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+    ) -> pt.DataFrame[InferredSchema]:
         pass
 
 
@@ -223,9 +224,9 @@ class PerFileInference(Inference):
             updates.append(reldf)
 
         if updates:
-            self.inferred = pd.concat([self.inferred, *updates], ignore_index=True).pipe(
-                pt.DataFrame[InferredSchema]
-            )
+            self.inferred = pd.concat(
+                [self.inferred, *updates], ignore_index=True
+            ).pipe(pt.DataFrame[InferredSchema])
 
         self._write_cache()
 

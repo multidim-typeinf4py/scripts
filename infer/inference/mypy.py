@@ -18,10 +18,12 @@ class MyPy(ProjectWideInference):
 
     _OUTPUT_DIR = ".mypy-stubs"
 
-    def _infer_project(self, mutable: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+    ) -> pt.DataFrame[InferredSchema]:
         stubgen.generate_stubs(
             options=stubgen.Options(
-                ignore_errors=False,
+                ignore_errors=True,
                 no_import=False,
                 parse_only=False,
                 include_private=True,
@@ -40,7 +42,7 @@ class MyPy(ProjectWideInference):
         )
 
         return (
-            _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR)
+            _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
             .assign(method=self.method, topn=1)
             .pipe(pt.DataFrame[InferredSchema])
         )
