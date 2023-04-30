@@ -21,25 +21,31 @@ class MyPy(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
     ) -> pt.DataFrame[InferredSchema]:
-        stubgen.generate_stubs(
-            options=stubgen.Options(
-                ignore_errors=True,
-                no_import=False,
-                parse_only=False,
-                include_private=True,
-                export_less=True,
-                pyversion=sys.version_info[:2],
-                output_dir=str(mutable / MyPy._OUTPUT_DIR),
-                files=codemod.gather_files([str(mutable)], include_stubs=False),
-                doc_dir="",
-                search_path=[],
-                interpreter=sys.executable,
-                modules=[],
-                packages=[],
-                verbose=False,
-                quiet=True,
-            )
+        options = stubgen.Options(
+            ignore_errors=True,
+            no_import=False,
+            parse_only=False,
+            include_private=True,
+            export_less=True,
+            pyversion=sys.version_info[:2],
+            output_dir=str(mutable / MyPy._OUTPUT_DIR),
+            files=codemod.gather_files([str(mutable)], include_stubs=False),
+            doc_dir="",
+            search_path=[],
+            interpreter=sys.executable,
+            modules=[],
+            packages=[],
+            verbose=False,
+            quiet=True,
         )
+
+        try:
+            stubgen.generate_stubs(options=options)
+
+        except SystemExit as e:
+            print(f"Falling back to --parse_only=True: {e}")
+            options.parse_only = True
+            stubgen.generate_stubs(options=options)
 
         return (
             _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
