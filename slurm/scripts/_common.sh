@@ -10,21 +10,24 @@ parameter_inference() {
     echo "Tool: $1 - Inferring: Parameters"
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
+        --outpath "$(dirname "$2")/$1"
 }
 
 variable_inference() {
     echo "Tool: $1 - Inferring: Variables"
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove VARIABLE --infer VARIABLE
+        --remove VARIABLE --infer VARIABLE \
+        --outpath "$(dirname "$2")/$1"
 }
 
 return_inference() {
     echo "Tool: $1 - Inferring: Returns"
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
-        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN \
+        --outpath "$(dirname "$2")/$1"
 }
 
 
@@ -35,7 +38,8 @@ parameter_return_inference() {
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
         --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
-        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN \
+        --outpath "$(dirname "$2")/$1"
 }
 
 
@@ -44,7 +48,8 @@ variable_return_inference() {
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
         --remove VARIABLE --infer VARIABLE \
-        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN \
+        --outpath "$(dirname "$2")/$1"
 }
 
 
@@ -53,7 +58,8 @@ variable_parameter_inference() {
     conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
         --remove VARIABLE --infer VARIABLE \
-        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER
+        --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
+        --outpath "$(dirname "$2")/$1"
 }
 
 ## Triple
@@ -64,5 +70,6 @@ variable_parameter_return_inference() {
         --tool "$1" \
         --remove VARIABLE --infer VARIABLE \
         --remove CALLABLE_PARAMETER --infer CALLABLE_PARAMETER \
-        --remove CALLABLE_RETURN --infer CALLABLE_RETURN
+        --remove CALLABLE_RETURN --infer CALLABLE_RETURN \
+        --outpath "$(dirname "$2")/$1"
 }
