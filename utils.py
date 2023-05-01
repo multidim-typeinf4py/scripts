@@ -20,7 +20,7 @@ def scratchpad(untouched: pathlib.Path) -> typing.Generator[pathlib.Path, None, 
             dst=td,
             dirs_exist_ok=True,
             ignore_dangling_symlinks=True,
-            symlinks=False,
+            symlinks=True,
         )
         try:
             yield pathlib.Path(td)
