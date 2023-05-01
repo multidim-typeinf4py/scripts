@@ -147,6 +147,10 @@ def cli_entrypoint(
         with scratchpad(inpath) as sc:
             print(f"Using {sc} as a scratchpad for inference!")
 
+            if not (files := codemod.gather_files([str(sc)])):
+                print(f"Skipping {project}, no Python files found!")
+                continue
+            
             if removing:
                 print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
@@ -157,7 +161,7 @@ def cli_entrypoint(
                         rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                     ),
                     jobs=worker_count(),
-                    files=codemod.gather_files([str(sc)]),
+                    files=files,
                     repo_root=str(sc),
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
