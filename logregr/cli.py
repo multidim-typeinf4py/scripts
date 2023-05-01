@@ -12,7 +12,7 @@ from common import output
 from symbols.collector import build_type_collection
 
 
-from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4PyN1, TypeWriter
+from infer.inference import HiTyper, PyreInfer, PyreQuery, Type4PyN10, TypeWriter
 
 
 @click.group(
@@ -26,7 +26,7 @@ def cli_entrypoint():
 SUPPORTED = dict(
     (method, method_id)
     for method_id, method in enumerate(
-        [HiTyper.method, PyreInfer.method, PyreQuery.method, Type4PyN1.method, TypeWriter.method]
+        [HiTyper.method, PyreInfer.method, PyreQuery.method, Type4PyN10.method, TypeWriter.method]
     )
 )
 
