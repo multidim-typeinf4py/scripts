@@ -170,7 +170,7 @@ def cli_entrypoint(
         print(f"Inference completed; writing results to {outdir}")
 
         # Copy original project and re-remove annotations
-        shutil.copytree(inpath, outdir, symlinks=True)
+        shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
         if removing:
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationRemover(

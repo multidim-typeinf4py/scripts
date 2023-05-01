@@ -110,7 +110,9 @@ def cli_entrypoint(
         tool: output.inference_output_path(inpath, tool) for tool in itertools.chain(static, prob)
     }
 
-    tool2icr = {tool: output.read_inferred(output_dir) for tool, output_dir in tool2outputdir.items()}
+    tool2icr = {
+        tool: output.read_inferred(output_dir) for tool, output_dir in tool2outputdir.items()
+    }
 
     if engine is not None:
         baseline = build_type_collection(root=inpath).df
@@ -138,7 +140,7 @@ def cli_entrypoint(
             shutil.rmtree(outdir)
 
         # outdir.mkdir(exist_ok=True, parents=True)
-        shutil.copytree(inpath, outdir, symlinks=True)
+        shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
 
         output.write_inferred(inference_df, outdir)
         print(f"Inferred types have been stored at {outdir}")
