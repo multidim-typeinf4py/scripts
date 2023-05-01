@@ -1,27 +1,21 @@
 import pathlib
-import shutil
-import typing
 
 import pytest
 
-from infer.inference import Type4PyN1
-
-from ._utils import example_project, Project
+from infer.inference import Type4PyN10
+from ._utils import Project, example_project
 
 
 @pytest.fixture()
-def type4py_t() -> typing.Callable[[Project], Type4PyN1]:
-    return lambda project: Type4PyN1(
-        pathlib.Path.cwd() / "models" / "type4py",
-        mutable=project.mutable,
-        readonly=project.readonly,
+def type4py() -> Type4PyN10:
+    return Type4PyN10(
         cache=None,
+        model_path=pathlib.Path.cwd() / "models" / "type4py",
     )
 
 
-def test_run_type4py(type4py_t, example_project: Project):
-    type4py: Type4PyN1 = type4py_t(example_project)
-    type4py.infer()
+def test_run_type4py(type4py: Type4PyN10, example_project: Project):
+    type4py.infer(mutable=example_project.mutable, readonly=example_project.readonly)
 
     print(type4py.inferred)
     assert not type4py.inferred.empty
