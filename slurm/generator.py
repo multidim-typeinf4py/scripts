@@ -2,7 +2,7 @@ import pathlib
 from itertools import chain, combinations
 import typing
 
-from infer.inference import Type4Py, HiTyper, PyreInfer, PyreQuery, TypeWriter
+from infer.inference import Type4PyN1, HiTyper, PyreInfer, PyreQuery, TypeWriter
 
 
 def powerset(iterable):
@@ -22,7 +22,7 @@ if __name__ == "__main__":
             PyreQuery.__name__.lower(),
             HiTyper.__name__.lower(),
             TypeWriter.__name__.lower(),
-            Type4Py.__name__.lower(),
+            Type4PyN1.__name__.lower(),
     )
 
 
