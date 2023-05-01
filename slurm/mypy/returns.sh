@@ -11,7 +11,7 @@
 
 set -o nounset
 
-source ./slurm/scripts/_env.sh
-source ./slurm/scripts/_common.sh
+source ./slurm/_env.sh
+source ./slurm/_common.sh
 
 return_inference "mypy" "$1"
