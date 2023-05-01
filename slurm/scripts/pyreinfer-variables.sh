@@ -4,7 +4,7 @@
 #SBATCH --error=slurm-runs/%x.%j.err
 
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=8
 
 #SBATCH --mail-user=ab270@stud.uni-heidelberg.de
 #SBATCH --mail-type=BEGIN,END,FAIL
