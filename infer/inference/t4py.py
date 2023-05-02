@@ -80,10 +80,6 @@ class PTType4Py:
 
 
 def _batchify(predictions: dict, topn: int) -> list[dict]:
-    import json
-
-    json.dump(predictions, open("/tmp/model.json", "w"), indent=2)
-
     def read_or_null(l: list, n: int) -> str:
         if n < len(l):
             return l[n][0]
@@ -219,14 +215,6 @@ class _Type4Py(ProjectWideInference):
             )
             for p, dps in paths_with_predictions.items()
         }
-
-        import json
-
-        json.dump(
-            {str(p): b for p, b in paths2batches.items()},
-            open("/tmp/converted.json", "w"),
-            indent=2,
-        )
 
         collections = []
         for topn in range(1, self.topn + 1):
