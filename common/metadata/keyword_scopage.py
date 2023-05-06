@@ -28,14 +28,16 @@ class _KeywordModifiedScopeVisitor(m.MatcherDecoratableVisitor):
         ] = collections.defaultdict(set)
 
     def visit_Global_names(self, node: libcst.Global) -> bool | None:
-        self._scope2global[self.active_scopes[-1]] |= set(
-            nameitem.name.value for nameitem in node.names
-        )
+        if self.active_scopes:
+            self._scope2global[self.active_scopes[-1]] |= set(
+                nameitem.name.value for nameitem in node.names
+            )
 
     def visit_Nonlocal_names(self, node: libcst.Nonlocal) -> None:
-        self._scope2nonlocal[self.active_scopes[-1]] |= set(
-            nameitem.name.value for nameitem in node.names
-        )
+        if self.active_scopes:
+            self._scope2nonlocal[self.active_scopes[-1]] |= set(
+                nameitem.name.value for nameitem in node.names
+            )
 
     @m.call_if_not_inside(m.Attribute())
     def visit_Name(self, node: libcst.Name) -> bool | None:
