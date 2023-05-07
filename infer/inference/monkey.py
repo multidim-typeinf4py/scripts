@@ -1,14 +1,19 @@
-import shutil
+import pathlib
+from typing import Optional
+import docker
 
-from libcst.codemod.visitors import GatherImportsVisitor
-from libcst import codemod
 import pandera.typing as pt
 
 from ._base import ProjectWideInference
 from common.schemas import InferredSchema
 
+
 class MonkeyType(ProjectWideInference):
-    def _infer_project(self) -> pt.DataFrame[InferredSchema]:
-        requirements
-        import_gatherer = GatherImportsVisitor()
-        codemod.exec_transform_with_prettyprint(import_gatherer, )
+    def infer(
+        self,
+        mutable: pathlib.Path,
+        readonly: pathlib.Path,
+        subset: Optional[set[pathlib.Path]] = None,
+    ) -> None:
+        client = docker.from_env()
+        client.containers.run(image="monkeytype")
