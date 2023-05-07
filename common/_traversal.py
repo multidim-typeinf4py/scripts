@@ -1,6 +1,6 @@
 from __future__ import annotations
-import abc
 
+import abc
 import dataclasses
 import typing
 
@@ -25,7 +25,6 @@ UNPACKABLE_ELEMENT = (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
 
 
 class Recognition:
-
     ## AnnAssign
 
     @staticmethod
@@ -37,7 +36,9 @@ class Recognition:
         class Clazz:
             a: int
         """
-        if original_node.value is None and _is_class_scope(metadata, original_node.target):
+        if original_node.value is None and _is_class_scope(
+            metadata, original_node.target
+        ):
             return _access_targets(metadata, original_node.target)
 
         return None
@@ -45,7 +46,7 @@ class Recognition:
     @staticmethod
     def libsa4py_hint(
         metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
-        original_node: libcst.Assign | libcst.AnnAssign,
+        original_node: typing.Union[libcst.Name, libcst.AnnAssign],
     ) -> Targets | None:
         """
         class Clazz:
@@ -57,9 +58,9 @@ class Recognition:
         ) and _is_class_scope(metadata, original_node.targets[0].target):
             return _access_targets(metadata, original_node.targets[0].target)
 
-        elif m.matches(original_node, m.AnnAssign(value=m.Ellipsis())) and _is_class_scope(
-            metadata, original_node.target
-        ):
+        elif m.matches(
+            original_node, m.AnnAssign(value=m.Ellipsis())
+        ) and _is_class_scope(metadata, original_node.target):
             return _access_targets(metadata, original_node.target)
 
         return None
@@ -115,7 +116,9 @@ class Recognition:
         """
         if (
             len(original_node.targets) == 1
-            and not m.matches(asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE))
+            and not m.matches(
+                asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
+            )
             and not m.matches(original_node.value, m.Ellipsis())
             # and not _is_class_scope(metadata, asstarget.target)
         ):
@@ -142,7 +145,8 @@ class Recognition:
             unchanged, glbls, nonlocals = list(), list(), list()
 
             for discovered in (
-                _access_targets(metadata, target.target) for target in original_node.targets
+                _access_targets(metadata, target.target)
+                for target in original_node.targets
             ):
                 unchanged.extend(discovered.unchanged)
                 glbls.extend(discovered.glbls)
@@ -203,7 +207,9 @@ class Recognition:
 
     @staticmethod
     def fallthru(original_node: libcst.CSTNode) -> Targets:
-        print(f"WARNING: Cannot recognise {libcst.Module([]).code_for_node(original_node)}")
+        print(
+            f"WARNING: Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
+        )
         return Targets(list(), list(), list())
 
 
@@ -216,7 +222,9 @@ def _is_class_scope(
 
 @dataclasses.dataclass(frozen=True)
 class Targets:
-    unchanged: list[libcst.Name | libcst.Attribute] = dataclasses.field(default_factory=list)
+    unchanged: list[typing.Union[libcst.Name, libcst.Attribute]] = dataclasses.field(
+        default_factory=list
+    )
     glbls: list[libcst.Name] = dataclasses.field(default_factory=list)
     nonlocals: list[libcst.Name] = dataclasses.field(default_factory=list)
 
@@ -232,7 +240,31 @@ def _access_targets(
         targets = [target]
 
     elif m.matches(target, TUPLE | LIST):
-        targets = [element.value for element in m.findall(target, UNPACKABLE_ELEMENT)]
+        # Explicitly go down tree one level at a time, be careful not to extract from subscript or similar
+        candidates: list[libcst.Tuple | libcst.List] = [target]
+        targets = []
+
+        while intermediaries := [
+            element
+            for cand in candidates
+            for element in cand.elements
+            if m.matches(
+                element,
+                (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR | LIST | TUPLE),
+            )
+        ]:
+            targets.extend(
+                element.value
+                for element in intermediaries
+                if m.matches(
+                    element, (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
+                )
+            )
+            candidates = [
+                element.value
+                for element in intermediaries
+                if m.matches(element, (m.StarredElement | m.Element)(LIST | TUPLE))
+            ]
 
     else:
         targets = []
@@ -257,7 +289,9 @@ def _access_targets(
 class Matchers:
     annassign = m.AnnAssign(target=NAME | INSTANCE_ATTR)
     assign = m.Assign(
-        targets=[m.AtLeastN(m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1)]
+        targets=[
+            m.AtLeastN(m.AssignTarget(target=NAME | INSTANCE_ATTR | LIST | TUPLE), n=1)
+        ]
     )
     augassign = m.AugAssign(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
     fortargets = m.For(target=NAME | INSTANCE_ATTR | TUPLE | LIST)
@@ -271,7 +305,9 @@ T = typing.TypeVar("T")
 
 class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
-    def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> T:
+    def instance_attribute_hint(
+        self, original_node: libcst.AnnAssign, target: libcst.Name
+    ) -> T:
         """
         class C:
             a: int      # triggers
@@ -284,7 +320,9 @@ class Traverser(typing.Generic[T], abc.ABC):
 
     @abc.abstractmethod
     def libsa4py_hint(
-        self, original_node: libcst.Assign | libcst.AnnAssign, target: libcst.Name
+        self,
+        original_node: typing.Union[libcst.Name, libcst.AnnAssign],
+        target: libcst.Name,
     ) -> T:
         """
         class C:
@@ -300,7 +338,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     def annotated_assignment(
         self,
         original_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
+        target: typing.Union[libcst.Name, libcst.Attribute],
     ) -> T:
         """
         a: int = 5      # triggers
@@ -312,7 +350,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     def annotated_hint(
         self,
         original_node: libcst.AnnAssign,
-        target: libcst.Name | libcst.Attribute,
+        target: typing.Union[libcst.Name, libcst.Attribute],
     ) -> T:
         """
         a: int = 5      # ignored
@@ -327,7 +365,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     def unannotated_assign_single_target(
         self,
         original_node: libcst.Assign,
-        target: libcst.Name | libcst.Attribute,
+        target: typing.Union[libcst.Name, libcst.Attribute],
     ) -> T:
         """
         class C:
@@ -343,10 +381,10 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def unannotated_assign_multiple_targets(
+    def unannotated_assign_multiple_targets_or_augassign(
         self,
-        original_node: libcst.Assign | libcst.AugAssign,
-        target: libcst.Name | libcst.Attribute,
+        original_node: typing.Union[libcst.Assign, libcst.AugAssign],
+        target: typing.Union[libcst.Name, libcst.Attribute],
     ) -> T:
         """
         a = b = 50      # triggers
@@ -354,7 +392,11 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def for_target(self, original_node: libcst.For, target: libcst.Name | libcst.Attribute) -> T:
+    def for_target(
+        self,
+        original_node: libcst.For,
+        target: typing.Union[libcst.Name, libcst.Attribute],
+    ) -> T:
         """
         # triggers for both x and y
         for x, y in zip([1, 2, 3], "abc"):
@@ -366,7 +408,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     def withitem_target(
         self,
         original_node: libcst.With,
-        target: libcst.Name | libcst.Attribute,
+        target: typing.Union[libcst.Name, libcst.Attribute],
     ) -> T:
         """
         # triggers for f
@@ -378,7 +420,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def global_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: typing.Union[libcst.Name, libcst.AnnAssign] | libcst.AugAssign,
         target: libcst.Name,
     ) -> T:
         ...
@@ -386,7 +428,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def nonlocal_target(
         self,
-        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
+        original_node: typing.Union[libcst.Name, libcst.AnnAssign] | libcst.AugAssign,
         target: libcst.Name,
     ) -> T:
         ...

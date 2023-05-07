@@ -124,7 +124,7 @@ class HintableDeclarationVisitor(
         elif targets := _traversal.Recognition.unannotated_assign_multiple_targets(
             self.metadata, node
         ):
-            visitor = self.unannotated_assign_multiple_targets
+            visitor = self.unannotated_assign_multiple_targets_or_augassign
 
         else:
             _traversal.Recognition.fallthru(node)
@@ -135,7 +135,7 @@ class HintableDeclarationVisitor(
     @m.call_if_inside(_traversal.Matchers.augassign)
     def visit_AugAssign_target(self, node: libcst.AugAssign) -> None:
         if targets := _traversal.Recognition.augassign_targets(self.metadata, node):
-            visitor = self.unannotated_assign_multiple_targets
+            visitor = self.unannotated_assign_multiple_targets_or_augassign
         else:
             _traversal.Recognition.fallthru(node)
             return None

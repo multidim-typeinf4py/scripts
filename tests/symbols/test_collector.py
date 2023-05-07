@@ -9,7 +9,7 @@ import libcst
 import pandas as pd
 import pandera.typing as pt
 import pytest
-from libcst import codemod
+from libcst import codemod, matchers
 from libcst import metadata
 from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
@@ -195,7 +195,9 @@ class AnnotationTracking(codemod.CodemodTest):
             with (tempdir / "pkg" / "x.py").open("w") as f:
                 f.write(textwrap.dedent(code))
 
-            return build_type_collection(root=tempdir, allow_stubs=False, subset=None).df
+            return build_type_collection(
+                root=tempdir, allow_stubs=False, subset=None
+            ).df
 
     def assertMatchingAnnotating(
         self,
@@ -271,7 +273,9 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"),
+                CR(
+                    TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"
+                ),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.default",
@@ -301,7 +305,9 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
+        )
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -472,7 +478,9 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
+        )
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -512,7 +520,9 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
+        self.assertMatchingAnnotating(
+            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
+        )
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -529,7 +539,9 @@ class Test_HintTracking(AnnotationTracking):
             df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -544,7 +556,9 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
+    @pytest.mark.skip(
+        reason="Cannot annotate comprehension loops, as their scope does not leak"
+    )
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -694,3 +708,12 @@ class Test_HintTracking(AnnotationTracking):
                 ),
             ],
         )
+
+    def test_bogus(self):
+        """Collection of terms that at some point triggered when they shouldn't have"""
+        df = self.performTracking(
+           """
+           [nearest_points[(i, j)]] = nearest
+           """
+        )
+        assert df.empty, str(df)

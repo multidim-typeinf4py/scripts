@@ -71,7 +71,7 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
     ) -> t.Actions:
         return self._handle_lowering(original_node, target)
 
-    def unannotated_assign_multiple_targets(
+    def unannotated_assign_multiple_targets_or_augassign(
         self,
         original_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],
