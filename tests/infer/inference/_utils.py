@@ -18,6 +18,13 @@ def example_project(tmp_path) -> Project:
     return Project(mutable=tmp_path, readonly=dataset)
 
 
+@pytest.fixture()
+def better_example_project(tmp_path) -> Project:
+    dataset = pathlib.Path.cwd() / "tests" / "resources" / "betterproj1"
+    shutil.copytree(dataset, tmp_path, dirs_exist_ok=True)
+    return Project(mutable=tmp_path, readonly=dataset)
+
+
 @dataclasses.dataclass
 class ProjectSubset:
     mutable: pathlib.Path
