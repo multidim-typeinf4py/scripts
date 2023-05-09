@@ -78,6 +78,7 @@ class PyreQuery(PerFileInference):
             repo_root_dir=str(root),
             paths=[str(relative)],
             providers={metadata.TypeInferenceProvider},
+            timeout=600,
         )
 
         visitor = _PyreQuery2Annotations()
