@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export PYTHONUNBUFFERED=1
+
 manytypes4py_repos() {
     find "$1" -maxdepth 2 -mindepth 2 -type d -print0
 }
