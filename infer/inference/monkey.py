@@ -1,15 +1,17 @@
+import os
 import pathlib
+import shutil
+import tempfile
 from typing import Optional
 
 import docker
-from docker.errors import ContainerError
-from docker.models.containers import Container
-
 import pandera.typing as pt
-from docker.types import Mount
+from docker.errors import ContainerError
+from libcst import helpers, codemod
 
-from ._base import ProjectWideInference
 from common.schemas import InferredSchema
+from symbols.collector import build_type_collection
+from ._base import ProjectWideInference
 
 
 class MonkeyType(ProjectWideInference):
@@ -22,16 +24,46 @@ class MonkeyType(ProjectWideInference):
         subset: Optional[set[pathlib.Path]] = None,
     ) -> pt.DataFrame[InferredSchema]:
         client = docker.from_env()
+        repo = str(mutable.resolve())
 
-        try:
-            client.containers.run(
-                image="monkeytype",
-                volumes={str(mutable.resolve()): {"bind": "/repo", "mode": "rw"}},
-                command="bash run.sh",
-                remove=True
+        if subset is None:
+            s = codemod.gather_files([str(mutable)])
+        else:
+            s = subset
+
+        modules = ",".join(
+            {
+                helpers.calculate_module_and_package(
+                    repo_root=repo, filename=str(filename)
+                ).name
+                for filename in s
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as mtoutput:
+            shutil.copytree(
+                repo,
+                mtoutput,
+                ignore_dangling_symlinks=True,
+                symlinks=True,
+                dirs_exist_ok=True,
             )
-        except ContainerError as e:
-            print(f"Error occurred while applying monkeytype, returning:\n{e}")
-            return InferredSchema.example(size=0)
+            try:
+                client.containers.run(
+                    image="monkeytype",
+                    volumes={
+                        repo: {"bind": "/repo", "mode": "ro"},
+                        mtoutput: {"bind": "/monkeytype-output", "mode": "rw"},
+                    },
+                    command=f"bash run.sh /repo /monkeytype-output {modules}",
+                    remove=True,
+                )
+            except ContainerError as e:
+                print(f"Error occurred while applying monkeytype, returning:\n{e}")
+                return InferredSchema.example(size=0)
 
-        return None
+            return (
+                build_type_collection(root=pathlib.Path(mtoutput), subset=subset)
+                .df.assign(method=self.method, topn=1)
+                .pipe(pt.DataFrame[InferredSchema])
+            )
