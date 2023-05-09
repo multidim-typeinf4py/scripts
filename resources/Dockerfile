@@ -8,9 +8,12 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN apk add --no-cache build-base
 RUN conda update -n base -c defaults conda --repodata-fn=repodata.json
 
-RUN conda create --name monkeytype-base && conda run --name monkeytype-base pip install monkeytype
+RUN conda create --name monkeytype-base python=3.11 && conda run --name monkeytype-base \
+    pip install monkeytype
 RUN conda install --name monkeytype-base poetry pytest pytest-timeout pip
 
 # Ensure we do not have busybox versions of these programs for run.sh
 RUN apk add --no-cache grep
+
+# RUN apk add --no-cache vim
 COPY run.sh /
