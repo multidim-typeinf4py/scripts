@@ -1679,14 +1679,14 @@ resolved_reference = "d90803473067f62429ce93118693af3ad2245bc1"
 
 [[package]]
 name = "libsa4py"
-version = "0.3.0"
+version = "0.4.0"
 description = "LibSA4Py: Light-weight static analysis for extracting type hints and features"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "libsa4py-0.3.0-py3-none-any.whl", hash = "sha256:dd12f96c9fe26d44413c7b27c7089dbec0fd5d018b39814d58153dcb7a45876e"},
-    {file = "libsa4py-0.3.0.tar.gz", hash = "sha256:7872fdacef2708244ec6f105f73d3be5258f12f0f9e8cd09e1ff6b2a894ed1e0"},
+    {file = "libsa4py-0.4.0-py3-none-any.whl", hash = "sha256:2c89559d5bcbedf75741b17c0c60ee2eb8ecf3d8273c54e61f19641ad94d160d"},
+    {file = "libsa4py-0.4.0.tar.gz", hash = "sha256:953f4b2e2204af2bd5901f88779c0ed41287ba43e5f26096377b3507a0161163"},
 ]
 
 [package.dependencies]
@@ -4276,4 +4276,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "99a566a094cd0df1ed4e7ee11c18f6d8def844f3d23ce6c31abe08fa22f0dec5"
+content-hash = "34166cc638622ad9abbec017e5e5f7d9b5f877456ff17f94935dd9b4f64f6999"
