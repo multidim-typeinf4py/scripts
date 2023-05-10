@@ -18,7 +18,7 @@ parameter_inference() {
 
 variable_inference() {
     echo "Tool: $1 - Inferring: Variables"
-    conda run --name scripts-venv python main.py infer --dataset "$2" \
+    PYTHONUNBUFFERED=1 conda run --name scripts-venv python main.py infer --dataset "$2" \
         --tool "$1" \
         --remove VARIABLE --infer VARIABLE \
         --outpath "$(dirname "$2")/$1"
