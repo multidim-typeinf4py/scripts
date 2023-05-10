@@ -114,16 +114,10 @@ def cli_entrypoint(
 
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
-    test_set = structure.test_set(dataset)
+    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
-    projects = list(structure.project_iter(dataset))
-    for project in (pbar := tqdm.tqdm(projects)):
+    for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
-
-        # Skip if outside of dataset
-        if not (subset := test_set.get(project, set())):
-            print(f"Skipping {project}, not found in test subset")
-            continue
 
         inference_tool = tool(cache=cache_path)
 
@@ -150,7 +144,7 @@ def cli_entrypoint(
             if not (files := codemod.gather_files([str(sc)])):
                 print(f"Skipping {project}, no Python files found!")
                 continue
-            
+
             if removing:
                 print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
