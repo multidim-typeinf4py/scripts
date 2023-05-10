@@ -160,16 +160,21 @@ def cli_entrypoint(
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
-            inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
+            inferred = inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
+            print(f"Writing results to {outdir}")
 
-        if outdir.is_dir() and overwrite:
-            shutil.rmtree(outdir)
+            if outdir.is_dir() and overwrite:
+                shutil.rmtree(outdir)
 
-        print(f"Inference completed; writing results to {outdir}")
+            # Copy original project
+            shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
 
-        # Copy original project and re-remove annotations
-        shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
+            # Copy generated log files
+            for log_path in (output.info_log_path, output.debug_log_path, output.error_log_path):
+                shutil.copy(log_path(sc), log_path(outdir))
+
         if removing:
+            # Reremove annotations
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationRemover(
                     context=codemod.CodemodContext(),
@@ -196,19 +201,17 @@ def cli_entrypoint(
             "display.expand_frame_repr",
             False,
         ):
-            df = inference_tool.inferred.copy(deep=True)
-            df = df[df[TypeCollectionSchema.category].isin(inferring)]
+            inferred = inferred[inferred[TypeCollectionSchema.category].isin(inferring)]
+            print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
-            print(df.sample(n=min(len(df), 20)).sort_index())
-
-        output.write_inferred(df, outdir)
+        output.write_inferred(inferred, outdir)
         print(f"Inferred types have been stored at {outdir}")
 
         if annotate:
             print(f"Applying Annotations to codebase at {outdir}")
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationApplierTransformer(
-                    codemod.CodemodContext(), top_preds_only(df)
+                    codemod.CodemodContext(), top_preds_only(inferred)
                 ),
                 files=codemod.gather_files([str(outdir)]),
                 jobs=worker_count(),

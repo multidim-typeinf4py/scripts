@@ -6,7 +6,7 @@ import tempfile
 import typing
 import shutil
 
-from libcst.codemod._cli import ParallelTransformResult
+from libcst.codemod import ParallelTransformResult
 
 from common.schemas import InferredSchema
 import pandera.typing as pt

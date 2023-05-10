@@ -49,7 +49,7 @@ def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> N
 
 
 def read_inferred(
-    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
+        inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
 ) -> pt.DataFrame[InferredSchema]:
     outpath = inference_output_path(inpath, tool, removed)
     ipath = inferred_path(outpath)
@@ -59,7 +59,7 @@ def read_inferred(
 
 
 def inference_output_path(
-    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory], inferred: list[TypeCollectionCategory]
+        inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory], inferred: list[TypeCollectionCategory]
 ) -> pathlib.Path:
     removed_names = ",".join(map(str, removed))
     inferred_names = ",".join(map(str, inferred))
@@ -79,3 +79,15 @@ def write_dataset(inpath: pathlib.Path, kind: str, df: pt.DataFrame[TypeCollecti
         index=False,
         header=InferredSchema.to_schema().columns,
     )
+
+
+def error_log_path(outpath: pathlib.Path) -> pathlib.Path:
+    return outpath / "log.err"
+
+
+def debug_log_path(outpath: pathlib.Path) -> pathlib.Path:
+    return outpath / "log.dbg"
+
+
+def info_log_path(outpath: pathlib.Path) -> pathlib.Path:
+    return outpath / "log.inf"

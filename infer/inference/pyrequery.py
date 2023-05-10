@@ -33,13 +33,11 @@ class PyreQuery(PerFileInference):
         mutable: pathlib.Path,
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
-    ) -> None:
+    ) -> pt.DataFrame[InferredSchema]:
         with utils.working_dir(wd=mutable):
             try:
                 pyre.clean_pyre_config(project_path=str(mutable))
-                cmd_args = command_arguments.CommandArguments(
-                    source_directories=[str(mutable)]
-                )
+                cmd_args = command_arguments.CommandArguments(source_directories=[str(mutable)])
                 config = configuration.create_configuration(
                     arguments=cmd_args,
                     base_directory=mutable,
@@ -63,13 +61,12 @@ class PyreQuery(PerFileInference):
                     == ExitCode.SUCCESS
                 )
 
-                super().infer(mutable=mutable, readonly=readonly, subset=subset)
+                return super().infer(mutable=mutable, readonly=readonly, subset=subset)
 
             finally:
                 stop.run(config, flavor=PyreFlavor.CLASSIC)
-
-        if (dotdir := mutable / ".pyre").is_dir():
-            shutil.rmtree(str(dotdir))
+                if (dotdir := mutable / ".pyre").is_dir():
+                    shutil.rmtree(str(dotdir))
 
     def _infer_file(
         self, root: pathlib.Path, relative: pathlib.Path
@@ -81,15 +78,14 @@ class PyreQuery(PerFileInference):
             timeout=600,
         )
 
-        visitor = _PyreQuery2Annotations()
-
         try:
             # Calculates type inference data here
             module = repomanager.get_metadata_wrapper_for_path(str(relative))
         except Exception as e:
-            print(f"WARNING: pyre-query failed for {relative}: {e}")
+            self.logger.error(f"failed for {relative}: {e}")
             return InferredSchema.example(size=0)
 
+        visitor = _PyreQuery2Annotations()
         module.visit(visitor)
 
         df = pd.DataFrame(
@@ -122,14 +118,10 @@ class _PyreQuery2Annotations(
         super().__init__()
         self.annotations: list[tuple[TypeCollectionCategory, str, str]] = []
 
-    def libsa4py_hint(
-        self, _: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
-    ) -> None:
+    def libsa4py_hint(self, _: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name) -> None:
         self._instance_attribute(target)
 
-    def instance_attribute_hint(
-        self, original_node: libcst.AnnAssign, target: libcst.Name
-    ) -> None:
+    def instance_attribute_hint(self, original_node: libcst.AnnAssign, target: libcst.Name) -> None:
         self._instance_attribute(target)
 
     def annotated_param(self, param: libcst.Param, _: libcst.Annotation) -> None:
@@ -138,9 +130,7 @@ class _PyreQuery2Annotations(
     def unannotated_param(self, param: libcst.Param) -> None:
         self._parameter(param)
 
-    def annotated_function(
-        self, function: libcst.FunctionDef, _: libcst.Annotation
-    ) -> None:
+    def annotated_function(self, function: libcst.FunctionDef, _: libcst.Annotation) -> None:
         self._ret(function)
 
     def unannotated_function(self, function: libcst.FunctionDef) -> None:
@@ -195,9 +185,7 @@ class _PyreQuery2Annotations(
     def _parameter(self, param: libcst.Param) -> None:
         qname = self.qualified_name(param.name.value)
         functy = self._infer_type(param.name)
-        self.annotations.append(
-            (TypeCollectionCategory.CALLABLE_PARAMETER, qname, functy)
-        )
+        self.annotations.append((TypeCollectionCategory.CALLABLE_PARAMETER, qname, functy))
 
     def _ret(self, function: libcst.FunctionDef) -> None:
         qname = self.qualified_name(function.name.value)
@@ -219,17 +207,13 @@ class _PyreQuery2Annotations(
         pass
 
     def _infer_type(self, node: libcst.Name) -> Union[str, missing.NAType]:
-        if (
-            anno := self.get_metadata(metadata.TypeInferenceProvider, node, None)
-        ) is None:
+        if (anno := self.get_metadata(metadata.TypeInferenceProvider, node, None)) is None:
             return missing.NA
 
         return anno
 
     def _infer_rettype(self, node: libcst.FunctionDef) -> Union[str, missing.NAType]:
-        if (
-            anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)
-        ) is None:
+        if (anno := self.get_metadata(metadata.TypeInferenceProvider, node.name, None)) is None:
             return missing.NA
 
         functy = re.findall(_PyreQuery2Annotations._CALLABLE_RETTYPE_REGEX, anno)
