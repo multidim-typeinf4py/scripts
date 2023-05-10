@@ -3,7 +3,7 @@ import pathlib
 import pytest
 
 from infer.inference import Type4PyN10
-from ._utils import Project, example_project
+from ._utils import Project, example_project, example_project_subset, ProjectSubset
 
 
 @pytest.fixture()
@@ -15,7 +15,16 @@ def type4py() -> Type4PyN10:
 
 
 def test_run_type4py(type4py: Type4PyN10, example_project: Project):
-    type4py.infer(mutable=example_project.mutable, readonly=example_project.readonly)
+    inferred = type4py.infer(
+        mutable=example_project.mutable, readonly=example_project.readonly
+    )
+    assert not inferred.empty
 
-    print(type4py.inferred)
-    assert not type4py.inferred.empty
+
+def test_run_type4py(type4py: Type4PyN10, example_project_subset: ProjectSubset):
+    inferred = type4py.infer(
+        mutable=example_project_subset.mutable,
+        readonly=example_project_subset.readonly,
+        subset=example_project_subset.subset,
+    )
+    assert not inferred.empty

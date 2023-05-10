@@ -15,18 +15,16 @@ def pyrequery() -> PyreQuery:
 
 
 def test_run_pyrequery(pyrequery: PyreQuery, example_project: Project):
-    pyrequery.infer(mutable=example_project.mutable, readonly=example_project.readonly)
-
-    print(pyrequery.inferred)
-    assert not pyrequery.inferred.empty
+    inferred = pyrequery.infer(mutable=example_project.mutable, readonly=example_project.readonly)
+    assert not inferred.empty
 
 
 def test_run_pyrequery_subset(pyrequery: PyreQuery, example_project_subset: ProjectSubset):
-    pyrequery.infer(
+    inferred = pyrequery.infer(
         mutable=example_project_subset.mutable,
         readonly=example_project_subset.readonly,
         subset=example_project_subset.subset,
     )
 
-    assert not pyrequery.inferred.empty
-    assert pyrequery.inferred[TypeCollectionSchema.file].isin(set(map(str, example_project_subset.subset))).all()
+    assert not inferred.empty
+    assert inferred[TypeCollectionSchema.file].isin(set(map(str, example_project_subset.subset))).all()
