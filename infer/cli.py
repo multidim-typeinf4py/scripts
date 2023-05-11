@@ -112,14 +112,16 @@ def cli_entrypoint(
         )
         return
 
+
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
+
+
+    inference_tool = tool(cache=cache_path)
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
-
-        inference_tool = tool(cache=cache_path)
 
         ar = structure.author_repo(project)
         author_repo = f"{ar['author']}.{ar['repo']}"
@@ -154,7 +156,7 @@ def cli_entrypoint(
                         parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                     ),
-                    jobs=worker_count(),
+                    jobs=1,
                     files=files,
                     repo_root=str(sc),
                 )
