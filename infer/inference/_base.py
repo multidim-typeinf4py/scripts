@@ -267,7 +267,7 @@ class PerFileInference(Inference):
                 if not subfile.is_file():
                     continue
                 relative = subfile.relative_to(mutable)
-                self.logger.debug(f"Inferring per-file on {mutable} @ {relative}")
+                self.logger.info(f"Inferring per-file on {mutable} @ {relative}")
                 reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
                 updates.append(reldf)
 
