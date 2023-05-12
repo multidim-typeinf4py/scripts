@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # FORMAT = "%(asctime)s %(clientip)-15s %(user)-8s %(message)s"
     # logging.basicConfig(format=FORMAT)
 
-    print(f"{utils.worker_count() = }")
+    print(f"{utils.worker_count()=}")
 
     main = click.Group(
         commands=[
