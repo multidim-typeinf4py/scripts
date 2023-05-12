@@ -156,7 +156,7 @@ def cli_entrypoint(
                         parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
                     ),
-                    jobs=1,
+                    jobs=worker_count(),
                     files=files,
                     repo_root=str(sc),
                 )
