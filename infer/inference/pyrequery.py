@@ -75,7 +75,7 @@ class PyreQuery(PerFileInference):
             repo_root_dir=str(root),
             paths=[str(relative)],
             providers={metadata.TypeInferenceProvider},
-            timeout=600,
+            timeout=60,
         )
 
         try:
