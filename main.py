@@ -1,4 +1,5 @@
 import logging
+import sys
 import click
 
 import context
@@ -21,6 +22,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
     logging.info(f"{utils.worker_count()=}")
+    logging.info(f"{sys.path=}")
 
     main = click.Group(
         commands=[
