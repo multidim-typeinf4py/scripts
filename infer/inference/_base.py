@@ -230,7 +230,7 @@ class ProjectWideInference(Inference):
         subset: Optional[set[pathlib.Path]] = None,
     ) -> pt.DataFrame[InferredSchema]:
         with self.with_handlers(mutable):
-            self.logger.info(f"Inferring project-wide on {mutable}")
+            self.logger.info(f"Inferring project-wide for {readonly}")
 
             if subset is not None:
                 subset = {s for s in subset if (mutable / s).is_file()}
@@ -267,7 +267,7 @@ class PerFileInference(Inference):
                 if not subfile.is_file():
                     continue
                 relative = subfile.relative_to(mutable)
-                self.logger.info(f"Inferring per-file on {mutable} @ {relative}")
+                self.logger.info(f"Inferring per-file on {mutable} @ {readonly}")
                 reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
                 updates.append(reldf)
 
