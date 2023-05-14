@@ -27,6 +27,14 @@ class PyreInfer(ProjectWideInference):
                 ),
                 base_directory=mutable,
             )
+            commands.initialize.write_configuration(
+                configuration=dict(
+                    site_package_search_strategy="pep561",
+                    source_directories=["."],
+                ),
+                configuration_path=mutable / ".pyre_configuration",
+            )
+
             infargs = command_arguments.InferArguments(
                 working_directory=mutable,
                 annotate_attributes=True,
@@ -45,9 +53,7 @@ class PyreInfer(ProjectWideInference):
             )
 
             return (
-                _adaptors.stubs2df(
-                    mutable / PyreInfer._OUTPUT_DIR / "types", subset=subset
-                )
+                _adaptors.stubs2df(mutable / PyreInfer._OUTPUT_DIR / "types", subset=subset)
                 .assign(method=self.method, topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )
