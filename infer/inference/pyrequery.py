@@ -8,7 +8,6 @@ import pandera.typing as pt
 
 import libcst
 from libcst import metadata
-from libcst import helpers
 
 from libsa4py import pyre
 

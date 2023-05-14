@@ -1,7 +1,7 @@
 import pathlib
 from typing import Optional
 
-import pandas as pd
+from libsa4py import pyre
 import pandera.typing as pt
 from pyre_check.client import command_arguments, commands, configuration
 
@@ -20,6 +20,7 @@ class PyreInfer(ProjectWideInference):
         self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
     ) -> pt.DataFrame[InferredSchema]:
         with working_dir(mutable):
+            pyre.clean_pyre_config(project_path=str(mutable))
             config = configuration.create_configuration(
                 arguments=command_arguments.CommandArguments(
                     dot_pyre_directory=mutable / PyreInfer._OUTPUT_DIR,
