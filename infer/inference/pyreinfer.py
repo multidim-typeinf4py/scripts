@@ -43,7 +43,7 @@ class PyreInfer(ProjectWideInference):
                 debug_infer=False,
                 quote_annotations=False,
                 dequalify=False,
-                in_place=True,
+                in_place=False,
                 print_only=False,
                 read_stdin=False,
             )
