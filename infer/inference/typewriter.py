@@ -11,7 +11,8 @@ from typing import List, no_type_check, Optional
 
 import libcst
 import libcst as cst
-import libcst.metadata as metadata
+from libcst import metadata, codemod
+from libcst.codemod.visitors import ApplyTypeAnnotationsVisitor
 import numpy as np
 import pandas as pd
 import pandera.typing as pt
@@ -35,15 +36,18 @@ from typewriter.prepocessing import (
     gen_argument_df_TW,
 )
 
-from common import visitors
+from common import visitors, transformers
 from common.annotations import (
     MultiVarAnnotations,
     FunctionAnnotation,
     FunctionKey,
 )
+
+import utils
 from common.schemas import InferredSchema
 from common.storage import TypeCollection
-from ._base import PerFileInference
+from symbols.collector import build_type_collection
+from ._base import PerFileInference, ProjectWideInference
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,7 +137,7 @@ def filter_ret_funcs(ext_funcs_df: pd.DataFrame):
     print(f"Functions before dropping on empty return expression {len(ext_funcs_df)}")
     ext_funcs_df = ext_funcs_df[
         ext_funcs_df["return_expr"].apply(lambda x: len(literal_eval(x))) > 0
-        ]
+    ]
     print(f"Functions after dropping on empty return expression {len(ext_funcs_df)}")
 
     return ext_funcs_df
@@ -190,20 +194,61 @@ def evaluate_TW(model: torch.nn.Module, data_loader: DataLoader, top_n=1):
     return predicted_labels
 
 
-class TypeWriter(PerFileInference):
+@dataclasses.dataclass
+class Parameter:
+    fname: str
+    pname: str
+    ty: str
+
+
+@dataclasses.dataclass
+class Return:
+    fname: str
+    ty: str
+
+
+class ParallelTypeApplier(codemod.ContextAwareTransformer):
+    def __init__(
+        self,
+        context: codemod.CodemodContext,
+        path2batches: dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]],
+        topn: int,
+        logger: logging.Logger,
+    ) -> None:
+        super().__init__(context)
+
+        self.paths2batches = path2batches
+        self.topn = topn
+        self.logger = logger
+
+    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
+        assert self.context.filename is not None
+        assert self.context.metadata_manager is not None
+
+        path = pathlib.Path(self.context.filename).relative_to(
+            self.context.metadata_manager.root_path
+        )
+
+        topn_parameters, topn_arguments = self.paths2batches[path]
+        parameters, arguments = topn_parameters[self.topn], topn_arguments[self.topn]
+
+        return metadata.MetadataWrapper(
+            module=tree,
+            unsafe_skip_copy=True,
+            cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
+        ).visit(Typewriter2Annotations(self.context, parameters, arguments, self.logger))
+
+
+class TypeWriter(ProjectWideInference):
     method = "typewriter"
 
-    _MODEL_DIR = pathlib.Path(
-        "/home/benji/Documents/Uni/heidelberg/05/masterarbeit/impls/scripts/models/typewriter"
-    )
+    _MODEL_DIR = pathlib.Path("models") / "typewriter"
 
     def __init__(self, cache: Optional[pathlib.Path], topn: int):
         super().__init__(cache)
         self.topn = topn
 
-        self.w2v_token_model = Word2Vec.load(
-            str(TypeWriter._MODEL_DIR / "w2v_token_model.bin")
-        )
+        self.w2v_token_model = Word2Vec.load(str(TypeWriter._MODEL_DIR / "w2v_token_model.bin"))
         self.w2v_comments_model = Word2Vec.load(
             str(TypeWriter._MODEL_DIR / "w2v_comments_model.bin")
         )
@@ -219,9 +264,58 @@ class TypeWriter(PerFileInference):
         if not torch.cuda.is_available():
             self.tw_model = self.tw_model.module
 
-    def _infer_file(
-            self, root: pathlib.Path, relative: pathlib.Path
+    def _infer_project(
+        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
     ) -> pt.DataFrame[InferredSchema]:
+        if subset is None:
+            proj_files = set(
+                map(
+                    lambda r: pathlib.Path(r).relative_to(mutable),
+                    codemod.gather_files([str(mutable)]),
+                )
+            )
+        else:
+            proj_files = subset
+
+        file2topnpreds: dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]] = {}
+        for file in proj_files:
+            if (predictions := self.infer_for_file(mutable, file)) is None:
+                continue
+            file2topnpreds[file] = predictions
+
+        collections = []
+        for topn in range(1, self.topn + 1):
+            with utils.scratchpad(mutable) as sc:
+                tw_hint_res = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=ParallelTypeApplier(
+                        context=codemod.CodemodContext(),
+                        path2batches=file2topnpreds,
+                        topn=topn - 1,
+                        logger=self.logger,
+                    ),
+                    jobs=utils.worker_count(),
+                    repo_root=str(sc),
+                    files=[sc / f for f in file2topnpreds],
+                )
+                self.logger.info(
+                    utils.format_parallel_exec_result(
+                        f"Annotated with TypeWriter @ topn={topn}", result=tw_hint_res
+                    )
+                )
+                collections.append(
+                    build_type_collection(
+                        root=sc, allow_stubs=False, subset=set(file2topnpreds.keys())
+                    ).df.assign(topn=topn)
+                )
+        return (
+            pd.concat(collections, ignore_index=True)
+            .assign(method=self.method)
+            .pipe(pt.DataFrame[InferredSchema])
+        )
+
+    def infer_for_file(
+        self, root: pathlib.Path, relative: pathlib.Path
+    ) -> Optional[tuple[list[list[Parameter]], list[list[Return]]]]:
         filename = str(root / relative)
 
         with tempfile.TemporaryDirectory() as TEMP_DIR:
@@ -230,7 +324,7 @@ class TypeWriter(PerFileInference):
                 self.logger.warning(
                     f"Did not find any functions in {relative}, therefore no types to infer"
                 )
-                return InferredSchema.example(size=0)
+                return None
 
             # self.logger.debug(f"Number of the extracted functions: {len(ext_funcs)}")
 
@@ -248,10 +342,10 @@ class TypeWriter(PerFileInference):
             ext_funcs_df_params = ext_funcs_df_params[
                 (ext_funcs_df_params["arg_name"] != "self")
                 & (
-                        (ext_funcs_df_params["arg_type"] != "Any")
-                        & (ext_funcs_df_params["arg_type"] != "None")
+                    (ext_funcs_df_params["arg_type"] != "Any")
+                    & (ext_funcs_df_params["arg_type"] != "None")
                 )
-                ]
+            ]
 
             # self.logger.debug(
             #    f"Number of Arguments after ignoring self and types with Any and None: {ext_funcs_df_params.shape[0]}"
@@ -281,12 +375,8 @@ class TypeWriter(PerFileInference):
                 ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
             )
 
-            ext_funcs_df_params.to_csv(
-                os.path.join(TEMP_DIR, "ext_funcs_params.csv"), index=False
-            )
-            ext_funcs_df_ret.to_csv(
-                os.path.join(TEMP_DIR, "ext_funcs_ret.csv"), index=False
-            )
+            ext_funcs_df_params.to_csv(os.path.join(TEMP_DIR, "ext_funcs_params.csv"), index=False)
+            ext_funcs_df_ret.to_csv(os.path.join(TEMP_DIR, "ext_funcs_ret.csv"), index=False)
 
             # Arguments transformers
             id_trans_func_param = lambda row: IdentifierSequence(
@@ -318,8 +408,6 @@ class TypeWriter(PerFileInference):
                 "params",
                 id_trans_func_param,
             )
-            if dp_ids_params is False:
-                return InferredSchema.to_schema().example(size=0)
 
             dp_ids_ret = process_datapoints_TW(
                 os.path.join(TEMP_DIR, "ext_funcs_ret.csv"),
@@ -375,9 +463,7 @@ class TypeWriter(PerFileInference):
                 TensorDataset(id_params, tok_params, com_params, aval_params)
             )
 
-            params_pred = [
-                p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)
-            ]
+            params_pred = [p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)]
 
             # (function, parameter, [type]s)
             param_inf: list[tuple[str, str, list[str]]] = []
@@ -386,37 +472,26 @@ class TypeWriter(PerFileInference):
                 param = ext_funcs_df_params["arg_name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                p = " ".join(
-                    ["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)]
-                )
+                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
                 self.logger.debug(f"{fname}: {param} -> {p}")
 
                 param_inf.append((fname, param, predictions))
 
             # self.logger.info("--------------------Return Types Prediction--------------------")
             id_ret, tok_ret, com_ret, aval_ret = load_ret_data(TEMP_DIR)
-            ret_data_loader = DataLoader(
-                TensorDataset(id_ret, tok_ret, com_ret, aval_ret)
-            )
+            ret_data_loader = DataLoader(TensorDataset(id_ret, tok_ret, com_ret, aval_ret))
 
-            ret_pred = [
-                p for p in evaluate_TW(self.tw_model, ret_data_loader, self.topn)
-            ]
+            ret_pred = [p for p in evaluate_TW(self.tw_model, ret_data_loader, self.topn)]
 
             ret_inf: list[tuple[str, list[str]]] = []
             for i, p in enumerate(ret_pred):
                 fname = ext_funcs_df_ret["name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                p = " ".join(
-                    ["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)]
-                )
+                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
                 self.logger.debug(f"{fname} -> {p}")
 
                 ret_inf.append((fname, predictions))
-
-            collections: list[pd.DataFrame] = list()
-            module = cst.parse_module((root / relative).open().read())
 
             arg_batches: list[list[Parameter]] = []
             ret_batches: list[list[Return]] = []
@@ -426,9 +501,7 @@ class TypeWriter(PerFileInference):
                 ret_batch: list[Return] = []
 
                 for fname, argname, ppreds in param_inf:
-                    arg_batch.append(
-                        Parameter(fname=fname, pname=argname, ty=ppreds[n])
-                    )
+                    arg_batch.append(Parameter(fname=fname, pname=argname, ty=ppreds[n]))
 
                 for fname, rp in ret_inf:
                     ret_batch.append(Return(fname=fname, ty=rp[n]))
@@ -436,74 +509,28 @@ class TypeWriter(PerFileInference):
                 arg_batches.append(arg_batch)
                 ret_batches.append(ret_batch)
 
-            for n, (arg_batch, ret_batch) in enumerate(
-                    zip(arg_batches, ret_batches), start=1
-            ):
-                visitor = Typewriter2Annotations(arg_batch, ret_batch, self.logger)
-                metadata.MetadataWrapper(module, unsafe_skip_copy=True).visit(visitor)
-
-                collection = TypeCollection.from_annotations(
-                    file=relative, annotations=visitor.annotations, strict=True
-                )
-                collections.append(collection.df.assign(topn=n))
-
-            return (
-                pd.concat(collections, ignore_index=True)
-                .assign(method=self.method)
-                .pipe(pt.DataFrame[InferredSchema])
-            )
+            return arg_batches, ret_batches
 
 
-@dataclasses.dataclass
-class Parameter:
-    fname: str
-    pname: str
-    ty: str
-
-
-@dataclasses.dataclass
-class Return:
-    fname: str
-    ty: str
-
-
-class Typewriter2Annotations(
-    visitors.HintableParameterVisitor, visitors.HintableReturnVisitor
-):
-    METADATA_DEPENDENCIES = (metadata.QualifiedNameProvider,)
-
+class Typewriter2Annotations(libcst.codemod.ContextAwareTransformer):
     def __init__(
-            self, parameters: list[Parameter], returns: list[Return], logger: logging.Logger
-    ) -> None:
-        super().__init__()
+        self,
+        context: codemod.CodemodContext,
+        parameters: list[Parameter],
+        returns: list[Return],
+        logger: logging.Logger,
+    ):
+        super().__init__(context)
+
         self.parameters = parameters
         self.param_cursor = 0
 
         self.returns = returns
         self.ret_cursor = 0
 
-        self.inferred_func_params: list[cst.Param] = []
-        self.inferred_func_return: Optional[cst.Annotation] = None
-
-        self.current_fkey: Optional[FunctionKey] = None
-        self.annotations = MultiVarAnnotations.empty()
-
         self.logger = logger
 
-    def unannotated_function(self, function: libcst.FunctionDef) -> None:
-        return self.function(function)
-
-    def annotated_function(
-            self, function: libcst.FunctionDef, annotation: libcst.Annotation
-    ) -> None:
-        return self.function(function)
-
-    def function(self, f: libcst.FunctionDef) -> None:
-        qname = next(
-            iter(self.get_metadata(metadata.QualifiedNameProvider, f))
-        ).name.replace(".<locals>.", ".")
-        self.current_fkey = FunctionKey.make(name=qname, params=f.params)
-
+    def leave_FunctionDef(self, _, f: libcst.FunctionDef) -> libcst.FunctionDef:
         name = preprocessor.process_identifier(f.name.value)
 
         rc = self.ret_cursor
@@ -512,32 +539,21 @@ class Typewriter2Annotations(
                 rc += 1
         except IndexError:
             self.logger.warning(
-                f"Cannot find prediction for function {f.name.value}, assuming no prediction made"
+                f"Cannot find prediction for function {f.name.value} in {self.context.filename}, assuming no prediction made"
             )
-            self.inferred_func_return = self._read_tw_pred(None)
-            return
+            return f
 
         if rc - self.ret_cursor > 1:
             self.logger.warning(
-                f"Had to skip {rc - self.ret_cursor} ret entries to find {f.name.value}"
+                f"Had to skip {rc - self.ret_cursor} ret entries to find {f.name.value}  in {self.context.filename}"
             )
-        self.ret_cursor = rc
+        self.ret_cursor = rc + 1
+        return f.with_changes(returns=self._read_tw_pred(r.ty))
 
-        self.inferred_func_return = self._read_tw_pred(r.ty)
-        self.ret_cursor += 1
-
-    def unannotated_param(self, param: libcst.Param) -> None:
-        return self.param(param)
-
-    def annotated_param(
-            self, param: libcst.Param, annotation: libcst.Annotation
-    ) -> None:
-        return self.param(param)
-
-    def param(self, param: libcst.Param) -> None:
+    def leave_Param(self, _, param: libcst.Param) -> libcst.Param:
         if param.name.value == "self":
             # TypeWriter simply ignores self, with no further context checking
-            return
+            return param
 
         name = preprocessor.process_identifier(param.name.value)
 
@@ -547,35 +563,16 @@ class Typewriter2Annotations(
                 pc += 1
         except IndexError:
             self.logger.warning(
-                f"Cannot find prediction for parameter {param.name.value}, assuming no prediction made"
+                f"Cannot find prediction for parameter {param.name.value} in {self.context.filename}, assuming no prediction made"
             )
-            self.inferred_func_params.append(
-                cst.Param(name=param.name, annotation=self._read_tw_pred(None))
-            )
-            return
+            return param
 
         if pc - self.param_cursor > 1:
             self.logger.warning(
-                f"Had to skip {pc - self.param_cursor} ret entries to find {param.name.value}"
+                f"Had to skip {pc - self.param_cursor} ret entries to find {param.name.value} in {self.context.filename}"
             )
-        self.param_cursor = pc
-
-        self.inferred_func_params.append(
-            cst.Param(name=param.name, annotation=self._read_tw_pred(p.ty))
-        )
-        self.param_cursor += 1
-
-    def visit_FunctionDef_body(self, node: libcst.FunctionDef) -> None:
-        assert self.current_fkey is not None
-
-        self.annotations.functions[self.current_fkey] = FunctionAnnotation(
-            parameters=cst.Parameters(list(self.inferred_func_params)),
-            returns=self.inferred_func_return,
-        )
-
-        self.current_fkey = None
-        self.inferred_func_params.clear()
-        self.inferred_func_return = None
+        self.param_cursor = pc + 1
+        return param.with_changes(annotation=self._read_tw_pred(p.ty))
 
     def _read_tw_pred(self, annotation: Optional[str]) -> Optional[libcst.Annotation]:
         if annotation is None or annotation == "other":
