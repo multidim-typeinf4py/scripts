@@ -134,7 +134,7 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
         batch = self.path2batches[path][self.topn]
 
         return metadata.MetadataWrapper(
-            module=tree.visit(TypeAnnotationRemover()),
+            module=tree,
             unsafe_skip_copy=True,
             cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
         ).visit(TypeApplier(f_processeed_dict=batch, apply_nlp=False))
@@ -213,7 +213,7 @@ class _Type4Py(ProjectWideInference):
                 )
                 self.logger.info(
                     utils.format_parallel_exec_result(
-                        f"Annotating with Type4Py @ topn={topn}", result=t4p_hint_res
+                        f"Annotated with Type4Py @ topn={topn}", result=t4p_hint_res
                     )
                 )
                 collections.append(
