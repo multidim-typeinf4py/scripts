@@ -52,7 +52,7 @@ class PyreInfer(ProjectWideInference):
                 exitcode = commands.infer.run(configuration=config, infer_arguments=infargs)
 
             except commands.ClientException:
-                self.logger.error("pyre-infer encountered an internal failure on, cannot infer types")
+                self.logger.error("pyre-infer encountered an internal failure, cannot infer types")
                 return InferredSchema.example(size=0)
 
             if exitcode != commands.ExitCode.SUCCESS:
