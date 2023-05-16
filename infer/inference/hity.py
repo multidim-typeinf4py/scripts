@@ -88,50 +88,41 @@ class _HiTyperPredictions(pydantic.BaseModel):
 class HiTyper(PerFileInference):
     method = "HiTyper"
 
-    def __init__(self, project: pathlib.Path) -> None:
+    def __init__(self, cache: Optional[pathlib.Path], topn: int) -> None:
+        super().__init__(cache)
+        self.topn = topn
+
+    def __in2it__(self, project: pathlib.Path, topn: int) -> None:
         super().__init__(project)
         self.output_dir = self.project / ".hityper"
-        self.topn = 3
+        self.topn = topn
 
-        # if self.output_dir.is_dir():
-        #     shutil.rmtree(path=str(self.output_dir))
+        self.predictions: Optional[_HiTyperPredictions] = None
 
-    def _infer_file(self, relative: pathlib.Path) -> pt.DataFrame[InferredSchema]:
-        if not hasattr(self, "predictions"):
-            if not self.output_dir.is_dir():
-                self.output_dir.mkdir(parents=True, exist_ok=True)
+    def _infer_file(
+        self, root: pathlib.Path, relative: pathlib.Path
+    ) -> pt.DataFrame[InferredSchema]:
+        if self.predictions is None:
+            output_dir = root / ".hityper"
+            if not output_dir.is_dir():
+                output_dir.mkdir(parents=True, exist_ok=True)
 
             inferred_types_path = (
-                str(self.output_dir)
+                str(output_dir)
                 + "/"
-                + str(self.project).replace("/", "_")
+                + str(root).replace("/", "_")
                 + "_INFERREDTYPES.json"
             )
             if not pathlib.Path(inferred_types_path).is_file():
-                self._predict()
+                self._predict(root)
             self.predictions = _HiTyperPredictions.parse_file(inferred_types_path)
 
-        return self._predictions2df(self.predictions, relative)
+        return self._predictions2df(self.predictions, root, relative)
 
-    def _predict(self):
-        # hityper.findusertype(
-        #     _FindUserTypeArguments(
-        #         repo=str(self.project), core=8, validate=True, output_directory=str(self.output_dir)
-        #    )
-        # )
-
-        # hityper.gentdg(
-        #     _GenTDGArguments(
-        #         repo=str(self.project),
-        #         optimize=True,
-        #         output_directory=str(self.output_dir),
-        #         output_format="json",
-        #     )
-        # )
-
+    def _predict(self, repo: pathlib.Path):
         hityper.infertypes(
             _InferenceArguments(
-                repo=str(self.project),
+                repo=str(repo),
                 output_directory=str(self.output_dir),
                 topn=self.topn,
                 type4py=True,
@@ -139,15 +130,15 @@ class HiTyper(PerFileInference):
         )
 
     def _predictions2df(
-        self, predictions: _HiTyperPredictions, file: pathlib.Path
+        self, predictions: _HiTyperPredictions, project: pathlib.Path, file: pathlib.Path
     ) -> pt.DataFrame[InferredSchema]:
         prediction_batches = []
 
-        scopes = predictions.__root__.get(self.project / file, None)
+        scopes = predictions.__root__.get(project / file, None)
         if scopes is None:
             return InferredSchema.example(size=0)
 
-        src = libcst.parse_module(open(self.project / file).read())
+        src = libcst.parse_module(open(project / file).read())
 
         for topn, batch in enumerate(self._batchify_scopes(scopes), start=1):
             annotations = Annotations.empty()
@@ -205,10 +196,10 @@ class HiTyper(PerFileInference):
                     annotations.functions[fkey] = FunctionAnnotation(ps, returns)
 
             context = codemod.CodemodContext(
-                filename=str(self.project / file),
+                filename=str(project / file),
                 metadata_manager=metadata.FullRepoManager(
-                    repo_root_dir=str(self.project),
-                    paths=[str(self.project / file)],
+                    repo_root_dir=str(project),
+                    paths=[str(project / file)],
                     providers=[],
                 ),
             )
