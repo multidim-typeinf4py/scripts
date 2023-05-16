@@ -1,14 +1,16 @@
+import multiprocessing
 import pathlib
 import shutil
 from typing import Optional
 
 import click
 import pandas
+import pandera.typing
 import tqdm
 
 from common.annotations import TypeAnnotationRemover
 from common import output
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from common.schemas import TypeCollectionCategory, TypeCollectionSchema, InferredSchema
 from infer.inference._base import DatasetFolderStructure
 
 from infer.insertion import TypeAnnotationApplierTransformer
@@ -112,10 +114,8 @@ def cli_entrypoint(
         )
         return
 
-
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
-
 
     inference_tool = tool(cache=cache_path)
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
@@ -162,9 +162,27 @@ def cli_entrypoint(
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
-            inferred = inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
-            print(f"Writing results to {outdir}")
+            # Run inference task for hour before aborting
+            with multiprocessing.Manager() as manager:
+                d: dict = manager.dict()
+                p = multiprocessing.Process(
+                    target=lambda t, m, r, s: d.update({t.method: t.infer(m, r, s)}),
+                    args=(inference_tool, sc, inpath, subset),
+                )
+                p.start()
 
+                p.join(timeout=1 * 60 * 60)
+                if p.is_alive():
+                    inference_tool.logger.error(
+                        "Took over an hour to infer types, killing inference subprocess. "
+                        "Results will NOT be written to disk"
+                    )
+                    p.terminate()
+                    p.join()
+                    continue
+
+                inferred = d[inference_tool.method]
+            print(f"Writing results to {outdir}")
             if outdir.is_dir() and overwrite:
                 shutil.rmtree(outdir)
 
