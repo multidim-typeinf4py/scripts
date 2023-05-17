@@ -73,7 +73,7 @@ def dataset_output_path(inpath: pathlib.Path, kind: str) -> pathlib.Path:
 
 def write_dataset(inpath: pathlib.Path, kind: str, df: pt.DataFrame[TypeCollectionSchema]) -> None:
     opath = dataset_output_path(inpath, kind)
-    print(f"Writing to {opath}")
+    opath.mkdir(parents=True, exist_ok=True)
     df.to_csv(
         opath,
         index=False,
