@@ -265,17 +265,9 @@ class TypeWriter(ProjectWideInference):
             self.tw_model = self.tw_model.module
 
     def _infer_project(
-        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        if subset is None:
-            proj_files = set(
-                map(
-                    lambda r: pathlib.Path(r).relative_to(mutable),
-                    codemod.gather_files([str(mutable)]),
-                )
-            )
-        else:
-            proj_files = subset
+        proj_files = subset
 
         file2topnpreds: dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]] = {}
         for file in proj_files:

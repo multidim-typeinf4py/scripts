@@ -17,7 +17,7 @@ class PyreInfer(ProjectWideInference):
     _OUTPUT_DIR = ".pyre-stubs"
 
     def _infer_project(
-        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
         with working_dir(mutable):
             pyre.clean_pyre_config(project_path=str(mutable))

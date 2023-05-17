@@ -1,18 +1,16 @@
 import collections
 import enum
-import logging
 import pathlib
 from dataclasses import dataclass
 from typing import Optional
 
 import hityper.__main__ as hityper
 import libcst
-from libcst import metadata, matchers as m
 import pandas as pd
 import pandera.typing as pt
 import pydantic
-from libcst import codemod, helpers as h
-from libcst.codemod.visitors import ApplyTypeAnnotationsVisitor
+from libcst import codemod, metadata
+from common.annotations import ApplyTypeAnnotationsVisitor
 from libcst.codemod.visitors._apply_type_annotations import (
     Annotations,
     FunctionKey,
@@ -20,15 +18,9 @@ from libcst.codemod.visitors._apply_type_annotations import (
 )
 
 import utils
-from common import transformers as t
-from common.annotations import TypeAnnotationRemover
-from common.schemas import (
-    InferredSchema,
-)
-from common.transformers import Actions
-from symbols.collector import TypeCollectorVisitor, build_type_collection
-from ._base import PerFileInference, ProjectWideInference
-from ..insertion import TypeAnnotationApplierTransformer
+from common.schemas import InferredSchema
+from symbols.collector import build_type_collection
+from ._base import ProjectWideInference
 
 
 @dataclass
@@ -109,7 +101,9 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
         )
 
         annotations = self.paths2batches[path][self.topn]
-        return tree.visit(ApplyTypeAnnotationsVisitor(self.context, annotations=annotations))
+        return metadata.MetadataWrapper(tree, unsafe_skip_copy=True).visit(
+            ApplyTypeAnnotationsVisitor(self.context, annotations=annotations)
+        )
 
 
 class HiTyper(ProjectWideInference):
@@ -160,9 +154,9 @@ class HiTyper(ProjectWideInference):
                     )
                 )
                 collections.append(
-                    build_type_collection(
-                        root=sc, allow_stubs=False, subset=set(predictions.keys())
-                    ).df.assign(topn=topn)
+                    build_type_collection(root=sc, allow_stubs=False, subset=subset).df.assign(
+                        topn=topn
+                    )
                 )
         return (
             pd.concat(collections, ignore_index=True)

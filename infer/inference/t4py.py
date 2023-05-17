@@ -159,15 +159,7 @@ class _Type4Py(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: typing.Optional[set[pathlib.Path]]
     ) -> pt.DataFrame[InferredSchema]:
-        if subset is None:
-            proj_files = set(
-                map(
-                    lambda r: pathlib.Path(r).relative_to(mutable),
-                    codemod.gather_files([str(mutable)]),
-                )
-            )
-        else:
-            proj_files = subset
+        proj_files = subset
 
         paths2datapoints = self._create_or_load_datapoints(mutable, proj_files)
         paths_with_predictions = {

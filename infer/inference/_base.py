@@ -234,6 +234,13 @@ class ProjectWideInference(Inference):
 
             if subset is not None:
                 subset = {s for s in subset if (mutable / s).is_file()}
+            else:
+                subset = set(
+                    map(
+                        lambda r: pathlib.Path(r).relative_to(mutable),
+                        codemod.gather_files([str(mutable)]),
+                    )
+                )
 
             inferred = self._infer_project(mutable, subset)
             self._write_cache()
@@ -243,7 +250,7 @@ class ProjectWideInference(Inference):
 
     @abc.abstractmethod
     def _infer_project(
-        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
         pass
 
