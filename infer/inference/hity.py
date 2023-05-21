@@ -8,7 +8,7 @@ import pathlib
 from dataclasses import dataclass
 from typing import Optional
 
-import hityper
+from hityper.utils import transformType4PyRecommendations
 import hityper.__main__ as htm
 import libcst
 import pandas as pd
@@ -131,6 +131,7 @@ class MLFuncPred4HiTyper(pydantic.BaseModel):
 
 
 class MLClassPred4HiTyper(pydantic.BaseModel):
+    q_name: str
     funcs: list[MLFuncPred4HiTyper]
     variables_p: MLVarPred4HiTyper
 
@@ -192,7 +193,8 @@ class Type4Py2HiTyper(HiTyperModelAdaptor):
                 filter_pred_types=False,
             )
 
-            r.__root__[str(file)] = MLPreds4HiTyper.parse_obj(p)
+            parsed = MLPreds4HiTyper.parse_obj(p)
+            r.__root__[str(project.resolve() / file)] = parsed
 
         return r
 
@@ -203,7 +205,7 @@ class HiTyper(ProjectWideInference):
     def __init__(self, model: HiTyperModelAdaptor) -> None:
         super().__init__()
         self.model = model
-        logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
+        # logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -222,8 +224,8 @@ class HiTyper(ProjectWideInference):
         assert not outpath.is_file()
 
         self.logger.info(f"Writing model predictions to {outpath} for HiTyper to use")
-        with open(outpath, "w") as f:
-            json.dump(model_preds.dict(), f)
+        with outpath.open("w") as f:
+            json.dump(model_preds.dict(exclude_none=True)["__root__"], f)
 
         htm.infertypes(
             _InferenceArguments(
@@ -251,7 +253,7 @@ class HiTyper(ProjectWideInference):
                     ),
                     jobs=utils.worker_count(),
                     repo_root=str(sc),
-                    files=[sc / f for f in predictions],
+                    files=[sc / pathlib.Path(f).relative_to(mutable) for f in model_preds.__root__],
                 )
                 self.logger.info(
                     utils.format_parallel_exec_result(
@@ -372,7 +374,7 @@ def _derive_qname(scope: str) -> list[str]:
 class _HiTyperType4PyTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(
-            Type4Py2HiTyper(model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn)
+            Type4Py2HiTyper(model_path=pathlib.Path("/home/benji/Documents/Uni/heidelberg/05/masterarbeit/impls/scripts/models/type4py"), topn=topn)
         )
 
 
@@ -380,13 +382,16 @@ class HiTyperType4PyTop1(_HiTyperType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=1)
 
+
 class HiTyperType4PyTop3(_HiTyperType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=3)
 
+
 class HiTyperType4PyTop5(_HiTyperType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=5)
+
 
 class HiTyperType4PyTop10(_HiTyperType4PyTopN):
     def __init__(self) -> None:
