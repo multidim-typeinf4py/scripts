@@ -167,7 +167,7 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
                 ),
             )
 
-    def unannotated_assign_multiple_targets(
+    def unannotated_assign_multiple_targets_or_augassign(
         self,
         original_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],

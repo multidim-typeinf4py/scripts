@@ -44,31 +44,17 @@ class PTType4Py:
         self.type4py_model = onnxruntime.InferenceSession(
             str(self.model_path / f"type4py_complete_model.onnx"),
             providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available()
-                else "CPUExecutionProvider"
+                "CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
             ],
         )
-        self.type4py_model_params = json.load(
-            (self.model_path / "model_params.json").open()
-        )
+        self.type4py_model_params = json.load((self.model_path / "model_params.json").open())
         self.type4py_model_params["k"] = topn
 
-        self.w2v_model = Word2Vec.load(
-            fname=str(self.model_path / "w2v_token_model.bin")
-        )
-        self.type_clusters_idx = AnnoyIndex(
-            self.type4py_model_params["output_size"], "euclidean"
-        )
-        self.type_clusters_idx.load(
-            str(self.model_path / "type4py_complete_type_cluster")
-        )
-        self.type_clusters_labels = np.load(
-            str(self.model_path / f"type4py_complete_true.npy")
-        )
-        self.label_enc = pickle.load(
-            (self.model_path / "label_encoder_all.pkl").open("rb")
-        )
+        self.w2v_model = Word2Vec.load(fname=str(self.model_path / "w2v_token_model.bin"))
+        self.type_clusters_idx = AnnoyIndex(self.type4py_model_params["output_size"], "euclidean")
+        self.type_clusters_idx.load(str(self.model_path / "type4py_complete_type_cluster"))
+        self.type_clusters_labels = np.load(str(self.model_path / f"type4py_complete_true.npy"))
+        self.label_enc = pickle.load((self.model_path / "label_encoder_all.pkl").open("rb"))
 
         self.topn = topn
         self.vths = None
@@ -94,9 +80,7 @@ def _batchify(predictions: dict, topn: int) -> list[dict]:
                 "name": fn["name"],
                 "q_name": fn["q_name"],
                 "params": {p: read_or_null(fn["params_p"][p], n) for p in fn["params"]},
-                "ret_type": (
-                    read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""
-                ),
+                "ret_type": (read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""),
                 "variables": variables_read(fn, n),
             }
             for fn in d["funcs"]
@@ -150,11 +134,9 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
         batch = self.path2batches[path][self.topn]
 
         return metadata.MetadataWrapper(
-            module=tree.visit(TypeAnnotationRemover()),
+            module=tree,
             unsafe_skip_copy=True,
-            cache=self.context.metadata_manager.get_cache_for_path(
-                path=self.context.filename
-            ),
+            cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
         ).visit(TypeApplier(f_processeed_dict=batch, apply_nlp=False))
 
 
@@ -177,15 +159,7 @@ class _Type4Py(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: typing.Optional[set[pathlib.Path]]
     ) -> pt.DataFrame[InferredSchema]:
-        if subset is None:
-            proj_files = set(
-                map(
-                    lambda r: pathlib.Path(r).relative_to(mutable),
-                    codemod.gather_files([str(mutable)]),
-                )
-            )
-        else:
-            proj_files = subset
+        proj_files = subset
 
         paths2datapoints = self._create_or_load_datapoints(mutable, proj_files)
         paths_with_predictions = {
@@ -229,14 +203,14 @@ class _Type4Py(ProjectWideInference):
                     repo_root=str(sc),
                     files=[str(sc / p) for p in paths2batches],
                 )
-                print(
+                self.logger.info(
                     utils.format_parallel_exec_result(
-                        f"Annotating with Type4Py @ topn={topn}", result=t4p_hint_res
+                        f"Annotated with Type4Py @ topn={topn}", result=t4p_hint_res
                     )
                 )
                 collections.append(
                     build_type_collection(
-                        root=sc, allow_stubs=False, subset=set(paths2batches.keys())
+                        root=sc, allow_stubs=False, subset=set(proj_files)
                     ).df.assign(topn=topn)
                 )
 
@@ -259,9 +233,7 @@ class _Type4Py(ProjectWideInference):
             try:
                 with filepath.open() as f:
                     src_f_read = f.read()
-                type_hints = Extractor.extract(
-                    src_f_read, include_seq2seq=False
-                ).to_dict()
+                type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
 
                 (
                     all_type_slots,
@@ -285,7 +257,7 @@ class _Type4Py(ProjectWideInference):
                 IsADirectoryError,
                 SyntaxError,
             ) as e:
-                print(f"Skipping {file} - {e}")
+                self.logger.warning(f"Skipping {file} during datapoint calculation - {e}")
 
         return datapoints
 

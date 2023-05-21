@@ -1,14 +1,16 @@
+import multiprocessing
 import pathlib
 import shutil
 from typing import Optional
 
 import click
 import pandas
+import pandera.typing
 import tqdm
 
 from common.annotations import TypeAnnotationRemover
 from common import output
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from common.schemas import TypeCollectionCategory, TypeCollectionSchema, InferredSchema
 from infer.inference._base import DatasetFolderStructure
 
 from infer.insertion import TypeAnnotationApplierTransformer
@@ -114,18 +116,12 @@ def cli_entrypoint(
 
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
-    test_set = structure.test_set(dataset)
 
-    projects = list(structure.project_iter(dataset))
-    for project in (pbar := tqdm.tqdm(projects)):
+    inference_tool = tool(cache=cache_path)
+    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
+
+    for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
-
-        # Skip if outside of dataset
-        if not (subset := test_set.get(project, set())):
-            print(f"Skipping {project}, not found in test subset")
-            continue
-
-        inference_tool = tool(cache=cache_path)
 
         ar = structure.author_repo(project)
         author_repo = f"{ar['author']}.{ar['repo']}"
@@ -150,7 +146,7 @@ def cli_entrypoint(
             if not (files := codemod.gather_files([str(sc)])):
                 print(f"Skipping {project}, no Python files found!")
                 continue
-            
+
             if removing:
                 print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
@@ -166,16 +162,39 @@ def cli_entrypoint(
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
-            inference_tool.infer(mutable=sc, readonly=inpath, subset=subset)
+            # Run inference task for hour before aborting
+            with multiprocessing.Manager() as manager:
+                d: dict = manager.dict()
+                p = multiprocessing.Process(
+                    target=lambda t, m, r, s: d.update({t.method: t.infer(m, r, s)}),
+                    args=(inference_tool, sc, inpath, subset),
+                )
+                p.start()
 
-        if outdir.is_dir() and overwrite:
-            shutil.rmtree(outdir)
+                p.join(timeout=1 * 60 * 60)
+                if p.is_alive():
+                    inference_tool.logger.error(
+                        "Took over an hour to infer types, killing inference subprocess. "
+                        "Results will NOT be written to disk"
+                    )
+                    p.terminate()
+                    p.join()
+                    continue
 
-        print(f"Inference completed; writing results to {outdir}")
+                inferred = d[inference_tool.method]
+            print(f"Writing results to {outdir}")
+            if outdir.is_dir() and overwrite:
+                shutil.rmtree(outdir)
 
-        # Copy original project and re-remove annotations
-        shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
+            # Copy original project
+            shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
+
+            # Copy generated log files
+            for log_path in (output.info_log_path, output.debug_log_path, output.error_log_path):
+                shutil.copy(log_path(sc), log_path(outdir))
+
         if removing:
+            # Reremove annotations
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationRemover(
                     context=codemod.CodemodContext(),
@@ -202,19 +221,17 @@ def cli_entrypoint(
             "display.expand_frame_repr",
             False,
         ):
-            df = inference_tool.inferred.copy(deep=True)
-            df = df[df[TypeCollectionSchema.category].isin(inferring)]
+            inferred = inferred[inferred[TypeCollectionSchema.category].isin(inferring)]
+            print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
-            print(df.sample(n=min(len(df), 20)).sort_index())
-
-        output.write_inferred(df, outdir)
+        output.write_inferred(inferred, outdir)
         print(f"Inferred types have been stored at {outdir}")
 
         if annotate:
             print(f"Applying Annotations to codebase at {outdir}")
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=TypeAnnotationApplierTransformer(
-                    codemod.CodemodContext(), top_preds_only(df)
+                    codemod.CodemodContext(), top_preds_only(inferred)
                 ),
                 files=codemod.gather_files([str(outdir)]),
                 jobs=worker_count(),

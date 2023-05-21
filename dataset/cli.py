@@ -1,7 +1,10 @@
-import pathlib
 import click
+import pathlib
+import tqdm
 
-from . import consumer as c, manytypes4py
+from symbols.collector import build_type_collection
+
+from infer.inference._base import DatasetFolderStructure
 
 
 from common import output
@@ -9,30 +12,30 @@ from common import output
 
 @click.command(name="dataset", help="Consume dataset into inference agnostic DataFrame")
 @click.option(
-    "-i",
-    "--inpath",
+    "-d",
+    "--dataset",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
 )
 @click.option(
-    "-k", "--kind", type=click.Choice(["manytypes4py", "manytypes4py-full"], case_sensitive=False)
+    "-o",
+    "--outpath",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    required=True,
+    help="Folder for annotation dataframe to be written into",
 )
-def cli_entrypoint(inpath: pathlib.Path, kind: str) -> None:
-    consumer: c.DatasetConsumer
-    if kind == "manytypes4py":
-        consumer = manytypes4py.ManyTypes4PyConsumerNeat(
-            duplicates=inpath / "duplicate_files.txt",
-            type_checked_files=inpath / "type_checked_files.txt",
-            split=inpath / "dataset_split.csv",
-        )
-        dataset = inpath / "repos"
-    elif kind == "manytypes4py-full":
-        consumer = manytypes4py.ManyTypes4PyConsumerFull(split=inpath / "dataset_split.csv")
-        dataset = inpath / "repos"
-    else:
-        assert f"Unknown kind: {kind}"
+def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path) -> None:
+    structure = DatasetFolderStructure.from_folderpath(dataset)
+    print(dataset, structure)
 
-    dataset = consumer.produce(dataset=dataset)
-    output.write_dataset(inpath, kind, dataset)
+    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
+    for project, subset in (pbar := tqdm.tqdm(test_set.items())):
+        pbar.set_description(desc=f"Collecting from {project}")
+        collection = build_type_collection(root=project, allow_stubs=False, subset=subset).df
+
+        ar = structure.author_repo(project)
+        author_repo = f"{ar['author']}.{ar['repo']}"
+
+        output.write_dataset(outpath, author_repo, df=collection)
 
 
 if __name__ == "__main__":

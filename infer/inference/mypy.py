@@ -43,16 +43,16 @@ class MyPy(ProjectWideInference):
             stubgen.generate_stubs(options=options)
 
         except SystemExit as e:
-            print(f"Falling back to --parse_only=True: {e}")
+            self.logger.error(f"Falling back to --parse_only=True: {e}")
             options.parse_only = True
 
             try:
                 stubgen.generate_stubs(options=options)
             except SystemExit as e:
-                print(f"Fallback failed too; {e}; giving up...")
+                self.logger.error(f"Fallback failed too; {e}; giving up...")
 
         except Exception as e:
-            print(f"Stub Generation failed: {e}")
+            self.logger.error(f"Stub Generation failed: {e}; giving up...")
 
         finally:
             if (mutable / MyPy._OUTPUT_DIR).is_dir():

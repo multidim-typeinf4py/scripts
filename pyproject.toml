@@ -19,7 +19,7 @@ python = "^3.9"
 type4py = {git = "https://github.com/multidim-typeinf4py/type4py.git", branch = "compat/fixes"}
 hityper = {git = "https://github.com/multidim-typeinf4py/HiTyper.git"}
 hypothesis = "^6.64.0"
-libsa4py = "^0.3.0"
+libsa4py = "^0.4.0"
 networkx = "^3.0"
 types-requests = "^2.28.11.5"
 typewriter = {git = "https://github.com/multidim-typeinf4py/typewriter.git", branch = "feature/dltinproj"}
@@ -38,6 +38,9 @@ pytest-cov = "^4.0.0"
 [tool.mypy]
 exclude = ["tests/resources/", "icr/inference"]
 plugins = ["pandera.mypy"]
+
+[tool.pytest.ini_options]
+log_cli = true
 
 [tool.black]
 line-length = 100

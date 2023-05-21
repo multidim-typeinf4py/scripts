@@ -1,15 +1,15 @@
 import abc
+import contextlib
 import enum
 import pathlib
 import pickle
+import sys
 import typing
 from typing import Optional
 
-from common.schemas import (
-    InferredSchema,
-    InferredSchemaColumns,
-    TypeCollectionSchema,
-)
+import utils
+from common import output
+from common.schemas import InferredSchema
 
 import logging
 
@@ -116,7 +116,6 @@ class DatasetFolderStructure(enum.Enum):
 
 
 class Inference(abc.ABC):
-    inferred: pt.DataFrame[InferredSchema]
     cache_storage: dict[pathlib.Path, typing.Any]
 
     def __init__(
@@ -125,9 +124,10 @@ class Inference(abc.ABC):
     ) -> None:
         super().__init__()
         self.cache = cache.resolve() if cache else None
-        self.inferred = InferredSchema.example(size=0)
 
         self.logger = logging.getLogger(type(self).__qualname__)
+        self.logger.setLevel(logging.DEBUG)
+
         self.cache_storage: dict[pathlib.Path, typing.Any] = dict()
 
     @abc.abstractmethod
@@ -136,40 +136,81 @@ class Inference(abc.ABC):
         mutable: pathlib.Path,
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
-    ) -> None:
+    ) -> pt.DataFrame[InferredSchema]:
         pass
+
+    @contextlib.contextmanager
+    def with_handlers(self, filepath: pathlib.Path) -> typing.Generator[None, None, None]:
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+        generic_sout_handler = logging.StreamHandler(stream=sys.stdout)
+        generic_sout_handler.setLevel(logging.INFO)
+        generic_sout_handler.setFormatter(fmt=formatter)
+
+        generic_filehandler = logging.FileHandler(filename=output.info_log_path(filepath), mode="w")
+        generic_filehandler.setLevel(logging.INFO)
+        generic_filehandler.setFormatter(fmt=formatter)
+
+        debug_handler = logging.FileHandler(filename=output.debug_log_path(filepath), mode="w")
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.addFilter(filter=lambda record: record.levelno == logging.DEBUG)
+        debug_handler.setFormatter(fmt=formatter)
+
+        error_handler = logging.FileHandler(filename=output.error_log_path(filepath), mode="w")
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(fmt=formatter)
+
+        for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
+            self.logger.addHandler(hdlr=handler)
+
+        yield
+
+        for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
+            self.logger.removeHandler(hdlr=handler)
 
     def register_cache(self, relative: pathlib.Path, data: typing.Any) -> None:
         if not self.cache:
-            print("WARNING: Cache argument was not supplied, skipping registration...")
+            self.logger.info(
+                f"Cache path was not supplied, skipping registration for {relative}..."
+            )
         else:
             assert relative not in self.cache_storage
             self.cache_storage[relative] = data
 
     def _write_cache(self) -> None:
+        if not self.cache_storage:
+            self.logger.info("Did not create any cacheables, skipping caching")
+            return
+
         if not self.cache:
-            print("WARNING: Cache argument was not supplied, skipping writing...")
+            self.logger.warning(
+                "Cache is not empty, but Cache path was not supplied, skipping writing cache..."
+            )
+
         else:
             outpath = self._cache_path()
             outpath.parent.mkdir(parents=True, exist_ok=True)
-            print(f"Writing {self.method}'s cache to {outpath}")
+            self.logger.info(f"Writing {self.method}'s cache to {outpath}")
 
             with outpath.open("wb") as f:
                 pickle.dump(self.cache_storage, f)
 
     def _load_cache(self) -> dict[pathlib.Path, typing.Any]:
         if not self.cache:
-            print("WARNING: Cache argument was not supplied, assuming empty collection")
+            self.logger.warning("Cache path was not supplied, assuming empty collection")
             return dict()
 
         inpath = self._cache_path()
-        print(f"Loading cache from {inpath}")
+        self.logger.info(f"Loading cache from {inpath}")
 
         try:
             with inpath.open("rb") as f:
                 return pickle.load(f)
         except FileNotFoundError:
-            print("Cache not found, assuming empty collection")
+            self.logger.warning("Cache not found, assuming empty collection")
             return dict()
 
     def _cache_path(self) -> pathlib.Path:
@@ -187,18 +228,29 @@ class ProjectWideInference(Inference):
         mutable: pathlib.Path,
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
-    ) -> None:
-        self.logger.debug(f"Inferring project-wide on {mutable}")
+    ) -> pt.DataFrame[InferredSchema]:
+        with self.with_handlers(mutable):
+            self.logger.info(f"Inferring project-wide for {readonly}")
 
-        if subset is not None:
-            subset = {s for s in subset if (mutable / s).is_file()}
-        self.inferred = self._infer_project(mutable, subset)
+            if subset is not None:
+                subset = {s for s in subset if (mutable / s).is_file()}
+            else:
+                subset = set(
+                    map(
+                        lambda r: pathlib.Path(r).relative_to(mutable),
+                        codemod.gather_files([str(mutable)]),
+                    )
+                )
 
-        self._write_cache()
+            inferred = self._infer_project(mutable, subset)
+            self._write_cache()
+
+            self.logger.info("Inference completed")
+            return inferred
 
     @abc.abstractmethod
     def _infer_project(
-        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
         pass
 
@@ -209,7 +261,7 @@ class PerFileInference(Inference):
         mutable: pathlib.Path,
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
-    ) -> None:
+    ) -> pt.DataFrame[InferredSchema]:
         updates = list()
 
         if subset is not None:
@@ -217,20 +269,22 @@ class PerFileInference(Inference):
         else:
             paths = mutable.rglob("*.py")
 
-        for subfile in paths:
-            if not subfile.is_file():
-                continue
-            relative = subfile.relative_to(mutable)
-            self.logger.debug(f"Inferring per-file on {mutable} @ {relative}")
-            reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
-            updates.append(reldf)
+        with self.with_handlers(mutable):
+            for subfile in paths:
+                if not subfile.is_file():
+                    continue
+                relative = subfile.relative_to(mutable)
+                self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
+                reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
+                updates.append(reldf)
 
-        if updates:
-            self.inferred = pd.concat([self.inferred, *updates], ignore_index=True).pipe(
-                pt.DataFrame[InferredSchema]
-            )
+            self._write_cache()
+            self.logger.info("Inference completed")
 
-        self._write_cache()
+            if updates:
+                return pd.concat(updates, ignore_index=True).pipe(pt.DataFrame[InferredSchema])
+            else:
+                return InferredSchema.example(size=0)
 
     @abc.abstractmethod
     def _infer_file(

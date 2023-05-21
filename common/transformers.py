@@ -178,7 +178,7 @@ class HintableDeclarationTransformer(
         elif targets := _traversal.Recognition.unannotated_assign_multiple_targets(
             self.metadata, original_node
         ):
-            transformer = self.unannotated_assign_multiple_targets
+            transformer = self.unannotated_assign_multiple_targets_or_augassign
 
         else:
             _traversal.Recognition.fallthru(original_node)
@@ -193,7 +193,7 @@ class HintableDeclarationTransformer(
         libcst.BaseSmallStatement
     ], libcst.RemovalSentinel, libcst.BaseSmallStatement]:
         if targets := _traversal.Recognition.augassign_targets(self.metadata, original_node):
-            transformer = self.unannotated_assign_multiple_targets
+            transformer = self.unannotated_assign_multiple_targets_or_augassign
         else:
             _traversal.Recognition.fallthru(original_node)
             return original_node

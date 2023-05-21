@@ -6,9 +6,9 @@ import tempfile
 import typing
 import shutil
 
-from libcst.codemod._cli import ParallelTransformResult
+from libcst.codemod import ParallelTransformResult
 
-from common.schemas import InferredSchema
+from common.schemas import InferredSchema, TypeCollectionSchema
 import pandera.typing as pt
 
 
@@ -51,13 +51,16 @@ def format_parallel_exec_result(action: str, result: ParallelTransformResult) ->
     return format
 
 
-def top_preds_only(df: pt.DataFrame[InferredSchema]) -> pt.DataFrame[InferredSchema]:
-    return df.loc[
+def top_preds_only(df: pt.DataFrame[InferredSchema]) -> pt.DataFrame[TypeCollectionSchema]:
+    top: pt.DataFrame[InferredSchema] = df.loc[
         df.groupby(
             by=[InferredSchema.file, InferredSchema.category, InferredSchema.qname_ssa],
             sort=False,
         )[InferredSchema.topn].idxmin()
     ]
+    return top.drop(columns=[InferredSchema.method, InferredSchema.topn]).pipe(
+        pt.DataFrame[TypeCollectionSchema]
+    )
 
 
 def worker_count() -> typing.Optional[int]:

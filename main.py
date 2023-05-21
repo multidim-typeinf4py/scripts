@@ -1,8 +1,9 @@
-
+import logging
+import sys
 import click
 
 import context
-# import dataset
+import dataset
 import logregr
 import harness
 import infer
@@ -16,17 +17,19 @@ import utils
 if __name__ == "__main__":
     # os.environ["LIBCST_PARSER_TYPE"] = "native"
 
-    # FORMAT = "%(asctime)s %(clientip)-15s %(user)-8s %(message)s"
-    # logging.basicConfig(format=FORMAT)
+    fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
+    datefmt="%Y-%m-%d %H:%M:%S"
 
-    print(f"{utils.worker_count() = }")
+    logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
+    logging.info(f"{utils.worker_count()=}")
+    logging.info(f"{sys.path=}")
 
     main = click.Group(
         commands=[
             context.cli_entrypoint,
             infer.cli_entrypoint,
             harness.cli_entrypoint,
-            # dataset.cli_entrypoint,
+            dataset.cli_entrypoint,
             # symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
             logregr.cli_entrypoint,
