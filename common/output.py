@@ -66,14 +66,15 @@ def inference_output_path(
     return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]+[{inferred_names}]"
 
 
-def dataset_output_path(inpath: pathlib.Path, kind: str) -> pathlib.Path:
+def dataset_output_path(inpath: pathlib.Path, author_repo: str) -> pathlib.Path:
     assert inpath.is_dir(), f"Expected {inpath = } to be a folder to the dataset"
-    return inpath / f"{inpath.name}-{kind}.csv"
+    return inpath / f"{author_repo}.csv"
 
 
-def write_dataset(inpath: pathlib.Path, kind: str, df: pt.DataFrame[TypeCollectionSchema]) -> None:
-    opath = dataset_output_path(inpath, kind)
-    opath.mkdir(parents=True, exist_ok=True)
+def write_dataset(inpath: pathlib.Path, author_repo: str, df: pt.DataFrame[TypeCollectionSchema]) -> None:
+    opath = dataset_output_path(inpath, author_repo)
+    print(f"Writing results to {opath}")
+    opath.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(
         opath,
         index=False,

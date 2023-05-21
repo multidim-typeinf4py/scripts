@@ -35,8 +35,7 @@ def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path) -> None:
         ar = structure.author_repo(project)
         author_repo = f"{ar['author']}.{ar['repo']}"
 
-        print(f"Writing results to {outpath / author_repo}")
-        output.write_dataset(outpath / author_repo, df=collection)
+        output.write_dataset(outpath, author_repo, df=collection)
 
 
 if __name__ == "__main__":
