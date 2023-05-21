@@ -1,10 +1,15 @@
+import abc
 import collections
 import enum
+import json
+import logging
+import tqdm
 import pathlib
 from dataclasses import dataclass
 from typing import Optional
 
-import hityper.__main__ as hityper
+import hityper
+import hityper.__main__ as htm
 import libcst
 import pandas as pd
 import pandera.typing as pt
@@ -17,10 +22,19 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionAnnotation,
 )
 
+from libsa4py.cst_extractor import Extractor
+from type4py.deploy.infer import (
+    get_dps_single_file,
+    get_type_preds_single_file,
+)
+
+from infer.inference.t4py import PTType4Py
+
+
 import utils
 from common.schemas import InferredSchema
 from symbols.collector import build_type_collection
-from ._base import ProjectWideInference
+from ._base import Inference, ProjectWideInference
 
 
 @dataclass
@@ -52,10 +66,10 @@ class _InferenceArguments:
     repo: str
     output_directory: str
     topn: int
-    type4py: bool
+    recommendations: str
 
+    type4py = False
     source = None
-    recommendations = None
 
 
 class _HiTyperPredictionCategory(str, enum.Enum):
@@ -106,26 +120,117 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
         )
 
 
+MLVarPred4HiTyper = dict[str, list[tuple[str, float]]]
+
+
+class MLFuncPred4HiTyper(pydantic.BaseModel):
+    q_name: str
+    params_p: Optional[dict[str, list[tuple[str, float]]]]
+    ret_type_p: Optional[list[tuple[str, float]]]
+    variables_p: MLVarPred4HiTyper
+
+
+class MLClassPred4HiTyper(pydantic.BaseModel):
+    funcs: list[MLFuncPred4HiTyper]
+    variables_p: MLVarPred4HiTyper
+
+
+class MLPreds4HiTyper(pydantic.BaseModel):
+    classes: list[MLClassPred4HiTyper]
+    funcs: list[MLFuncPred4HiTyper]
+    variables_p: MLVarPred4HiTyper
+
+
+class ML4HiTyper(pydantic.BaseModel):
+    __root__: dict[str, MLPreds4HiTyper]
+
+
+class HiTyperModelAdaptor(abc.ABC):
+    def __init__(self, model_path: pathlib.Path) -> None:
+        self.model_path = model_path
+        super().__init__()
+
+    @abc.abstractmethod
+    def topn(self) -> int:
+        ...
+
+    @abc.abstractmethod
+    def predict(self, project: pathlib.Path, subset: set[pathlib.Path]) -> MLPreds4HiTyper:
+        ...
+
+
+class Type4Py2HiTyper(HiTyperModelAdaptor):
+    def __init__(self, model_path: pathlib.Path, topn: int) -> None:
+        super().__init__(model_path)
+        self.type4py = PTType4Py(pre_trained_model_path=model_path, topn=topn)
+
+    def topn(self) -> int:
+        return self.type4py.topn
+
+    def predict(self, project: pathlib.Path, subset: set[pathlib.Path]) -> ML4HiTyper:
+        r = ML4HiTyper(__root__=dict())
+        for file in subset:
+            with (project / file).open() as f:
+                src_f_read = f.read()
+            type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
+
+            (
+                all_type_slots,
+                vars_type_hints,
+                params_type_hints,
+                rets_type_hints,
+            ) = get_dps_single_file(type_hints)
+
+            if not any(h for h in (vars_type_hints, params_type_hints, rets_type_hints)):
+                continue
+
+            p = get_type_preds_single_file(
+                type_hints,
+                all_type_slots,
+                (vars_type_hints, params_type_hints, rets_type_hints),
+                self.type4py,
+                filter_pred_types=False,
+            )
+
+            r.__root__[str(file)] = MLPreds4HiTyper.parse_obj(p)
+
+        return r
+
+
 class HiTyper(ProjectWideInference):
     method = "HiTyper"
 
-    def __init__(self, cache: Optional[pathlib.Path], topn: int) -> None:
-        super().__init__(cache)
-        self.topn = topn
+    def __init__(self, model: HiTyperModelAdaptor) -> None:
+        super().__init__()
+        self.model = model
+        logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
 
     def _infer_project(
-        self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
         output_dir = mutable / ".hityper"
         if not output_dir.is_dir():
             output_dir.mkdir(parents=True, exist_ok=True)
 
-        hityper.infertypes(
+        # Create model predictions and pass to HiTyper
+        self.logger.info(
+            f"Inferring over {len(subset)} files in {output_dir} with {self.model.__class__.__qualname__}"
+        )
+        model_preds = self.model.predict(mutable, subset)
+
+        outpath = output_dir / f"__{self.model.__class__.__qualname__}__.json"
+        assert not outpath.is_file()
+
+        self.logger.info(f"Writing model predictions to {outpath} for HiTyper to use")
+        with open(outpath, "w") as f:
+            json.dump(model_preds.dict(), f)
+
+        htm.infertypes(
             _InferenceArguments(
                 repo=str(mutable),
                 output_directory=str(output_dir),
-                topn=self.topn,
-                type4py=True,
+                topn=self.model.topn(),
+                recommendations=str(outpath),
             )
         )
 
@@ -136,7 +241,7 @@ class HiTyper(ProjectWideInference):
         predictions = self._parse_predictions(repo_predictions, mutable)
 
         collections = []
-        for topn in range(1, self.topn + 1):
+        for topn in range(1, self.model.topn() + 1):
             with utils.scratchpad(mutable) as sc:
                 tw_hint_res = codemod.parallel_exec_transform_with_prettyprint(
                     transform=ParallelTypeApplier(
@@ -234,7 +339,7 @@ class HiTyper(ProjectWideInference):
     def _batchify_scopes(self, scopes: _HiTyperScope2Prediction) -> list[_HiTyperScope2Prediction]:
         batches: list[_HiTyperScope2Prediction] = []
 
-        for n in range(self.topn):
+        for n in range(self.model.topn()):
             batch = _HiTyperScope2Prediction()
 
             for scope, predictions in scopes.items():
@@ -263,7 +368,26 @@ def _derive_qname(scope: str) -> list[str]:
 
     return [classname, *funcname]
 
-    # scope = scope.removeprefix("global").removesuffix("global").replace(",", ".")
-    # non_empties = list(filter(bool, scope.split("@")))
-    # *funcname,
-    # return list(filter(bool, reversed(scope.split("@"))))
+
+class _HiTyperType4PyTopN(HiTyper):
+    def __init__(self, topn: int) -> None:
+        super().__init__(
+            Type4Py2HiTyper(model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn)
+        )
+
+
+class HiTyperType4PyTop1(_HiTyperType4PyTopN):
+    def __init__(self) -> None:
+        super().__init__(topn=1)
+
+class HiTyperType4PyTop3(_HiTyperType4PyTopN):
+    def __init__(self) -> None:
+        super().__init__(topn=3)
+
+class HiTyperType4PyTop5(_HiTyperType4PyTopN):
+    def __init__(self) -> None:
+        super().__init__(topn=5)
+
+class HiTyperType4PyTop10(_HiTyperType4PyTopN):
+    def __init__(self) -> None:
+        super().__init__(topn=10)
