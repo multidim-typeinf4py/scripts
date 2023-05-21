@@ -141,20 +141,19 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
 
 
 class _Type4Py(ProjectWideInference):
-    @property
-    def method(self) -> str:
-        return f"type4pyN{self.topn}"
-
     def __init__(
         self,
-        cache: typing.Optional[pathlib.Path],
         model_path: pathlib.Path,
         topn: int,
     ):
-        super().__init__(cache)
+        super().__init__()
 
         self.topn = topn
         self.pretrained = PTType4Py(model_path, topn=topn)
+
+    @property
+    def method(self) -> str:
+        return f"type4pyN{self.topn}"
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: typing.Optional[set[pathlib.Path]]
@@ -223,10 +222,9 @@ class _Type4Py(ProjectWideInference):
     def _create_or_load_datapoints(
         self, project: pathlib.Path, proj_files: set[pathlib.Path]
     ) -> dict[pathlib.Path, FileDatapoints]:
-        datapoints = self._load_cache()
+        datapoints = dict[pathlib.Path, FileDatapoints]()
 
-        missing_files = sorted(proj_files - datapoints.keys())
-        for file in (pbar := tqdm.tqdm(missing_files)):
+        for file in (pbar := tqdm.tqdm(proj_files)):
             pbar.set_description(desc=f"Computing datapoints for {file}")
             filepath = project / file
 
@@ -242,14 +240,13 @@ class _Type4Py(ProjectWideInference):
                     rets_type_hints,
                 ) = get_dps_single_file(type_hints)
 
-                datapoints[file] = dp = FileDatapoints(
+                datapoints[file] = FileDatapoints(
                     ext_type_hints=type_hints,
                     all_type_slots=all_type_slots,
                     vars_type_hints=vars_type_hints,
                     param_type_hints=params_type_hints,
                     rets_type_hints=rets_type_hints,
                 )
-                self.register_cache(file, dp)
 
             except (
                 UnicodeDecodeError,
@@ -262,21 +259,26 @@ class _Type4Py(ProjectWideInference):
         return datapoints
 
 
-class Type4PyN1(_Type4Py):
-    def __init__(self, cache: typing.Optional[pathlib.Path], model_path: pathlib.Path):
-        super().__init__(cache, model_path, topn=1)
+class _Type4PyTopN(_Type4Py):
+    def __init__(self, topn: int):
+        super().__init__(model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn)
 
 
-class Type4PyN3(_Type4Py):
-    def __init__(self, cache: typing.Optional[pathlib.Path], model_path: pathlib.Path):
-        super().__init__(cache, model_path, topn=3)
+class Type4PyTop1(_Type4PyTopN):
+    def __init__(self):
+        super().__init__(topn=1)
 
 
-class Type4PyN5(_Type4Py):
-    def __init__(self, cache: typing.Optional[pathlib.Path], model_path: pathlib.Path):
-        super().__init__(cache, model_path, topn=5)
+class Type4PyTop3(_Type4PyTopN):
+    def __init__(self):
+        super().__init__(topn=3)
 
 
-class Type4PyN10(_Type4Py):
-    def __init__(self, cache: typing.Optional[pathlib.Path], model_path: pathlib.Path):
-        super().__init__(cache, model_path, topn=10)
+class Type4PyTop5(_Type4PyTopN):
+    def __init__(self):
+        super().__init__(topn=5)
+
+
+class Type4PyTop10(_Type4PyTopN):
+    def __init__(self):
+        super().__init__(topn=10)

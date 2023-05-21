@@ -45,13 +45,6 @@ from libcst import codemod
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
-    "-c",
-    "--cache-path",
-    type=click.Path(path_type=pathlib.Path),
-    required=False,
-    help="Folder to put ML inference cache inside of",
-)
-@click.option(
     "-o",
     "--outpath",
     type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
@@ -97,7 +90,6 @@ from libcst import codemod
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
-    cache_path: Optional[pathlib.Path],
     outpath: pathlib.Path,
     overwrite: bool,
     remove: list[str],
@@ -117,7 +109,7 @@ def cli_entrypoint(
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
 
-    inference_tool = tool(cache=cache_path)
+    inference_tool = tool()
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):

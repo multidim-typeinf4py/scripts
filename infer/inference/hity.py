@@ -200,8 +200,6 @@ class Type4Py2HiTyper(HiTyperModelAdaptor):
 
 
 class HiTyper(ProjectWideInference):
-    method = "HiTyper"
-
     def __init__(self, model: HiTyperModelAdaptor) -> None:
         super().__init__()
         self.model = model
@@ -373,9 +371,11 @@ def _derive_qname(scope: str) -> list[str]:
 
 class _HiTyperType4PyTopN(HiTyper):
     def __init__(self, topn: int) -> None:
-        super().__init__(
-            Type4Py2HiTyper(model_path=pathlib.Path("/home/benji/Documents/Uni/heidelberg/05/masterarbeit/impls/scripts/models/type4py"), topn=topn)
-        )
+        super().__init__(Type4Py2HiTyper(model_path=pathlib.Path("models") / "type4py", topn=topn))
+
+    @property
+    def method(self) -> str:
+        return f"HiTyperType4PyN{self.model.topn}"
 
 
 class HiTyperType4PyTop1(_HiTyperType4PyTopN):

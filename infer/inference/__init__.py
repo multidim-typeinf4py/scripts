@@ -1,33 +1,20 @@
-import pathlib
-import typing
-
 from ._base import Inference
 
 from .mypy import MyPy
 from .pyreinfer import PyreInfer
 from .pyrequery import PyreQuery
 
-from .hity import HiTyper
-from .typewriter import TypeWriter
-from .t4py import Type4PyN10
-
-
-def _fix_ml_parameters(
-    tool: type[Inference], **kwargs
-) -> typing.Callable[[pathlib.Path], Inference]:
-    assert not any(fix in kwargs for fix in ("cache"))
-    return lambda cache: tool(cache=cache, **kwargs)
-
+from .hity import HiTyperType4PyTop10
+from .typewriter import TypeWriterTop10
+from .t4py import Type4PyTop10
 
 SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
     PyreInfer.__name__.lower(): PyreInfer,
     PyreQuery.__name__.lower(): PyreQuery,
-    HiTyper.__name__.lower(): HiTyper,
-    TypeWriter.__name__.lower(): TypeWriter,
-    Type4PyN10.__name__.lower(): _fix_ml_parameters(
-        Type4PyN10, model_path=pathlib.Path.cwd() / "models" / "type4py"
-    ),
+    TypeWriterTop10.__name__.lower(): TypeWriterTop10,
+    Type4PyTop10.__name__.lower(): Type4PyTop10,
+    HiTyperType4PyTop10.__name__.lower(): HiTyperType4PyTop10,
 }
 
 
@@ -40,9 +27,9 @@ __all__ = [
     "MyPy",
     "PyreInfer",
     "PyreQuery",
-    "TypeWriter",
-    "Type4PyN10",
-    "HiTyper",
+    "TypeWriterTop10",
+    "Type4PyTop10",
+    "HiTyperType4PyTop10",
     "SUPPORTED_TOOLS",
     "factory",
 ]

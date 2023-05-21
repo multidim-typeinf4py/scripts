@@ -116,19 +116,13 @@ class DatasetFolderStructure(enum.Enum):
 
 
 class Inference(abc.ABC):
-    cache_storage: dict[pathlib.Path, typing.Any]
-
     def __init__(
         self,
-        cache: Optional[pathlib.Path],
     ) -> None:
         super().__init__()
-        self.cache = cache.resolve() if cache else None
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.DEBUG)
-
-        self.cache_storage: dict[pathlib.Path, typing.Any] = dict()
 
     @abc.abstractmethod
     def infer(
@@ -171,51 +165,6 @@ class Inference(abc.ABC):
         for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
             self.logger.removeHandler(hdlr=handler)
 
-    def register_cache(self, relative: pathlib.Path, data: typing.Any) -> None:
-        if not self.cache:
-            self.logger.info(
-                f"Cache path was not supplied, skipping registration for {relative}..."
-            )
-        else:
-            assert relative not in self.cache_storage
-            self.cache_storage[relative] = data
-
-    def _write_cache(self) -> None:
-        if not self.cache_storage:
-            self.logger.info("Did not create any cacheables, skipping caching")
-            return
-
-        if not self.cache:
-            self.logger.warning(
-                "Cache is not empty, but Cache path was not supplied, skipping writing cache..."
-            )
-
-        else:
-            outpath = self._cache_path()
-            outpath.parent.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Writing {self.method}'s cache to {outpath}")
-
-            with outpath.open("wb") as f:
-                pickle.dump(self.cache_storage, f)
-
-    def _load_cache(self) -> dict[pathlib.Path, typing.Any]:
-        if not self.cache:
-            self.logger.warning("Cache path was not supplied, assuming empty collection")
-            return dict()
-
-        inpath = self._cache_path()
-        self.logger.info(f"Loading cache from {inpath}")
-
-        try:
-            with inpath.open("rb") as f:
-                return pickle.load(f)
-        except FileNotFoundError:
-            self.logger.warning("Cache not found, assuming empty collection")
-            return dict()
-
-    def _cache_path(self) -> pathlib.Path:
-        return self.cache / self.method
-
     @property
     @abc.abstractmethod
     def method(self) -> str:
@@ -235,16 +184,12 @@ class ProjectWideInference(Inference):
             if subset is not None:
                 subset = {s for s in subset if (mutable / s).is_file()}
             else:
-                subset = set(
-                    map(
-                        lambda r: pathlib.Path(r).relative_to(mutable),
-                        codemod.gather_files([str(mutable)]),
-                    )
-                )
+                subset = set(map(
+                    lambda r: pathlib.Path(r).relative_to(mutable),
+                    codemod.gather_files([str(mutable)])
+                ))
 
             inferred = self._infer_project(mutable, subset)
-            self._write_cache()
-
             self.logger.info("Inference completed")
             return inferred
 
@@ -278,7 +223,6 @@ class PerFileInference(Inference):
                 reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
                 updates.append(reldf)
 
-            self._write_cache()
             self.logger.info("Inference completed")
 
             if updates:

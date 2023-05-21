@@ -239,27 +239,22 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
         ).visit(Typewriter2Annotations(self.context, parameters, arguments, self.logger))
 
 
-class TypeWriter(ProjectWideInference):
+class _TypeWriter(ProjectWideInference):
     method = "typewriter"
 
-    _MODEL_DIR = pathlib.Path("models") / "typewriter"
-
-    def __init__(self, cache: Optional[pathlib.Path], topn: int):
-        super().__init__(cache)
+    def __init__(self, model_path: pathlib.Path, topn: int):
+        super().__init__()
         self.topn = topn
+        self.model_path = model_path
 
-        self.w2v_token_model = Word2Vec.load(str(TypeWriter._MODEL_DIR / "w2v_token_model.bin"))
-        self.w2v_comments_model = Word2Vec.load(
-            str(TypeWriter._MODEL_DIR / "w2v_comments_model.bin")
-        )
+        self.w2v_token_model = Word2Vec.load(str(self.model_path / "w2v_token_model.bin"))
+        self.w2v_comments_model = Word2Vec.load(str(self.model_path / "w2v_comments_model.bin"))
 
         self.tw_model = torch.load(
-            TypeWriter._MODEL_DIR / "tw_pretrained_model_combined.pt",
+            self.model_path / "tw_pretrained_model_combined.pt",
             map_location=device,
         )
-        self.label_encoder = pickle.load(
-            open(join(TypeWriter._MODEL_DIR, "label_encoder.pkl"), "rb")
-        )
+        self.label_encoder = pickle.load(open(join(self.model_path, "label_encoder.pkl"), "rb"))
 
         if not torch.cuda.is_available():
             self.tw_model = self.tw_model.module
@@ -362,7 +357,7 @@ class TypeWriter(ProjectWideInference):
                 ]
             )
 
-            df_avl_types = pd.read_csv(join(TypeWriter._MODEL_DIR, "top_999_types.csv"))
+            df_avl_types = pd.read_csv(join(self.model_path, "top_999_types.csv"))
             ext_funcs_df_params, ext_funcs_df_ret = encode_aval_types_TW(
                 ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
             )
@@ -580,3 +575,28 @@ class Typewriter2Annotations(libcst.codemod.ContextAwareTransformer):
                 )
         else:
             return libcst.Annotation(annotation=libcst.parse_expression(annotation))
+
+
+class _TypeWriterTopN(_TypeWriter):
+    def __init__(self, topn: int):
+        super().__init__(model_path=pathlib.Path("models") / "typewriter", topn=topn)
+
+
+class TypeWriterTop1(_TypeWriterTopN):
+    def __init__(self):
+        super().__init__(topn=1)
+
+
+class TypeWriterTop3(_TypeWriterTopN):
+    def __init__(self):
+        super().__init__(topn=3)
+
+
+class TypeWriterTop5(_TypeWriterTopN):
+    def __init__(self):
+        super().__init__(topn=5)
+
+
+class TypeWriterTop10(_TypeWriterTopN):
+    def __init__(self):
+        super().__init__(topn=10)
