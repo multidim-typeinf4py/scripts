@@ -14,7 +14,7 @@ pandas = "1.5.2"
 pandera = {extras = ["mypy"], version = "^0.13.4"}
 pydantic = "^1.10.2"
 pyre-check = "^0.9.17"
-python = "^3.9"
+python = "^3.10"
 
 type4py = {git = "https://github.com/multidim-typeinf4py/type4py.git", branch = "compat/fixes"}
 hityper = {git = "https://github.com/multidim-typeinf4py/HiTyper.git"}
@@ -25,6 +25,8 @@ types-requests = "^2.28.11.5"
 typewriter = {git = "https://github.com/multidim-typeinf4py/typewriter.git", branch = "feature/dltinproj"}
 ray = "^2.3.1"
 annoy = "^1.17.2"
+typet5 = {git = "https://github.com/multidim-typeinf4py/TypeT5.git"}
+ipywidgets = "^8.0.6"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.12.0"
