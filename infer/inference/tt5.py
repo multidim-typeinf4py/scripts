@@ -6,27 +6,28 @@ import torch
 from typet5.model import ModelWrapper
 from typet5.train import PreprocessArgs
 from typet5.utils import *
+
 from typet5.function_decoding import (
     RolloutCtx,
     PreprocessArgs,
     DecodingOrders,
-    RolloutPrediction,
+    RolloutPredictionTopN,
     SignatureMap,
+    SignatureMapTopN,
+)
+from typet5.train import (
+    TrainingConfig,
+    DecodingArgs,
 )
 from typet5.static_analysis import (
     FunctionSignature,
     VariableSignature,
     ProjectPath,
+    PythonProject,
 )
 
 import libcst
-from libcst.codemod.visitors._apply_type_annotations import (
-    Annotations,
-    FunctionKey,
-    FunctionAnnotation,
-)
 from libcst import codemod, helpers as h, metadata, matchers as m
-from typet5.static_analysis import PythonProject
 import pandera.typing as pt
 
 from common.schemas import InferredSchema
@@ -36,7 +37,7 @@ import utils
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    METADATA_DEPENDENCIES = (metadata.QualifiedNameProvider,)
+    METADATA_DEPENDENCIES = (metadata.QualifiedNameProvider, metadata.ScopeProvider, )
 
     def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
         super().__init__(context)
@@ -49,12 +50,21 @@ class TypeT5Applier(codemod.ContextAwareTransformer):
         prediction = self.predictions.get(
             ProjectPath(module=self.context.full_module_name, path=qname.name)
         )
+        if not prediction:
+            return original_node
 
+        assert isinstance(prediction, FunctionSignature), f"{type(prediction)=}"
         return prediction.apply(updated_node) if prediction is not None else updated_node
 
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
     ) -> libcst.Assign | libcst.AnnAssign:
+        if (scope := self.get_metadata(metadata.ScopeProvider, original_node)) is None:
+            return original_node
+
+        if not isinstance(scope, metadata.GlobalScope | metadata.ClassScope):
+            return original_node
+
         if len(original_node.targets) != 1 or not self.matches(
             original_node.targets[0], m.AssignTarget(m.Name() | m.Attribute(value=m.Name("self")))
         ):
@@ -73,17 +83,39 @@ class TypeT5Applier(codemod.ContextAwareTransformer):
             return original_node
 
         assert isinstance(prediction, VariableSignature)
-        return libcst.AnnAssign(target=t, annotation=prediction.annot)
+        return libcst.AnnAssign(target=t, annotation=prediction.annot, value=original_node.value)
 
 
-class TypeT5(ProjectWideInference):
-    def __init__(self) -> None:
+class TypeT5Configs:
+    Default = TrainingConfig(
+        func_only=True,
+        pre_args=PreprocessArgs(
+            drop_env_types=False,
+            add_implicit_rel_imports=True,
+        ),
+        left_margin=2048,
+        right_margin=2048 - 512,
+        preamble_size=1000,
+    )
+
+
+class _TypeT5(ProjectWideInference):
+    def __init__(self, topn: int) -> None:
         super().__init__()
         self.wrapper = ModelWrapper.load_from_hub("MrVPlusOne/TypeT5-v7")
+        self.wrapper.args = DecodingArgs(
+            sampling_max_tokens=TypeT5Configs.Default.ctx_size,
+            ctx_args=TypeT5Configs.Default.dec_ctx_args(),
+            do_sample=False,
+            top_p=1.0,
+            num_beams=16,
+        )
         self.wrapper.to(torch.device(f"cuda" if torch.cuda.is_available() else "cpu"))
 
+        self.topn = topn
+
     def method(self) -> str:
-        return "typet5"
+        return f"TypeT5TopN{self.topn}"
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -91,28 +123,67 @@ class TypeT5(ProjectWideInference):
         project = PythonProject.parse_from_root(root=mutable)
         rctx = RolloutCtx(model=self.wrapper)
 
-        rollout: RolloutPrediction = asyncio.run(
+        rollout: RolloutPredictionTopN = asyncio.run(
             rctx.run_on_project(
-                project, pre_args=PreprocessArgs(), decode_order=DecodingOrders.DoubleTraversal()
+                project,
+                pre_args=PreprocessArgs(),
+                decode_order=DecodingOrders.DoubleTraversal(),
+                num_return_sequences=self.topn,
             )
         )
-        self.logger.debug(pprint.pprint(rollout.final_sigmap))
 
-        res = codemod.parallel_exec_transform_with_prettyprint(
-            transform=TypeT5Applier(
-                context=codemod.CodemodContext(),
-                predictions=rollout.final_sigmap,
-            ),
-            jobs=utils.worker_count(),
-            repo_root=str(mutable),
-            files=[str(mutable / f) for f in subset],
-        )
-        self.logger.info(
-            utils.format_parallel_exec_result(f"Annotated with TypeT5 @ topn={1}", result=res)
-        )
+        pprint.pprint(rollout.final_sigmap)
 
+        collections = []
+        for topn, batch in enumerate(_batchify(rollout.final_sigmap, self.topn), start=1):
+            with utils.scratchpad(mutable) as sc:
+                res = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeT5Applier(
+                        context=codemod.CodemodContext(),
+                        predictions=batch,
+                    ),
+                    jobs=utils.worker_count(),
+                    repo_root=str(sc),
+                    files=[str(sc / f) for f in subset],
+                )
+                self.logger.info(
+                    utils.format_parallel_exec_result(
+                        f"Annotated with TypeT5 @ topn={topn}", result=res
+                    )
+                )
+
+                collected = build_type_collection(root=sc, allow_stubs=False, subset=subset).df
+                collections.append(collected.assign(topn=topn))
         return (
-            build_type_collection(root=mutable, allow_stubs=False, subset=subset)
-            .df.assign(method=self.method(), topn=1)
+            pd.concat(collections, ignore_index=True)
+            .assign(method=self.method())
             .pipe(pt.DataFrame[InferredSchema])
         )
+
+
+def _batchify(predictions: SignatureMapTopN, maxn: int) -> Generator[SignatureMap, None, None]:
+    for n in range(maxn):
+        yield SignatureMap({
+            project_path: signatures[n]
+            for project_path, signatures in predictions.items()
+        })
+
+
+class TypeT5Top1(_TypeT5):
+    def __init__(self) -> None:
+        super().__init__(topn=1)
+
+
+class TypeT5Top3(_TypeT5):
+    def __init__(self) -> None:
+        super().__init__(topn=3)
+
+
+class TypeT5Top5(_TypeT5):
+    def __init__(self) -> None:
+        super().__init__(topn=5)
+
+
+class TypeT5Top10(_TypeT5):
+    def __init__(self) -> None:
+        super().__init__(topn=10)
