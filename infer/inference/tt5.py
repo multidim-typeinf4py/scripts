@@ -1,6 +1,5 @@
 import asyncio
 import pathlib
-import pprint
 import torch
 
 from typet5.model import ModelWrapper
@@ -25,7 +24,7 @@ from typet5.static_analysis import (
 from typet5.experiments import utils as typet5_utils
 
 import libcst
-from libcst import codemod, metadata
+from libcst import codemod
 import pandera.typing as pt
 
 from common.schemas import InferredSchema
