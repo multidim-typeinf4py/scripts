@@ -2,13 +2,10 @@ import abc
 import collections
 import enum
 import json
-import logging
-import tqdm
 import pathlib
 from dataclasses import dataclass
 from typing import Optional
 
-from hityper.utils import transformType4PyRecommendations
 import hityper.__main__ as htm
 import libcst
 import pandas as pd
@@ -34,7 +31,7 @@ from infer.inference.t4py import PTType4Py
 import utils
 from common.schemas import InferredSchema
 from symbols.collector import build_type_collection
-from ._base import Inference, ProjectWideInference
+from ._base import ProjectWideInference
 
 
 @dataclass
