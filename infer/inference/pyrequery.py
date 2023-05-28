@@ -25,7 +25,8 @@ import utils
 
 
 class PyreQuery(PerFileInference):
-    method = "pyre-query"
+    def method(self) -> str:
+        return "pyre-query"
 
     def infer(
         self,
@@ -97,7 +98,7 @@ class PyreQuery(PerFileInference):
         ).assign(file=str(relative))
         df = ast_helper.generate_qname_ssas_for_file(df)
 
-        return df.assign(method=self.method, topn=1).pipe(pt.DataFrame[InferredSchema])
+        return df.assign(method=self.method(), topn=1).pipe(pt.DataFrame[InferredSchema])
 
 
 class _PyreQuery2Annotations(

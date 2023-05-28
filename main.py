@@ -2,10 +2,10 @@ import logging
 import sys
 import click
 
-import context
-import dataset
-import logregr
-import harness
+#import context
+#import dataset
+#import logregr
+#import harness
 import infer
 import srcdiff
 # import hintdiff
@@ -22,17 +22,17 @@ if __name__ == "__main__":
 
     logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
     logging.info(f"{utils.worker_count()=}")
-    logging.info(f"{sys.path=}")
+    # logging.info(f"{sys.path=}")
 
     main = click.Group(
         commands=[
-            context.cli_entrypoint,
+            #context.cli_entrypoint,
             infer.cli_entrypoint,
-            harness.cli_entrypoint,
-            dataset.cli_entrypoint,
+            #harness.cli_entrypoint,
+            #dataset.cli_entrypoint,
             # symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
-            logregr.cli_entrypoint,
+            #logregr.cli_entrypoint,
         ]
     )
     main()

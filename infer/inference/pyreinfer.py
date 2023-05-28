@@ -12,7 +12,8 @@ from ._base import ProjectWideInference
 
 
 class PyreInfer(ProjectWideInference):
-    method = "pyre-infer"
+    def method(self) -> str:
+        return "pyre-infer"
 
     _OUTPUT_DIR = ".pyre-stubs"
 
@@ -60,6 +61,6 @@ class PyreInfer(ProjectWideInference):
 
             return (
                 _adaptors.stubs2df(mutable / PyreInfer._OUTPUT_DIR / "types", subset=subset)
-                .assign(method=self.method, topn=1)
+                .assign(method=self.method(), topn=1)
                 .pipe(pt.DataFrame[InferredSchema])
             )

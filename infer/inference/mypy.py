@@ -14,7 +14,8 @@ from common.schemas import InferredSchema
 
 
 class MyPy(ProjectWideInference):
-    method = "mypy"
+    def method(self) -> str:
+        return "mypy"
 
     _OUTPUT_DIR = ".mypy-stubs"
 
@@ -58,7 +59,7 @@ class MyPy(ProjectWideInference):
             if (mutable / MyPy._OUTPUT_DIR).is_dir():
                 return (
                     _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
-                    .assign(method=self.method, topn=1)
+                    .assign(method=self.method(), topn=1)
                     .pipe(pt.DataFrame[InferredSchema])
                 )
             return InferredSchema.example(size=0)

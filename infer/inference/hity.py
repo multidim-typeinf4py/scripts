@@ -262,7 +262,7 @@ class HiTyper(ProjectWideInference):
                 )
         return (
             pd.concat(collections, ignore_index=True)
-            .assign(method=self.method)
+            .assign(method=self.method())
             .pipe(pt.DataFrame[InferredSchema])
         )
 
@@ -370,7 +370,6 @@ class _HiTyperType4PyTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(Type4Py2HiTyper(model_path=pathlib.Path("models") / "type4py", topn=topn))
 
-    @property
     def method(self) -> str:
         return f"HiTyperType4PyN{self.model.topn}"
 

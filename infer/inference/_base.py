@@ -165,7 +165,6 @@ class Inference(abc.ABC):
         for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
             self.logger.removeHandler(hdlr=handler)
 
-    @property
     @abc.abstractmethod
     def method(self) -> str:
         pass

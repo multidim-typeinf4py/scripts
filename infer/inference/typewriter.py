@@ -240,7 +240,8 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
 
 
 class _TypeWriter(ProjectWideInference):
-    method = "typewriter"
+    def method(self) -> str:
+        return f"typewriterN{self.topn}"
 
     def __init__(self, model_path: pathlib.Path, topn: int):
         super().__init__()
@@ -296,7 +297,7 @@ class _TypeWriter(ProjectWideInference):
                 )
         return (
             pd.concat(collections, ignore_index=True)
-            .assign(method=self.method)
+            .assign(method=self.method())
             .pipe(pt.DataFrame[InferredSchema])
         )
 
