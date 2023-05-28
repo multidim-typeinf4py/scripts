@@ -20,14 +20,14 @@ from typet5.train import (
     DecodingArgs,
 )
 from typet5.static_analysis import (
-    FunctionSignature,
-    VariableSignature,
-    ProjectPath,
     PythonProject,
+)
+from typet5.experiments.utils import (
+    apply_sigmap,
 )
 
 import libcst
-from libcst import codemod, helpers as h, metadata, matchers as m
+from libcst import codemod, metadata
 import pandera.typing as pt
 
 from common.schemas import InferredSchema
@@ -37,53 +37,18 @@ import utils
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    METADATA_DEPENDENCIES = (metadata.QualifiedNameProvider, metadata.ScopeProvider, )
-
     def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
         super().__init__(context)
         self.predictions = predictions
 
-    def leave_FunctionDef(
-        self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
-    ) -> libcst.FunctionDef:
-        qname = next(iter(self.get_metadata(metadata.QualifiedNameProvider, original_node)))
-        prediction = self.predictions.get(
-            ProjectPath(module=self.context.full_module_name, path=qname.name)
+    def leave_Module(
+        self, original_node: libcst.Module, updated_node: libcst.Module
+    ) -> libcst.Module:
+        return apply_sigmap(
+            m=original_node,
+            sigmap=self.predictions,
+            module_name=self.context.full_module_name,
         )
-        if not prediction:
-            return original_node
-
-        assert isinstance(prediction, FunctionSignature), f"{type(prediction)=}"
-        return prediction.apply(updated_node) if prediction is not None else updated_node
-
-    def leave_Assign(
-        self, original_node: libcst.Assign, updated_node: libcst.Assign
-    ) -> libcst.Assign | libcst.AnnAssign:
-        if (scope := self.get_metadata(metadata.ScopeProvider, original_node)) is None:
-            return original_node
-
-        if not isinstance(scope, metadata.GlobalScope | metadata.ClassScope):
-            return original_node
-
-        if len(original_node.targets) != 1 or not self.matches(
-            original_node.targets[0], m.AssignTarget(m.Name() | m.Attribute(value=m.Name("self")))
-        ):
-            return original_node
-
-        t = original_node.targets[0].target
-
-        if self.matches(t, m.Attribute()):
-            path = h.get_full_name_for_node_or_raise(t.attr)
-        else:
-            path = h.get_full_name_for_node_or_raise(t)
-        prediction = self.predictions.get(
-            ProjectPath(module=self.context.full_module_name, path=path)
-        )
-        if not prediction:
-            return original_node
-
-        assert isinstance(prediction, VariableSignature)
-        return libcst.AnnAssign(target=t, annotation=prediction.annot, value=original_node.value)
 
 
 class TypeT5Configs:
@@ -132,8 +97,6 @@ class _TypeT5(ProjectWideInference):
             )
         )
 
-        pprint.pprint(rollout.final_sigmap)
-
         collections = []
         for topn, batch in enumerate(_batchify(rollout.final_sigmap, self.topn), start=1):
             with utils.scratchpad(mutable) as sc:
@@ -163,10 +126,9 @@ class _TypeT5(ProjectWideInference):
 
 def _batchify(predictions: SignatureMapTopN, maxn: int) -> Generator[SignatureMap, None, None]:
     for n in range(maxn):
-        yield SignatureMap({
-            project_path: signatures[n]
-            for project_path, signatures in predictions.items()
-        })
+        yield SignatureMap(
+            {project_path: signatures[n] for project_path, signatures in predictions.items()}
+        )
 
 
 class TypeT5Top1(_TypeT5):
