@@ -119,7 +119,7 @@ def cli_entrypoint(
         author_repo = f"{ar['author']}.{ar['repo']}"
         outdir = output.inference_output_path(
             outpath / author_repo,
-            tool=inference_tool.method,
+            tool=inference_tool.method(),
             removed=removing,
             inferred=inferring,
         )
@@ -158,7 +158,7 @@ def cli_entrypoint(
             with multiprocessing.Manager() as manager:
                 d: dict = manager.dict()
                 p = multiprocessing.Process(
-                    target=lambda t, m, r, s: d.update({t.method: t.infer(m, r, s)}),
+                    target=lambda t, m, r, s: d.update({t.method(): t.infer(m, r, s)}),
                     args=(inference_tool, sc, inpath, subset),
                 )
                 p.start()
@@ -173,7 +173,7 @@ def cli_entrypoint(
                     p.join()
                     continue
 
-                inferred = d[inference_tool.method]
+                inferred = d[inference_tool.method()]
             print(f"Writing results to {outdir}")
             if outdir.is_dir() and overwrite:
                 shutil.rmtree(outdir)
