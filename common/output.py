@@ -49,7 +49,7 @@ def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> N
 
 
 def read_inferred(
-        inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
+    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
 ) -> pt.DataFrame[InferredSchema]:
     outpath = inference_output_path(inpath, tool, removed)
     ipath = inferred_path(outpath)
@@ -59,11 +59,14 @@ def read_inferred(
 
 
 def inference_output_path(
-        inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory], inferred: list[TypeCollectionCategory]
+    inpath: pathlib.Path,
+    tool: str,
+    removed: list[TypeCollectionCategory],
+    inferred: list[TypeCollectionCategory],
 ) -> pathlib.Path:
     removed_names = ",".join(map(str, removed))
     inferred_names = ",".join(map(str, inferred))
-    return inpath.parent / f"{inpath.name}@({tool})-[{removed_names}]+[{inferred_names}]"
+    return inpath.parent / f"{tool}@[{removed_names}]+[{inferred_names}]" / f"{inpath.name}"
 
 
 def dataset_output_path(inpath: pathlib.Path, author_repo: str) -> pathlib.Path:
@@ -71,7 +74,9 @@ def dataset_output_path(inpath: pathlib.Path, author_repo: str) -> pathlib.Path:
     return inpath / f"{author_repo}.csv"
 
 
-def write_dataset(inpath: pathlib.Path, author_repo: str, df: pt.DataFrame[TypeCollectionSchema]) -> None:
+def write_dataset(
+    inpath: pathlib.Path, author_repo: str, df: pt.DataFrame[TypeCollectionSchema]
+) -> None:
     opath = dataset_output_path(inpath, author_repo)
     print(f"Writing results to {opath}")
     opath.parent.mkdir(parents=True, exist_ok=True)
