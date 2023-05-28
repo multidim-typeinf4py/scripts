@@ -7,6 +7,7 @@ from .pyrequery import PyreQuery
 from .hity import HiTyperType4PyTop10
 from .typewriter import TypeWriterTop10
 from .t4py import Type4PyTop10
+from .tt5 import TypeT5Top10
 
 SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
@@ -15,6 +16,7 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     TypeWriterTop10.__name__.lower(): TypeWriterTop10,
     Type4PyTop10.__name__.lower(): Type4PyTop10,
     HiTyperType4PyTop10.__name__.lower(): HiTyperType4PyTop10,
+    TypeT5Top10.__name__.lower(): TypeT5Top10,
 }
 
 

@@ -22,9 +22,7 @@ from typet5.train import (
 from typet5.static_analysis import (
     PythonProject,
 )
-from typet5.experiments.utils import (
-    apply_sigmap,
-)
+from typet5.experiments import utils as typet5_utils
 
 import libcst
 from libcst import codemod, metadata
@@ -44,7 +42,7 @@ class TypeT5Applier(codemod.ContextAwareTransformer):
     def leave_Module(
         self, original_node: libcst.Module, updated_node: libcst.Module
     ) -> libcst.Module:
-        return apply_sigmap(
+        return typet5_utils.apply_sigmap(
             m=original_node,
             sigmap=self.predictions,
             module_name=self.context.full_module_name,

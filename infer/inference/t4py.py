@@ -151,7 +151,6 @@ class _Type4Py(ProjectWideInference):
         self.topn = topn
         self.pretrained = PTType4Py(model_path, topn=topn)
 
-    @property
     def method(self) -> str:
         return f"type4pyN{self.topn}"
 
@@ -215,7 +214,7 @@ class _Type4Py(ProjectWideInference):
 
         return (
             pd.concat(collections, ignore_index=True)
-            .assign(method=self.method)
+            .assign(method=self.method())
             .pipe(pt.DataFrame[InferredSchema])
         )
 
