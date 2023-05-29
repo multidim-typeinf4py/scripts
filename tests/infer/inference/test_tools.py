@@ -6,8 +6,10 @@ from common.schemas import InferredSchema, TypeCollectionSchema
 from infer.inference import PyreInfer, PyreQuery, MyPy
 from infer.inference.t4py import Type4PyTop3
 from infer.inference.typewriter import TypeWriterTop3
-from infer.inference.hity import HiTyperType4PyTop3
+from infer.inference.hit4py import HiTyperType4PyTop3
+from infer.inference.hitypilus import HiTyperTypilusTop3
 from infer.inference.tt5 import TypeT5Top3
+from infer.inference.typilus import TypilusTop3
 from infer.inference import Inference
 
 from ._utils import Project, example_project, ProjectSubset, example_project_subset
@@ -20,7 +22,9 @@ tools = [
     (Type4PyTop3(), 3),
     (HiTyperType4PyTop3(), 3),
     (TypeWriterTop3(), 3),
-    (TypeT5Top3(), 3)
+    (TypeT5Top3(), 3),
+    (TypilusTop3(), 3),
+    (HiTyperTypilusTop3(), 3),
 ]
 
 
