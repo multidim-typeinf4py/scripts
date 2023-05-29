@@ -1,25 +1,21 @@
 import json
 import pathlib
-import pprint
 import typing
-from infer.inference._base import ProjectWideInference
-
-import pandas as pd
-import pandera.typing as pt
-from common.schemas import InferredSchema
-
-from dpu_utils.utils import RichPath
-
-from data_preparation.scripts.graph_generator import extract_graphs
-from typilus.model import model_restore_helper
-from typilus.utils.predict import ignore_annotation
-from type_check import annotater
 
 import libcst
+import pandas as pd
+import pandera.typing as pt
+from data_preparation.scripts.graph_generator import extract_graphs
+from dpu_utils.utils import RichPath
 from libcst import codemod
+from type_check import annotater
+from typilus.model import model_restore_helper
+from typilus.utils.predict import ignore_annotation
 
-from symbols.collector import build_type_collection
 import utils
+from common.schemas import InferredSchema
+from infer.inference._base import ProjectWideInference
+from symbols.collector import build_type_collection
 
 
 class TypilusAnnotator(annotater.Annotater):
@@ -69,6 +65,7 @@ class TypilusPrediction(typing.TypedDict):
     node_id: int
     original_annotation: str
     predicted_annotation_logprob_dist: list[tuple[str, float]]
+    provenance: str
 
 
 class Typilus(ProjectWideInference):
@@ -103,7 +100,7 @@ class Typilus(ProjectWideInference):
         # Predict over transformed dataset
         pred_path = self.predict(
             dataset=test_dataset_path,
-            predictions=mutable / ".predictions.json.gz",
+            predictions_out=mutable / "typilus-predictions.json.gz",
         )
 
         # Apply annotations
@@ -125,7 +122,7 @@ class Typilus(ProjectWideInference):
         )
         return RichPath.create(path=str(test_dataset))
 
-    def predict(self, dataset: RichPath, predictions: pathlib.Path) -> RichPath:
+    def predict(self, dataset: RichPath, predictions_out: pathlib.Path) -> RichPath:
         ps = []
 
         chunks = dataset.get_filtered_files_in_dir("*.jsonl.gz")
@@ -153,7 +150,7 @@ class Typilus(ProjectWideInference):
 
             ps.append(annotation_dict)
 
-        output = RichPath.create(str(predictions))
+        output = RichPath.create(str(predictions_out))
         output.save_as_compressed_file(ps)
         return output
 
@@ -199,7 +196,7 @@ class Typilus(ProjectWideInference):
 
 class _TypilusTopN(Typilus):
     def __init__(self, topn: int) -> None:
-        super().__init__(model_folder=pathlib.Path.cwd() / "models" / "typilus", topn=topn)
+        super().__init__(model_folder=pathlib.Path("models") / "typilus", topn=topn)
 
 
 class TypilusTop1(_TypilusTopN):

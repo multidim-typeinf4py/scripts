@@ -4,7 +4,7 @@ from .mypy import MyPy
 from .pyreinfer import PyreInfer
 from .pyrequery import PyreQuery
 
-from .hity import HiTyperType4PyTop10
+from .hit4py import HiTyperType4PyTop10
 from .typewriter import TypeWriterTop10
 from .t4py import Type4PyTop10
 from .tt5 import TypeT5Top10
