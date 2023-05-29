@@ -27,7 +27,7 @@ class TypilusAnnotator(annotater.Annotater):
         super().__init__(
             tc=None,
             ppath=ppath,
-            granularity=None,
+            granularity="var",
             typing_rules=typing_rules,
         )
 
@@ -110,7 +110,7 @@ class Typilus(ProjectWideInference):
         return self.annotate_and_collect(mutable, subset, pred_path)
 
     def repo_to_dataset(self, repo: pathlib.Path) -> RichPath:
-        test_dataset = repo / ".test-dataset"
+        test_dataset = repo / "inference-dataset"
 
         with (duplicates := repo / "dummies.json.gz").open("w") as f:
             json.dump({}, f)
@@ -123,7 +123,7 @@ class Typilus(ProjectWideInference):
                 "TYPING_RULES": str(self.typing_rules),
             }
         )
-        return RichPath.create(path=str(repo / "inference-dataset"))
+        return RichPath.create(path=str(test_dataset))
 
     def predict(self, dataset: RichPath, predictions: pathlib.Path) -> RichPath:
         ps = []
