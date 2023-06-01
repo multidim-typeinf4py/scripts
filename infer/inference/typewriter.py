@@ -460,8 +460,8 @@ class _TypeWriter(ProjectWideInference):
                 param = ext_funcs_df_params["arg_name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                self.logger.debug(f"{fname}: {param} -> {p}")
+                #p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
+                #self.logger.debug(f"{fname}: {param} -> {p}")
 
                 param_inf.append((fname, param, predictions))
 
@@ -476,8 +476,8 @@ class _TypeWriter(ProjectWideInference):
                 fname = ext_funcs_df_ret["name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                self.logger.debug(f"{fname} -> {p}")
+                # p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
+                #self.logger.debug(f"{fname} -> {p}")
 
                 ret_inf.append((fname, predictions))
 
@@ -507,7 +507,7 @@ class Typewriter2Annotations(libcst.codemod.ContextAwareTransformer):
         parameters: list[Parameter],
         returns: list[Return],
         logger: logging.Logger,
-    ):
+    ) -> None:
         super().__init__(context)
 
         self.parameters = parameters
@@ -566,14 +566,6 @@ class Typewriter2Annotations(libcst.codemod.ContextAwareTransformer):
         if annotation is None or annotation == "other":
             return None
 
-        import builtins, typing, pathlib
-
-        nongeneric, _, _ = annotation.partition("[")
-        for mod in (builtins, typing, pathlib):
-            if nongeneric in dir(mod):
-                return libcst.Annotation(
-                    annotation=libcst.parse_expression(f"{mod.__name__}.{annotation}")
-                )
         else:
             return libcst.Annotation(annotation=libcst.parse_expression(annotation))
 
