@@ -21,12 +21,12 @@ tools = [
     (PyreQuery(), 1),
     (MyPy(), 1),
     (Type4PyTop3(), 3),
-    (HiTyperType4PyTop3(), 3),
     (TypeWriterTop3(), 3),
     (TypeT5Top3(), 3),
     (TypilusTop3(), 3),
     (HiTyperTypilusTop3(), 3),
     (HiTyperTypeWriterTop3(), 3),
+    (HiTyperType4PyTop3(), 3),
 ]
 
 
