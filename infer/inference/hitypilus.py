@@ -6,6 +6,7 @@ import enum
 import gzip
 import itertools
 import json
+import math
 import operator
 import pathlib
 from typing import Iterator
@@ -83,6 +84,8 @@ class TypilusHiTyperVisitor(NodeVisitor):
     def add_inferred(
         self, symbol: str, prediction: str, probability: float, kind: AnnotationKind
     ) -> None:
+        probability = math.exp(probability)
+
         match kind:
             case AnnotationKind.VAR:
                 assert hasattr(self.insertion_point, "variables_p")
