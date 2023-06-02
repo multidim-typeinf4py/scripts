@@ -6,8 +6,6 @@ import textwrap
 import typing
 from typing import Optional
 
-import libcst
-
 import pandas as pd
 import pandera.typing as pt
 import pytest
@@ -15,10 +13,10 @@ from libcst import codemod, metadata
 from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
 
-from common.ast_helper import generate_qname_ssas_for_file
-from common.schemas import TypeCollectionCategory, TypeCollectionSchema
-from infer.insertion import TypeAnnotationApplierTransformer
-from symbols.collector import TypeCollectorVisitor, build_type_collection
+from src.common import generate_qname_ssas_for_file
+from src.common import TypeCollectionCategory, TypeCollectionSchema
+from src.infer.insertion import TypeAnnotationApplierTransformer
+from src.symbols.collector import build_type_collection
 
 CodemodAnnotation = collections.namedtuple(
     typename="CodemodAnnotation",

@@ -1,16 +1,7 @@
-from common.schemas import TypeCollectionCategory, InferredSchema
-from icr.resolution._base import Metadata
-from icr.resolution.voting import (
+from src.common import TypeCollectionCategory, InferredSchema
+from src.icr.resolution._base import Metadata
+from src.icr import (
     SubtypeVoting,
-    Majority,
-    OF,
-    SF,
-    CF,
-    build_discussion_from_predictions,
-    compute_collective_decision,
-    compute_collective_labelling,
-    draw_profile,
-    const,
 )
 
 import pandera.typing as pt

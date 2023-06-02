@@ -5,8 +5,7 @@ from unittest import TestCase
 import libcst
 from libcst import metadata, matchers as m
 
-from common.metadata import anno4inst
-from common.metadata.anno4inst import Lowered, TrackedAnnotation
+from src.common.metadata.anno4inst import Lowered, TrackedAnnotation, anno4inst
 
 
 class LabelTesting(TestCase):

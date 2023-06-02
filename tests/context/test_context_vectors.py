@@ -4,9 +4,9 @@ import pandas as pd
 import pandera.typing as pt
 import pytest
 
-from common.schemas import ContextSymbolSchema
-from context.features import RelevantFeatures
-from context.visitors import generate_context_vectors_for_file
+from src.common import ContextSymbolSchema
+from src.context import RelevantFeatures
+from src.context import generate_context_vectors_for_file
 
 
 @pytest.fixture(scope="class")

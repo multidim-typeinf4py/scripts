@@ -5,23 +5,20 @@ import textwrap
 import typing
 from typing import Union
 
-import libcst
 import pandas as pd
 import pandera.typing as pt
 import pytest
-from libcst import codemod, matchers
-from libcst import metadata
-from libcst.metadata import FullyQualifiedNameProvider
+from libcst import codemod
 from pandas._libs import missing
 
-from common.ast_helper import generate_qname_ssas_for_file
-from common.schemas import (
+from src.common import generate_qname_ssas_for_file
+from src.common import (
     TypeCollectionSchema,
     TypeCollectionSchemaColumns,
     TypeCollectionCategory,
 )
-from common.storage import TypeCollection
-from symbols.collector import TypeCollectorVisitor, build_type_collection
+from src.common import TypeCollection
+from src.symbols.collector import build_type_collection
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pathlib
-from icr.resolution import Delegation, DelegationOrder
+from src.icr import Delegation, DelegationOrder
 
-from common.schemas import SymbolSchema, InferredSchema, TypeCollectionCategory
-from symbols.collector import build_type_collection
+from src.common import SymbolSchema, InferredSchema, TypeCollectionCategory
+from src.symbols.collector import build_type_collection
 
 from pandas._libs import missing
 import pandera.typing as pt
