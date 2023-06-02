@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import logging
 import os
@@ -220,6 +222,8 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
             self.context.metadata_manager.root_path
         )
 
+        if path not in self.paths2batches:
+            return tree
         topn_parameters, topn_arguments = self.paths2batches[path]
         parameters, arguments = topn_parameters[self.topn], topn_arguments[self.topn]
 
@@ -274,7 +278,7 @@ class _TypeWriter(ProjectWideInference):
                     ),
                     jobs=utils.worker_count(),
                     repo_root=str(sc),
-                    files=[sc / f for f in file2topnpreds],
+                    files=[sc / f for f in subset],
                 )
                 self.logger.info(
                     utils.format_parallel_exec_result(
@@ -283,7 +287,7 @@ class _TypeWriter(ProjectWideInference):
                 )
                 collections.append(
                     build_type_collection(
-                        root=sc, allow_stubs=False, subset=set(file2topnpreds.keys())
+                        root=sc, allow_stubs=False, subset=subset
                     ).df.assign(topn=topn)
                 )
         return (

@@ -131,6 +131,8 @@ class ParallelTypeApplier(codemod.ContextAwareTransformer):
             self.context.metadata_manager.root_path
         )
 
+        if path not in self.path2batches:
+            return tree
         batch = self.path2batches[path][self.topn]
 
         return metadata.MetadataWrapper(
