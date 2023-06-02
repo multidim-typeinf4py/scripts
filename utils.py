@@ -8,7 +8,7 @@ import shutil
 
 from libcst.codemod import ParallelTransformResult
 
-from common.schemas import InferredSchema, TypeCollectionSchema
+from src.common.schemas import InferredSchema, TypeCollectionSchema
 import pandera.typing as pt
 
 

@@ -4,16 +4,15 @@ import pandas as pd
 import pandera.typing as pt
 import pytest
 
-from common.schemas import ContextSymbolSchema
-from context.features import RelevantFeatures
-from context.visitors import generate_context_vectors_for_file
+from src.common.schemas import ContextSymbolSchema
+from src.context import RelevantFeatures
+from src.context import generate_context_vectors_for_file
 
 
 @pytest.fixture(scope="class")
 def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
-    repo = pathlib.Path.cwd() / "tests" / "context"
-
-    filepath = repo / "resource.py"
+    repo = pathlib.Path.cwd() / "tests" / "resources" / "context"
+    filepath = repo / "x.py"
 
     cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(

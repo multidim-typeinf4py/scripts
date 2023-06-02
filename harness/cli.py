@@ -3,7 +3,7 @@ import pathlib
 import click
 
 from .analyses import symbol_commonality, annotation_commonality
-from symbols.collector import build_type_collection
+from src.symbols.collector import build_type_collection
 
 
 @click.command(name="harness")

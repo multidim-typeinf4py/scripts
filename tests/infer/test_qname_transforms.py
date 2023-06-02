@@ -3,10 +3,10 @@ import textwrap
 
 from libcst import codemod
 
-from common.ast_helper import generate_qname_ssas_for_file
-from common.schemas import TypeCollectionCategory
+from src.common import generate_qname_ssas_for_file
+from src.common.schemas import TypeCollectionCategory
 
-from infer.qname_transforms import (
+from src.infer.qname_transforms import (
     QName2SSATransformer,
     SSA2QNameTransformer,
 )

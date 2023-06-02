@@ -1,7 +1,7 @@
 import pathlib
 import sys, os
 
-from symbols.collector import build_type_collection
+from src.symbols.collector import build_type_collection
 
 import tqdm
 

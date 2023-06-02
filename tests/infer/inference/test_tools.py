@@ -1,20 +1,19 @@
 import pandas as pd
 import pytest
 
-from common.schemas import InferredSchema, TypeCollectionSchema
+from src.common.schemas import InferredSchema, TypeCollectionSchema
 
-from infer.inference import PyreInfer, PyreQuery, MyPy
-from infer.inference.hitypewriter import HiTyperTypeWriterTop3
-from infer.inference.t4py import Type4PyTop3
-from infer.inference.typewriter import TypeWriterTop3
-from infer.inference.hit4py import HiTyperType4PyTop3
-from infer.inference.hitypilus import HiTyperTypilusTop3
-from infer.inference.tt5 import TypeT5Top3
-from infer.inference.typilus import TypilusTop3
-from infer.inference import Inference
+from src.infer.inference import PyreInfer, PyreQuery, MyPy
+from src.infer.inference.hitypewriter import HiTyperTypeWriterTop3
+from src.infer.inference.t4py import Type4PyTop3
+from src.infer.inference.typewriter import TypeWriterTop3
+from src.infer.inference.hit4py import HiTyperType4PyTop3
+from src.infer.inference.hitypilus import HiTyperTypilusTop3
+from src.infer.inference.tt5 import TypeT5Top3
+from src.infer.inference.typilus import TypilusTop3
+from src.infer.inference import Inference
 
-from ._utils import Project, example_project, ProjectSubset, example_project_subset
-
+from ._utils import Project, ProjectSubset, example_project, example_project_subset
 
 tools = [
     (PyreInfer(), 1),

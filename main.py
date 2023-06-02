@@ -1,13 +1,11 @@
 import logging
-import sys
 import click
 
 #import context
 #import dataset
 #import logregr
 #import harness
-import infer
-import srcdiff
+from src import infer, srcdiff
 # import hintdiff
 # import symbols
 
