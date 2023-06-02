@@ -24,7 +24,7 @@ UNPACKABLE_ELEMENT = (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
 class Recognition(libcst.MetadataDependent):
     ## AnnAssign
 
-    def instance_attribute_hint_targets(
+    def extract_instance_attribute_hint(
         self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
@@ -37,7 +37,7 @@ class Recognition(libcst.MetadataDependent):
 
         return None
 
-    def libsa4py_hint_targets(
+    def extract_libsa4py_hint(
         self,
         original_node: typing.Union[libcst.AnnAssign, libcst.Assign],
     ) -> Targets | None:
@@ -58,7 +58,7 @@ class Recognition(libcst.MetadataDependent):
 
         return None
 
-    def annotated_hint_targets(
+    def extract_annotated_hint(
         self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
@@ -70,7 +70,7 @@ class Recognition(libcst.MetadataDependent):
 
         return None
 
-    def annotated_assignment_targets(
+    def extract_annotated_assignment(
         self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
@@ -97,7 +97,7 @@ class Recognition(libcst.MetadataDependent):
 
         return None
 
-    def unannotated_assign_single_targets(
+    def extract_unannotated_assign_single_target(
         self,
         original_node: libcst.Assign,
     ) -> Targets | None:
@@ -115,7 +115,7 @@ class Recognition(libcst.MetadataDependent):
             return Targets.from_accesses(self.metadata, asstarget.target)
         return None
 
-    def unannotated_assign_multiple_targets(
+    def extract_unannotated_assign_multiple_targets(
         self,
         original_node: libcst.Assign,
     ) -> Targets | None:
@@ -145,7 +145,7 @@ class Recognition(libcst.MetadataDependent):
 
     ## AugAssign
 
-    def augassign_targets(
+    def extract_augassign(
         self,
         original_node: libcst.AugAssign,
     ) -> Targets:
@@ -156,7 +156,7 @@ class Recognition(libcst.MetadataDependent):
 
     ## For
 
-    def for_targets(
+    def extract_for(
         self,
         original_node: libcst.For,
     ) -> Targets:
@@ -344,7 +344,7 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self,
         original_node: libcst.Assign,
         target: typing.Union[libcst.Name, libcst.Attribute],
@@ -363,7 +363,7 @@ class Traverser(typing.Generic[T], abc.ABC):
         ...
 
     @abc.abstractmethod
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         original_node: typing.Union[libcst.Assign, libcst.AugAssign],
         target: typing.Union[libcst.Name, libcst.Attribute],

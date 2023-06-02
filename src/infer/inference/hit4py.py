@@ -10,7 +10,7 @@ from src.infer.inference.t4py import PTType4Py
 from ._hityper import ModelAdaptor, HiTyper
 
 
-class _Type4PyAdaptor(ModelAdaptor):
+class Type4PyAdaptor(ModelAdaptor):
     def __init__(self, model_path: pathlib.Path, topn: int) -> None:
         super().__init__(model_path)
         self.type4py = PTType4Py(pre_trained_model_path=model_path, topn=topn)
@@ -54,7 +54,7 @@ class _Type4PyAdaptor(ModelAdaptor):
 
 class _HiTyperType4PyTopN(HiTyper):
     def __init__(self, topn: int) -> None:
-        super().__init__(_Type4PyAdaptor(model_path=pathlib.Path("models") / "type4py", topn=topn))
+        super().__init__(Type4PyAdaptor(model_path=pathlib.Path("models") / "type4py", topn=topn))
 
     def method(self) -> str:
         return f"HiTyperType4PyN{self.adaptor.topn()}"

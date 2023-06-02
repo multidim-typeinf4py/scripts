@@ -14,7 +14,7 @@ from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
 
 from src.common import generate_qname_ssas_for_file
-from src.common import TypeCollectionCategory, TypeCollectionSchema
+from src.common.schemas import TypeCollectionCategory, TypeCollectionSchema
 from src.infer.insertion import TypeAnnotationApplierTransformer
 from src.symbols.collector import build_type_collection
 

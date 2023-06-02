@@ -4,7 +4,7 @@ import textwrap
 from libcst import codemod
 
 from src.common import generate_qname_ssas_for_file
-from src.common import TypeCollectionCategory
+from src.common.schemas import TypeCollectionCategory
 
 from src.infer.qname_transforms import (
     QName2SSATransformer,

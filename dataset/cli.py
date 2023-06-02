@@ -2,12 +2,11 @@ import click
 import pathlib
 import tqdm
 
-from symbols.collector import build_type_collection
+from src.symbols.collector import build_type_collection
 
-from infer.inference._base import DatasetFolderStructure
+from src.infer.inference._base import DatasetFolderStructure
 
-
-from common import output
+from src.common import output
 
 
 @click.command(name="dataset", help="Consume dataset into inference agnostic DataFrame")

@@ -14,7 +14,6 @@ class TypeCollectionCategory(enum.Enum):
     def __str__(self) -> str:
         return self.name
 
-
 class SymbolSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
@@ -26,7 +25,7 @@ class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
-TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
+# TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
 
 
 class InferredSchema(TypeCollectionSchema):
@@ -34,7 +33,7 @@ class InferredSchema(TypeCollectionSchema):
     topn: pt.Series[int] = pa.Field(ge=1)
 
 
-InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
+# InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
 
 
 class ContextCategory(enum.IntEnum):
@@ -72,4 +71,4 @@ class ContextDatasetSchema(pa.SchemaModel):
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 
 
-ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())
+# ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())

@@ -155,7 +155,7 @@ class _Type4Py(ProjectWideInference):
         return f"type4pyN{self.topn}"
 
     def _infer_project(
-        self, mutable: pathlib.Path, subset: typing.Optional[set[pathlib.Path]]
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
         proj_files = subset
 
@@ -199,7 +199,7 @@ class _Type4Py(ProjectWideInference):
                     ),
                     jobs=utils.worker_count(),
                     repo_root=str(sc),
-                    files=[str(sc / p) for p in paths2batches],
+                    files=[str(sc / p) for p in subset],
                 )
                 self.logger.info(
                     utils.format_parallel_exec_result(

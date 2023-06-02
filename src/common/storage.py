@@ -23,7 +23,6 @@ from .ast_helper import _stringify, generate_qname_ssas_for_project
 from .schemas import (
     TypeCollectionCategory,
     TypeCollectionSchema,
-    TypeCollectionSchemaColumns,
 )
 
 
@@ -34,22 +33,18 @@ class TypeCollection:
 
     @staticmethod
     def empty() -> TypeCollection:
-        return TypeCollection(
-            df=pd.DataFrame(columns=TypeCollectionSchemaColumns).pipe(
-                pt.DataFrame[TypeCollectionSchema]
-            )
-        )
+        return TypeCollection(df=TypeCollectionSchema.example(size=0))
 
     @staticmethod
     def from_annotations(
-        file: pathlib.Path, annotations: MultiVarAnnotations, strict: bool
+        file: pathlib.Path, annos: MultiVarAnnotations, strict: bool
     ) -> TypeCollection:
         from pandas._libs import missing
 
         filename = str(file)
 
         contents = list()
-        for fkey, fanno in annotations.functions.items():
+        for fkey, fanno in annos.functions.items():
             # NOTE: if fanno.returns is None, this is ACCURATE (for Python itself)!,
             # NOTE: However, in strict mode, we take this to be INACCURATE, as our primary objective
             # NOTE: is to denote missing coverage
@@ -82,7 +77,7 @@ class TypeCollection:
                     )
                 )
 
-        for qname, annos in annotations.attributes.items():
+        for qname, annos in annos.attributes.items():
             if annos:
                 for anno in annos:
                     contents.append(
@@ -104,11 +99,19 @@ class TypeCollection:
                     )
                 )
 
-        cs = [c for c in TypeCollectionSchemaColumns if c != TypeCollectionSchema.qname_ssa]
+        cs = [
+            TypeCollectionSchema.file,
+            TypeCollectionSchema.category,
+            TypeCollectionSchema.qname,
+            TypeCollectionSchema.anno,
+        ]
         df = pd.DataFrame(contents, columns=cs)
 
-        wqname_ssas: pd.DataFrame = df.pipe(generate_qname_ssas_for_project)
-        return TypeCollection(wqname_ssas.pipe(pt.DataFrame[TypeCollectionSchema]))
+        return TypeCollection(
+            df.pipe(generate_qname_ssas_for_project).pipe(
+                pt.DataFrame[TypeCollectionSchema]
+            )
+        )
 
     @staticmethod
     def to_libcst_annotations(
@@ -161,12 +164,18 @@ class TypeCollection:
         def functions() -> dict[FunctionKey, FunctionAnnotation]:
             fs: dict[FunctionKey, FunctionAnnotation] = {}
 
-            fs_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.CALLABLE_RETURN]
+            fs_df = df[
+                df[TypeCollectionSchema.category]
+                == TypeCollectionCategory.CALLABLE_RETURN
+            ]
             param_df = df[
-                df[TypeCollectionSchema.category] == TypeCollectionCategory.CALLABLE_PARAMETER
+                df[TypeCollectionSchema.category]
+                == TypeCollectionCategory.CALLABLE_PARAMETER
             ]
 
-            sep_df = param_df[TypeCollectionSchema.qname_ssa].str.rsplit(pat=".", n=1, expand=True)
+            sep_df = param_df[TypeCollectionSchema.qname_ssa].str.rsplit(
+                pat=".", n=1, expand=True
+            )
 
             if sep_df.empty:
                 sep_df = pd.DataFrame(columns=["fname", "argname"])
@@ -213,7 +222,9 @@ class TypeCollection:
 
         def variables() -> dict[str, cst.Annotation]:
             vs: dict[str, cst.Annotation] = {}
-            var_df = df[df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE]
+            var_df = df[
+                df[TypeCollectionSchema.category] == TypeCollectionCategory.VARIABLE
+            ]
 
             for qname, anno in var_df[
                 [TypeCollectionSchema.qname_ssa, TypeCollectionSchema.anno]
@@ -245,7 +256,6 @@ class TypeCollection:
         self.df.to_csv(
             path,
             index=False,
-            header=TypeCollectionSchemaColumns,
         )
 
     @pa.check_types

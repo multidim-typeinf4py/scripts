@@ -76,14 +76,14 @@ class _SSATransformer(
     ) -> t.Actions:
         return self.transform_target(target)
 
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self,
         assign: libcst.Assign,
         target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
         return self.transform_target(target)
 
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         assign: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],

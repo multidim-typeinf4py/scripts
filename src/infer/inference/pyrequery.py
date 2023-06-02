@@ -150,12 +150,12 @@ class _PyreQuery2Annotations(
     ) -> None:
         self._variable(target)
 
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self, original_node: libcst.Assign, target: Union[libcst.Name, libcst.Attribute]
     ) -> None:
         self._variable(target)
 
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         original_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],

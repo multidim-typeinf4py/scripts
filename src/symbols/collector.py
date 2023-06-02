@@ -181,7 +181,7 @@ class TypeCollectorVisitor(codemod.ContextAwareVisitor):
             ),
         ).visit(type_collector)
         update = TypeCollection.from_annotations(
-            file=file, annotations=type_collector.annotations, strict=self._strict
+            file=file, annos=type_collector.annotations, strict=self._strict
         )
 
         self.collection.merge_into(update)

@@ -12,10 +12,9 @@ from libcst import codemod
 from pandas._libs import missing
 
 from src.common import generate_qname_ssas_for_file
-from src.common import (
-    TypeCollectionSchema,
-    TypeCollectionSchemaColumns,
+from src.common.schemas import (
     TypeCollectionCategory,
+    TypeCollectionSchema,
 )
 from src.common import TypeCollection
 from src.symbols.collector import build_type_collection
@@ -143,9 +142,16 @@ def test_hints_found(
         (str(code_path.name), category, qname, qname_ssa, anno)
         for qname, qname_ssa, anno in hinted_symbols
     ]
-    hints_df: pt.DataFrame[TypeCollectionSchema] = pd.DataFrame(
-        hints, columns=TypeCollectionSchemaColumns
-    ).pipe(pt.DataFrame[TypeCollectionSchema])
+    hints_df = pt.DataFrame[TypeCollectionSchema](
+        hints,
+        columns=[
+            TypeCollectionSchema.file,
+            TypeCollectionSchema.category,
+            TypeCollectionSchema.qname,
+            TypeCollectionSchema.qname_ssa,
+            TypeCollectionSchema.anno,
+        ],
+    )
 
     print("Expected: ", hints_df, sep="\n")
     print(
@@ -709,7 +715,7 @@ class Test_HintTracking(AnnotationTracking):
     def test_bogus(self):
         """Collection of terms that at some point triggered when they shouldn't have"""
         df = self.performTracking(
-           """
+            """
            [nearest_points[(i, j)]] = nearest
            """
         )

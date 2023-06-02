@@ -135,7 +135,7 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
         return qname.name.replace(".<locals>.", ".")
 
 
-class _TypeWriterAdaptor(ModelAdaptor):
+class TypeWriterAdaptor(ModelAdaptor):
     def __init__(self, model_path: pathlib.Path, topn: int):
         super().__init__(model_path)
         self.typewriter = _TypeWriter(model_path, topn=topn)
@@ -190,7 +190,7 @@ class _TypeWriterAdaptor(ModelAdaptor):
 class _HiTyperTypeWriterTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(
-            _TypeWriterAdaptor(
+            TypeWriterAdaptor(
                 model_path=pathlib.Path("models") / "typewriter",
                 topn=topn,
             )

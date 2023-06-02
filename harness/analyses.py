@@ -1,6 +1,6 @@
 import dataclasses
 
-from common.schemas import TypeCollectionSchema
+from src.common import TypeCollectionSchema
 
 import pandas as pd
 import pandera.typing as pt

@@ -211,14 +211,14 @@ class MultiVarTypeCollector(
     ) -> None:
         ...
 
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self,
         original_node: libcst.Assign,
         target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._track_attribute_target(target)
 
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         original_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],
@@ -1043,7 +1043,7 @@ class ApplyTypeAnnotationsVisitor(
         if isinstance(updated_node, libcst.AnnAssign):
             return self._handle_annotated_target(updated_node, target)
         else:
-            return self.unannotated_assign_single_target(updated_node, target)
+            return self.assign_single_target(updated_node, target)
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
@@ -1095,7 +1095,7 @@ class ApplyTypeAnnotationsVisitor(
             return t.Actions((t.Replace(matcher=matcher, replacement=annotation),))
         return t.Actions((t.Untouched(),))
 
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self,
         updated_node: libcst.Assign,
         target: Union[libcst.Name, libcst.Attribute],
@@ -1115,7 +1115,7 @@ class ApplyTypeAnnotationsVisitor(
             )
         )
 
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         updated_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],

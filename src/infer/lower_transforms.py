@@ -63,14 +63,14 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
     def annotated_hint(self, _1: libcst.AnnAssign, _2: Union[libcst.Name, libcst.Attribute]) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
-    def unannotated_assign_single_target(
+    def assign_single_target(
         self,
         original_node: libcst.Assign,
         target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
         return self._handle_lowering(original_node, target)
 
-    def unannotated_assign_multiple_targets_or_augassign(
+    def assign_multiple_targets_or_augassign(
         self,
         original_node: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],
