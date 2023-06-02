@@ -6,9 +6,6 @@ import typing
 
 import libcst
 from libcst import matchers as m, metadata as meta
-from libcst.metadata.base_provider import (
-    ProviderT,
-)
 
 from src.common.metadata.keyword_scopage import (
     KeywordContext,
@@ -24,29 +21,25 @@ LIST = m.List()
 UNPACKABLE_ELEMENT = (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
 
 
-class Recognition:
+class Recognition(libcst.MetadataDependent):
     ## AnnAssign
 
-    @staticmethod
-    def instance_attribute_hint(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+    def instance_attribute_hint_targets(
+        self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
         """
         class Clazz:
             a: int
         """
-        if original_node.value is None and _is_class_scope(
-            metadata, original_node.target
-        ):
-            return _access_targets(metadata, original_node.target)
+        if original_node.value is None and self._is_class_scope(original_node.target):
+            return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
 
-    @staticmethod
-    def libsa4py_hint(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
-        original_node: typing.Union[libcst.Name, libcst.AnnAssign],
+    def libsa4py_hint_targets(
+        self,
+        original_node: typing.Union[libcst.AnnAssign, libcst.Assign],
     ) -> Targets | None:
         """
         class Clazz:
@@ -55,32 +48,30 @@ class Recognition:
         """
         if m.matches(
             original_node, m.Assign(targets=[m.AssignTarget(NAME)], value=m.Ellipsis())
-        ) and _is_class_scope(metadata, original_node.targets[0].target):
-            return _access_targets(metadata, original_node.targets[0].target)
+        ) and self._is_class_scope(original_node.targets[0].target):
+            return Targets.from_accesses(self.metadata, original_node.targets[0].target)
 
         elif m.matches(
             original_node, m.AnnAssign(value=m.Ellipsis())
-        ) and _is_class_scope(metadata, original_node.target):
-            return _access_targets(metadata, original_node.target)
+        ) and self._is_class_scope(original_node.target):
+            return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
 
-    @staticmethod
-    def annotated_hint(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+    def annotated_hint_targets(
+        self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
         if (
             original_node.value is None
             or m.matches(original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ"))
-        ) and not _is_class_scope(metadata, original_node.target):
-            return _access_targets(metadata, original_node.target)
+        ) and not self._is_class_scope(original_node.target):
+            return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
 
-    @staticmethod
-    def annotated_assignment(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+    def annotated_assignment_targets(
+        self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
         """
@@ -94,21 +85,20 @@ class Recognition:
         if (
             original_node.value is not None
             and not m.matches(original_node.value, m.Ellipsis())
-            # and _is_class_scope(metadata, original_node.target)
+            # and _is_class_scope(self.metadata, original_node.target)
         ):
-            return _access_targets(metadata, original_node.target)
+            return Targets.from_accesses(self.metadata, original_node.target)
 
         # Support for stub files here
-        elif m.matches(original_node.value, m.Ellipsis()) and not _is_class_scope(
-            metadata, original_node.target
+        elif m.matches(original_node.value, m.Ellipsis()) and not self._is_class_scope(
+            original_node.target
         ):
-            return _access_targets(metadata, original_node.target)
+            return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
 
-    @staticmethod
-    def unannotated_assign_single_target(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+    def unannotated_assign_single_targets(
+        self,
         original_node: libcst.Assign,
     ) -> Targets | None:
         """
@@ -120,14 +110,13 @@ class Recognition:
                 asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
             )
             and not m.matches(original_node.value, m.Ellipsis())
-            # and not _is_class_scope(metadata, asstarget.target)
+            # and not _is_class_scope(self.metadata, asstarget.target)
         ):
-            return _access_targets(metadata, asstarget.target)
+            return Targets.from_accesses(self.metadata, asstarget.target)
         return None
 
-    @staticmethod
     def unannotated_assign_multiple_targets(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+        self,
         original_node: libcst.Assign,
     ) -> Targets | None:
         """
@@ -141,11 +130,10 @@ class Recognition:
         if len(original_node.targets) > 1 or m.matches(
             original_node.targets[0], m.AssignTarget(LIST | TUPLE)
         ):
-            # and not _is_class_scope(metadata, original_node.targets[0].target):
             unchanged, glbls, nonlocals = list(), list(), list()
 
             for discovered in (
-                _access_targets(metadata, target.target)
+                Targets.from_accesses(self.metadata, target.target)
                 for target in original_node.targets
             ):
                 unchanged.extend(discovered.unchanged)
@@ -157,33 +145,31 @@ class Recognition:
 
     ## AugAssign
 
-    @staticmethod
     def augassign_targets(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+        self,
         original_node: libcst.AugAssign,
     ) -> Targets:
         """
         a += 2
         """
-        return _access_targets(metadata, original_node.target)
+        return Targets.from_accesses(self.metadata, original_node.target)
 
     ## For
 
-    @staticmethod
     def for_targets(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+        self,
         original_node: libcst.For,
     ) -> Targets:
         """
         for x, y in zip(...):
             ...
         """
-        return _access_targets(metadata, original_node.target)
+        return Targets.from_accesses(self.metadata, original_node.target)
 
     ## With
-    @staticmethod
+
     def with_targets(
-        metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
+        self,
         original_node: libcst.With,
     ) -> Targets:
         """
@@ -193,7 +179,7 @@ class Recognition:
         unchanged, glbls, nonlocals = list(), list(), list()
 
         for targets in (
-            _access_targets(metadata, item.asname.name)
+            Targets.from_accesses(self.metadata, item.asname.name)
             for item in original_node.items
             if item.asname is not None
         ):
@@ -205,19 +191,15 @@ class Recognition:
 
     ## Misc
 
-    @staticmethod
-    def fallthru(original_node: libcst.CSTNode) -> Targets:
+    def fallthru(self, original_node: libcst.CSTNode) -> Targets:
         print(
             f"WARNING: Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
         )
         return Targets(list(), list(), list())
 
-
-def _is_class_scope(
-    metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
-    original_node: libcst.BaseAssignTargetExpression,
-) -> bool:
-    return isinstance(metadata[meta.ScopeProvider][original_node], meta.ClassScope)
+    def _is_class_scope(self, original_node: libcst.BaseAssignTargetExpression) -> bool:
+        scope = self.get_metadata(meta.ScopeProvider, original_node)
+        return isinstance(scope, meta.ClassScope)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -231,59 +213,59 @@ class Targets:
     def empty(self):
         return not any((self.unchanged, self.glbls, self.nonlocals))
 
+    @staticmethod
+    def from_accesses(
+        metadata,
+        target: libcst.BaseAssignTargetExpression,
+    ) -> Targets:
+        if m.matches(target, NAME | INSTANCE_ATTR):
+            targets = [target]
 
-def _access_targets(
-    metadata: typing.Mapping[ProviderT, typing.Mapping[libcst.CSTNode, object]],
-    target: libcst.BaseAssignTargetExpression,
-) -> Targets:
-    if m.matches(target, NAME | INSTANCE_ATTR):
-        targets = [target]
+        elif m.matches(target, TUPLE | LIST):
+            # Explicitly go down tree one level at a time, be careful not to extract from subscript or similar
+            candidates: list[libcst.Tuple | libcst.List] = [target]
+            targets = []
 
-    elif m.matches(target, TUPLE | LIST):
-        # Explicitly go down tree one level at a time, be careful not to extract from subscript or similar
-        candidates: list[libcst.Tuple | libcst.List] = [target]
-        targets = []
-
-        while intermediaries := [
-            element
-            for cand in candidates
-            for element in cand.elements
-            if m.matches(
-                element,
-                (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR | LIST | TUPLE),
-            )
-        ]:
-            targets.extend(
-                element.value
-                for element in intermediaries
+            while intermediaries := [
+                element
+                for cand in candidates
+                for element in cand.elements
                 if m.matches(
-                    element, (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
+                    element,
+                    (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR | LIST | TUPLE),
                 )
-            )
-            candidates = [
-                element.value
-                for element in intermediaries
-                if m.matches(element, (m.StarredElement | m.Element)(LIST | TUPLE))
-            ]
+            ]:
+                targets.extend(
+                    element.value
+                    for element in intermediaries
+                    if m.matches(
+                        element, (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
+                    )
+                )
+                candidates = [
+                    element.value
+                    for element in intermediaries
+                    if m.matches(element, (m.StarredElement | m.Element)(LIST | TUPLE))
+                ]
 
-    else:
-        targets = []
+        else:
+            targets = []
 
-    unchanged, glbls, nonlocals = list(), list(), list()
-    for t in targets:
-        scopage = metadata[KeywordModifiedScopeProvider][t]
-        if scopage is KeywordContext.UNCHANGED:
-            unchanged.append(t)
-        elif scopage is KeywordContext.GLOBAL:
-            glbls.append(t)
-        elif scopage is KeywordContext.NONLOCAL:
-            nonlocals.append(t)
+        unchanged, glbls, nonlocals = list(), list(), list()
+        for t in targets:
+            scopage = metadata[KeywordModifiedScopeProvider][t]
+            if scopage is KeywordContext.UNCHANGED:
+                unchanged.append(t)
+            elif scopage is KeywordContext.GLOBAL:
+                glbls.append(t)
+            elif scopage is KeywordContext.NONLOCAL:
+                nonlocals.append(t)
 
-    return Targets(
-        unchanged=unchanged,
-        glbls=glbls,
-        nonlocals=nonlocals,
-    )
+        return Targets(
+            unchanged=unchanged,
+            glbls=glbls,
+            nonlocals=nonlocals,
+        )
 
 
 class Matchers:

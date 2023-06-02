@@ -73,7 +73,10 @@ class HintableReturnVisitor(m.MatcherDecoratableVisitor, abc.ABC):
 
 
 class HintableDeclarationVisitor(
-    m.MatcherDecoratableVisitor, _traversal.Traverser[None], abc.ABC
+    m.MatcherDecoratableVisitor,
+    _traversal.Recognition,
+    _traversal.Traverser[None],
+    abc.ABC,
 ):
     """
     Provide hook methods for visiting hintable attributes (both a and self.a)
@@ -87,22 +90,16 @@ class HintableDeclarationVisitor(
 
     @m.call_if_inside(_traversal.Matchers.annassign)
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
-        if targets := _traversal.Recognition.instance_attribute_hint(
-            self.metadata, assignment
-        ):
+        if targets := self.instance_attribute_hint_targets(assignment):
             visitor = self.instance_attribute_hint
-        elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, assignment):
+        elif targets := self.libsa4py_hint_targets(assignment):
             visitor = self.libsa4py_hint
-        elif targets := _traversal.Recognition.annotated_hint(
-            self.metadata, assignment
-        ):
+        elif targets := self.annotated_hint_targets(assignment):
             visitor = self.annotated_hint
-        elif targets := _traversal.Recognition.annotated_assignment(
-            self.metadata, assignment
-        ):
+        elif targets := self.annotated_assignment_targets(assignment):
             visitor = self.annotated_assignment
         else:
-            _traversal.Recognition.fallthru(assignment)
+            self.fallthru(assignment)
             return None
 
         self._apply_visit(targets, visitor, assignment)
@@ -113,51 +110,47 @@ class HintableDeclarationVisitor(
 
     @m.call_if_inside(_traversal.Matchers.assign)
     def visit_Assign_targets(self, node: libcst.Assign) -> None:
-        if targets := _traversal.Recognition.libsa4py_hint(self.metadata, node):
+        if targets := self.libsa4py_hint_targets(node):
             visitor = self.libsa4py_hint
 
-        elif targets := _traversal.Recognition.unannotated_assign_single_target(
-            self.metadata, node
-        ):
+        elif targets := self.unannotated_assign_single_targets(node):
             visitor = self.unannotated_assign_single_target
 
-        elif targets := _traversal.Recognition.unannotated_assign_multiple_targets(
-            self.metadata, node
-        ):
+        elif targets := self.unannotated_assign_multiple_targets(node):
             visitor = self.unannotated_assign_multiple_targets_or_augassign
 
         else:
-            _traversal.Recognition.fallthru(node)
+            self.fallthru(node)
             return None
 
         self._apply_visit(targets, visitor, node)
 
     @m.call_if_inside(_traversal.Matchers.augassign)
     def visit_AugAssign_target(self, node: libcst.AugAssign) -> None:
-        if targets := _traversal.Recognition.augassign_targets(self.metadata, node):
+        if targets := self.augassign_targets(node):
             visitor = self.unannotated_assign_multiple_targets_or_augassign
         else:
-            _traversal.Recognition.fallthru(node)
+            self.fallthru(node)
             return None
 
         return self._apply_visit(targets, visitor, node)
 
     @m.call_if_inside(_traversal.Matchers.fortargets)
     def visit_For_target(self, node: libcst.For) -> None:
-        if targets := _traversal.Recognition.for_targets(self.metadata, node):
+        if targets := self.for_targets(node):
             visitor = self.for_target
         else:
-            _traversal.Recognition.fallthru(node)
+            self.fallthru(node)
             return None
 
         return self._apply_visit(targets, visitor, node)
 
     @m.call_if_inside(_traversal.Matchers.withitems)
     def visit_With(self, node: libcst.With) -> None:
-        if targets := _traversal.Recognition.with_targets(self.metadata, node):
+        if targets := self.with_targets(node):
             visitor = self.withitem_target
         else:
-            _traversal.Recognition.fallthru(node)
+            self.fallthru(node)
             return None
 
         return self._apply_visit(targets, visitor, node)

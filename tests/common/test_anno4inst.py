@@ -5,7 +5,7 @@ from unittest import TestCase
 import libcst
 from libcst import metadata, matchers as m
 
-from src.common.metadata.anno4inst import Lowered, TrackedAnnotation, anno4inst
+from src.common.metadata.anno4inst import Lowered, TrackedAnnotation, Annotation4InstanceProvider
 
 
 class LabelTesting(TestCase):
@@ -50,7 +50,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (foo,) = m.findall(module, m.Name("foo"))
         self.assertLabelled(
@@ -67,7 +67,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (foo,) = m.findall(module, m.Name("foo"))
         self.assertUnannotated(anno4insts[foo])
@@ -76,7 +76,7 @@ class Individual(LabelTesting):
         code = textwrap.dedent("b: bmod.B = 20")
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (b,) = m.findall(module, m.Name("b"))
         self.assertLabelled(
@@ -92,7 +92,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (hint,) = m.findall(module, m.Name("b"))
         assert hint not in anno4insts
@@ -106,7 +106,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, b1 = m.findall(module, m.Name("b"))
 
@@ -125,7 +125,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a = m.findall(module, m.Name("a"))
         _, b = m.findall(module, m.Name("b"))
@@ -151,7 +151,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a = m.findall(module, m.Name("a"))
         _, b = m.findall(module, m.Name("b"))
@@ -175,7 +175,7 @@ class Individual(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, f = m.findall(module, m.Name("f"))
 
@@ -196,7 +196,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3 = m.findall(module, m.Name("a"))
 
@@ -215,7 +215,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3 = m.findall(module, m.Name("a"))
 
@@ -236,7 +236,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3, a4 = m.findall(module, m.Name("a"))
 
@@ -260,7 +260,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3, a4, _ = m.findall(module, m.Name("a"))
         (b, _) = m.findall(module, m.Name("b"))
@@ -294,7 +294,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, ahint, a3, a4 = m.findall(module, m.Name("a"))
         intanno = libcst.Annotation(libcst.parse_expression("int"))
@@ -328,7 +328,7 @@ class Consumption(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         f1, fhint, f2, f3 = m.findall(module, m.Name("f"))
         annotation = libcst.Annotation(libcst.parse_expression("_io.TextWrapper"))
@@ -352,7 +352,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3 = m.findall(module, m.Name("a"))
 
@@ -386,7 +386,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a1, a2, a3 = m.findall(module, m.Name("a"))
         union_ty = libcst.Annotation(libcst.parse_expression("int | None"))
@@ -419,7 +419,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a1, _, a2, a22, a3, _, a4, a5 = m.findall(module, m.Name("a"))
 
@@ -446,7 +446,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (_, a) = m.findall(module, m.Name("a"))
         b1, b2 = m.findall(module, m.Name("b"))
@@ -474,7 +474,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a1, a2, a3 = m.findall(module, m.Name("a"))
 
@@ -507,7 +507,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         a1, a2, a3 = m.findall(module, m.Name("a"))
 
@@ -535,7 +535,7 @@ class Lowering(LabelTesting):
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
-        anno4insts = module.resolve(anno4inst.Annotation4InstanceProvider)
+        anno4insts = module.resolve(Annotation4InstanceProvider)
 
         _, a2, a3 = m.findall(module, m.Name("a"))
         annotation = libcst.Annotation(libcst.parse_expression("int | None"))

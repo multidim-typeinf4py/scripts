@@ -143,7 +143,7 @@ class HintableDeclarationTransformer(
     ) -> Union[libcst.FlattenSentinel[
         libcst.BaseSmallStatement
     ], libcst.RemovalSentinel, libcst.BaseSmallStatement]:
-        if targets := _traversal.Recognition.instance_attribute_hint(self.metadata, original_node):
+        if targets := _traversal.Recognition.instance_attribute_hint_targets(self.metadata, original_node):
             transformer = self.instance_attribute_hint
 
         elif targets := _traversal.Recognition.libsa4py_hint(self.metadata, original_node):
