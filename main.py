@@ -5,7 +5,7 @@ import click
 #import dataset
 #import logregr
 #import harness
-from src import infer, srcdiff, utils
+from scripts import infer, srcdiff, utils
 
 # import hintdiff
 # import symbols
@@ -14,11 +14,11 @@ from src import infer, srcdiff, utils
 if __name__ == "__main__":
     # os.environ["LIBCST_PARSER_TYPE"] = "native"
 
-    fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
-    datefmt="%Y-%m-%d %H:%M:%S"
+    # fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
+    # datefmt="%Y-%m-%d %H:%M:%S"
 
-    logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
-    logging.info(f"{ utils.worker_count()=}")
+    # logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
+    # logging.info(f"{ utils.worker_count()=}")
     # logging.info(f"{sys.path=}")
 
     main = click.Group(
