@@ -21,7 +21,7 @@ from ...common import ast_helper, visitors
 from src.common.schemas import InferredSchema, TypeCollectionCategory, TypeCollectionSchema
 
 from ._base import PerFileInference
-import utils
+from ... import utils
 
 
 class PyreQuery(PerFileInference):

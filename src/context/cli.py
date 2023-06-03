@@ -10,7 +10,7 @@ from src.common import output
 from src.context.features import RelevantFeatures
 from src.infer.inference import Inference, factory, SUPPORTED_TOOLS
 from src.infer.insertion import TypeAnnotationApplierTransformer
-from utils import format_parallel_exec_result, scratchpad, worker_count
+from src.utils import format_parallel_exec_result, scratchpad, worker_count
 
 from .visitors import generate_context_vectors_for_project
 

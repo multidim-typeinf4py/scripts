@@ -5,7 +5,7 @@ import pandera.typing as pt
 from pyre_check.client import command_arguments, commands, configuration
 
 from src.common.schemas import InferredSchema
-from utils import working_dir
+from src.utils import working_dir
 from . import _adaptors
 from ._base import ProjectWideInference
 

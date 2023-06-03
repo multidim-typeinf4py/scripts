@@ -23,7 +23,7 @@ from src.common.schemas import (
     TypeCollectionCategory,
 )
 from src.context.features import RelevantFeatures
-from utils import worker_count
+from src.utils import worker_count
 
 
 def generate_context_vectors_for_project(

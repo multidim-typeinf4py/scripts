@@ -13,7 +13,7 @@ from src.infer.inference._base import DatasetFolderStructure
 
 from src.infer.insertion import TypeAnnotationApplierTransformer
 
-from utils import format_parallel_exec_result, scratchpad, top_preds_only, worker_count
+from src.utils import format_parallel_exec_result, scratchpad, top_preds_only, worker_count
 
 from .inference import Inference, factory, SUPPORTED_TOOLS
 

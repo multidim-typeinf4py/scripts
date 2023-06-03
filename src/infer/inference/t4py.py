@@ -22,7 +22,7 @@ from type4py.deploy.infer import (
     get_type_preds_single_file,
 )
 
-import utils
+from ... import utils
 from src.common.schemas import InferredSchema
 from src.symbols.collector import build_type_collection
 from ._base import ProjectWideInference

@@ -37,7 +37,7 @@ from typewriter.prepocessing import (
     gen_argument_df_TW,
 )
 
-import utils
+from ... import utils
 from src.common.schemas import InferredSchema
 from src.symbols.collector import build_type_collection
 from ._base import ProjectWideInference

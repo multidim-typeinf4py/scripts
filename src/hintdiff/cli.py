@@ -11,7 +11,7 @@ import pandas as pd
 
 from src.common import MergedAnnotations
 from src.symbols.collector import TypeCollectorVisitor
-from utils import worker_count
+from src.utils import worker_count
 
 from . import coverage, hintstat
 

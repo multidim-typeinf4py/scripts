@@ -28,7 +28,7 @@ import pandera.typing as pt
 from src.common.schemas import InferredSchema
 from src.infer.inference._base import ProjectWideInference
 from src.symbols.collector import build_type_collection
-import utils
+from src import utils
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):

@@ -12,7 +12,7 @@ from type_check import annotater
 from typilus.model import model_restore_helper
 from typilus.utils.predict import ignore_annotation
 
-import utils
+from src import utils
 from src.common.schemas import InferredSchema
 from src.infer.inference._base import ProjectWideInference
 from src.symbols.collector import build_type_collection

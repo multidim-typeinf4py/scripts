@@ -15,7 +15,7 @@ from pandera import typing as pt
 
 from src.common import TypeCollection
 from src.common.schemas import TypeCollectionSchema
-from utils import worker_count
+from src.utils import worker_count
 
 
 # from infer.inference._base import DatasetFolderStructure

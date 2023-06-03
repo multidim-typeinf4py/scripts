@@ -5,12 +5,11 @@ import click
 #import dataset
 #import logregr
 #import harness
-from src import infer, srcdiff
+from src import infer, srcdiff, utils
+
 # import hintdiff
 # import symbols
 
-
-import utils
 
 if __name__ == "__main__":
     # os.environ["LIBCST_PARSER_TYPE"] = "native"
@@ -19,7 +18,7 @@ if __name__ == "__main__":
     datefmt="%Y-%m-%d %H:%M:%S"
 
     logging.basicConfig(format=fmt, datefmt=datefmt, level=logging.INFO)
-    logging.info(f"{utils.worker_count()=}")
+    logging.info(f"{ utils.worker_count()=}")
     # logging.info(f"{sys.path=}")
 
     main = click.Group(

@@ -23,7 +23,7 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionAnnotation,
 )
 
-import utils
+from ... import utils
 from src.common.annotations import ApplyTypeAnnotationsVisitor
 from src.common.schemas import InferredSchema
 from src.symbols.collector import build_type_collection

@@ -6,7 +6,7 @@ from typing import Optional
 
 import click
 
-import utils
+from src import utils
 from src.common import factory
 from src.common import output
 from src.common import TypeCollectionSchema
