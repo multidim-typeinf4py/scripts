@@ -13,10 +13,10 @@ from libcst import codemod, metadata
 from libcst.metadata import FullyQualifiedNameProvider
 from pandas._libs import missing
 
-from src.common import generate_qname_ssas_for_file
-from src.common.schemas import TypeCollectionCategory, TypeCollectionSchema
-from src.infer.insertion import TypeAnnotationApplierTransformer
-from src.symbols.collector import build_type_collection
+from scripts.common import generate_qname_ssas_for_file
+from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from scripts.infer.insertion import TypeAnnotationApplierTransformer
+from scripts.symbols.collector import build_type_collection
 
 CodemodAnnotation = collections.namedtuple(
     typename="CodemodAnnotation",

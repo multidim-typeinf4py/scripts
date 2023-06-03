@@ -4,7 +4,7 @@ import libcst
 from libcst import metadata
 from libcst import matchers as m
 
-from src.common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
+from scripts.common.metadata.keyword_scopage import KeywordModifiedScopeProvider, KeywordContext
 
 
 def test_nonlocal():

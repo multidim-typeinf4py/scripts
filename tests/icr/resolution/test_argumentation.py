@@ -1,6 +1,6 @@
-from src.common import TypeCollectionCategory, InferredSchema
-from src.icr.resolution._base import Metadata
-from src.icr import (
+from scripts.common import TypeCollectionCategory, InferredSchema
+from scripts.icr.resolution._base import Metadata
+from scripts.icr import (
     SubtypeVoting,
 )
 

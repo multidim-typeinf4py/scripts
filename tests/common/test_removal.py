@@ -1,6 +1,6 @@
 from libcst import codemod
 
-from src.common import TypeAnnotationRemover
+from scripts.common import TypeAnnotationRemover
 
 
 class Test_Removal(codemod.CodemodTest):

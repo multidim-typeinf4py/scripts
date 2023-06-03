@@ -11,13 +11,13 @@ import pytest
 from libcst import codemod
 from pandas._libs import missing
 
-from src.common import generate_qname_ssas_for_file
-from src.common.schemas import (
+from scripts.common import generate_qname_ssas_for_file
+from scripts.common.schemas import (
     TypeCollectionCategory,
     TypeCollectionSchema,
 )
-from src.common import TypeCollection
-from src.symbols.collector import build_type_collection
+from scripts.common import TypeCollection
+from scripts.symbols.collector import build_type_collection
 
 
 @pytest.fixture

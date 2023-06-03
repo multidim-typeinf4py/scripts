@@ -2,7 +2,7 @@ import textwrap
 from libcst import codemod as c
 import libcst
 
-from src.infer.lower_transforms import (
+from scripts.infer.lower_transforms import (
     LoweringTransformer,
     UnloweringTransformer,
 )
