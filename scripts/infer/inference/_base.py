@@ -19,15 +19,15 @@ import pandas as pd
 
 class DatasetFolderStructure(enum.Enum):
     MANYTYPES4PY = enum.auto()
-    TYPILUS = enum.auto()
+    BETTERTYPES4PY = enum.auto()
     PROJECT = enum.auto()
 
     @staticmethod
     def from_folderpath(path: pathlib.Path) -> "DatasetFolderStructure":
         if path.name.lower() == "many-types-4-py-dataset":
             return DatasetFolderStructure.MANYTYPES4PY
-        elif path.name.lower() == "typilus":
-            return DatasetFolderStructure.TYPILUS
+        elif path.name.lower() == "better-types-4-py-dataset":
+            return DatasetFolderStructure.BETTERTYPES4PY
         else:
             return DatasetFolderStructure.PROJECT
 
@@ -45,14 +45,9 @@ class DatasetFolderStructure(enum.Enum):
                 repos = (repo for repo in author.iterdir() if repo.is_dir())
                 yield from repos
 
-        elif self == DatasetFolderStructure.TYPILUS:
-            repos = (
-                repo
-                for repo in dataset_root.iterdir()
-                if repo.is_dir()
-                and not repo.name.startswith(".")
-                and len(repo.name.split(".")) == 2
-            )
+        elif self == DatasetFolderStructure.BETTERTYPES4PY:
+            repo_suffix = dataset_root / "repos" / "test"
+            repos = (repo for repo in repo_suffix.iterdir() if repo.is_dir())
             yield from repos
         elif self == DatasetFolderStructure.PROJECT:
             yield dataset_root
@@ -60,11 +55,11 @@ class DatasetFolderStructure(enum.Enum):
     def author_repo(self, repo: pathlib.Path) -> dict:
         if self == DatasetFolderStructure.MANYTYPES4PY:
             return {"author": repo.parent.name, "repo": repo.name}
-        elif self == DatasetFolderStructure.TYPILUS:
+        elif self == DatasetFolderStructure.BETTERTYPES4PY:
             return dict(
                 zip(
                     ("author", "repo"),
-                    repo.name.split("."),
+                    repo.name.split("__"),
                     strict=True,
                 )
             )
@@ -94,14 +89,18 @@ class DatasetFolderStructure(enum.Enum):
                 )
             return test_set
 
-        elif self == DatasetFolderStructure.TYPILUS:
+        elif self == DatasetFolderStructure.BETTERTYPES4PY:
+            repo_suffix = dataset_root / "repos" / "test"
 
-            def typilus_impl(
-                path2typilus: pathlib.Path,
-            ) -> dict[pathlib.Path, set[pathlib.Path]]:
-                ...
+            mapping = dict[pathlib.Path, set[pathlib.Path]]()
 
-            return typilus_impl(dataset_root)
+            for repo in repo_suffix.iterdir():
+                if repo.is_dir() and (fs := codemod.gather_files([repo_suffix / repo])):
+                    mapping[repo_suffix / repo] = set(
+                        map(lambda p: pathlib.Path(p).relative_to(repo_suffix), fs)
+                    )
+
+            return mapping
 
         elif self == DatasetFolderStructure.PROJECT:
             subfiles = set(
@@ -181,10 +180,12 @@ class ProjectWideInference(Inference):
             if subset is not None:
                 subset = {s for s in subset if (mutable / s).is_file()}
             else:
-                subset = set(map(
-                    lambda r: pathlib.Path(r).relative_to(mutable),
-                    codemod.gather_files([str(mutable)])
-                ))
+                subset = set(
+                    map(
+                        lambda r: pathlib.Path(r).relative_to(mutable),
+                        codemod.gather_files([str(mutable)]),
+                    )
+                )
 
             inferred = self._infer_project(mutable, subset)
             self.logger.info("Inference completed")
