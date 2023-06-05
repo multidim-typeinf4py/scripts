@@ -6,8 +6,8 @@ import sys
 import typing
 from typing import Optional
 
-from scripts.common import output
-from scripts.common.schemas import InferredSchema
+from src.common import output
+from src.common.schemas import InferredSchema
 
 import logging
 
