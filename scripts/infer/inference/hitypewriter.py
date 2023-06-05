@@ -124,7 +124,7 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
         return list(filter(lambda prediction: prediction[0] is not None, predictions))
 
     def _read_tw_pred(self, annotation: str | None) -> str | None:
-        if annotation is None or annotation == "other":
+        if annotation is None or annotation in ("other", "unknown"):
             return None
         return annotation
 
