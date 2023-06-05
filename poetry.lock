@@ -3147,6 +3147,32 @@ protobuf = "*"
 sympy = "*"
 
 [[package]]
+name = "onnxruntime-gpu"
+version = "1.15.0"
+description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "onnxruntime_gpu-1.15.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:287f8f542c7ec4234ee823c46f19ae661376cac06b2276f65c44cf88371b9c0a"},
+    {file = "onnxruntime_gpu-1.15.0-cp310-cp310-win_amd64.whl", hash = "sha256:12c0d5c3f3339b025fdcc8d416512ab53394a13f77528292d0a6d061e3dc9a01"},
+    {file = "onnxruntime_gpu-1.15.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0e4e2f1bb421ec3d9e69663ab8fffe99cba0b17456c8ff237965fcdacf71588d"},
+    {file = "onnxruntime_gpu-1.15.0-cp311-cp311-win_amd64.whl", hash = "sha256:1f2f508348ce91dd61607d3d86aaad8663178a17e9661722873ef3804f678345"},
+    {file = "onnxruntime_gpu-1.15.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c05d061f20f005cf0a185f26f0e50042b6aa17eff9f94f768a59e5063013bebd"},
+    {file = "onnxruntime_gpu-1.15.0-cp38-cp38-win_amd64.whl", hash = "sha256:35d2b52610d9f3087c6550c85674bd085bfa04b547bf3d4942f651bf8dcaa908"},
+    {file = "onnxruntime_gpu-1.15.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6a43153ff1dc706d3cc39af8d77d3b44a2dcb176a8498f0e02d0804db358973b"},
+    {file = "onnxruntime_gpu-1.15.0-cp39-cp39-win_amd64.whl", hash = "sha256:87abc8461b43c0194d911e64e625e192b809ee105ddfde706c7c691157a0d203"},
+]
+
+[package.dependencies]
+coloredlogs = "*"
+flatbuffers = "*"
+numpy = ">=1.21.6"
+packaging = "*"
+protobuf = "*"
+sympy = "*"
+
+[[package]]
 name = "opt-einsum"
 version = "3.3.0"
 description = "Optimizing numpys einsum function"
@@ -5904,4 +5930,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "dbe067e32ccae6dba04f69510616f13e5c6306a594eb064ae5f6e59e7af3b5b5"
+content-hash = "c689b2ce87f4ac23275119b92a6a212d65c7f6d11f5844fb64e0947ca2cab6a1"

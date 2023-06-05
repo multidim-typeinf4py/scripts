@@ -29,12 +29,17 @@ termcolor = "^2.3.0"
 transformers = "4.21.3"
 types-requests = "^2.28.11.5"
 
+onnxruntime-gpu = "^1.15.0"
+onnxruntime = "^1.15.0"
+numpy = "=1.24.3"
+scikit-learn = "=1.2.2"
+
+
 hityper = {git = "https://github.com/multidim-typeinf4py/HiTyper.git"}
 type4py = {git = "https://github.com/multidim-typeinf4py/type4py.git", branch = "compat/fixes"}
 typet5 = {git = "https://github.com/multidim-typeinf4py/TypeT5.git"}
 typewriter = {git = "https://github.com/multidim-typeinf4py/typewriter.git", branch = "feature/dltinproj"}
 typilus = {git = "https://github.com/multidim-typeinf4py/typilus.git"}
-numpy = "^1.24.3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.12.0"
