@@ -6,8 +6,8 @@ import sys
 import typing
 from typing import Optional
 
-from src.common import output
-from src.common.schemas import InferredSchema
+from scripts.common import output
+from scripts.common.schemas import InferredSchema
 
 import logging
 
@@ -97,7 +97,7 @@ class DatasetFolderStructure(enum.Enum):
             for repo in repo_suffix.iterdir():
                 if repo.is_dir() and (fs := codemod.gather_files([repo_suffix / repo])):
                     mapping[repo_suffix / repo] = set(
-                        map(lambda p: pathlib.Path(p).relative_to(dataset_root), fs)
+                        map(lambda p: pathlib.Path(p).relative_to(repo_suffix), fs)
                     )
 
             return mapping
