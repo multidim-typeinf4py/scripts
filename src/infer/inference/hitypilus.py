@@ -285,7 +285,7 @@ def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
             yield json.loads(line, object_pairs_hook=TypilusPrediction)
 
 
-class _HiTyperTypilusTopN(HiTyper):
+class _HiTypilusTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(
             Typilus2HiTyper(
@@ -295,24 +295,24 @@ class _HiTyperTypilusTopN(HiTyper):
         )
 
     def method(self) -> str:
-        return f"HiTyperTypilusN{self.adaptor.topn()}"
+        return f"HiTypilusN{self.adaptor.topn()}"
 
 
-class HiTyperTypilusTop1(_HiTyperTypilusTopN):
+class HiTypilusTop1(_HiTypilusTopN):
     def __init__(self):
         super().__init__(topn=1)
 
 
-class HiTyperTypilusTop3(_HiTyperTypilusTopN):
+class HiTypilusTop3(_HiTypilusTopN):
     def __init__(self):
         super().__init__(topn=3)
 
 
-class HiTyperTypilusTop5(_HiTyperTypilusTopN):
+class HiTypilusTop5(_HiTypilusTopN):
     def __init__(self):
         super().__init__(topn=5)
 
 
-class HiTyperTypilusTop10(_HiTyperTypilusTopN):
+class HiTypilusTop10(_HiTypilusTopN):
     def __init__(self):
         super().__init__(topn=10)

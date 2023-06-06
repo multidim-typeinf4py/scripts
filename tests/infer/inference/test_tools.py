@@ -4,11 +4,11 @@ import pytest
 from src.common.schemas import InferredSchema, TypeCollectionSchema
 
 from src.infer.inference import PyreInfer, PyreQuery, MyPy
-from src.infer.inference.hitypewriter import HiTyperTypeWriterTop3
+from src.infer.inference.hitypewriter import HiTypewriterTop3
 from src.infer.inference.t4py import Type4PyTop3
 from src.infer.inference.typewriter import TypeWriterTop3
-from src.infer.inference.hit4py import HiTyperType4PyTop3
-from src.infer.inference.hitypilus import HiTyperTypilusTop3
+from src.infer.inference.hit4py import HiType4Py3
+from src.infer.inference.hitypilus import HiTypilusTop3
 from src.infer.inference.tt5 import TypeT5Top3
 from src.infer.inference.typilus import TypilusTop3
 from src.infer.inference import Inference
@@ -23,9 +23,9 @@ tools = [
     (TypeWriterTop3(), 3),
     (TypeT5Top3(), 3),
     (TypilusTop3(), 3),
-    (HiTyperTypilusTop3(), 3),
-    (HiTyperTypeWriterTop3(), 3),
-    (HiTyperType4PyTop3(), 3),
+    (HiTypilusTop3(), 3),
+    (HiTypewriterTop3(), 3),
+    (HiType4Py3(), 3),
 ]
 
 
