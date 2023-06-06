@@ -49,17 +49,27 @@ class PyreInfer(ProjectWideInference):
             )
 
             try:
-                exitcode = commands.infer.run(configuration=config, infer_arguments=infargs)
+                exitcode = commands.infer.run(
+                    configuration=config, infer_arguments=infargs
+                )
 
             except commands.ClientException:
-                self.logger.error("pyre-infer encountered an internal failure, cannot infer types")
+                self.logger.error(
+                    "pyre-infer encountered an internal failure, cannot infer types"
+                )
                 return InferredSchema.example(size=0)
 
-            if exitcode != commands.ExitCode.SUCCESS:
-                self.logger.warning(f"pyre-infer indicated {exitcode} instead of {commands.ExitCode.SUCCESS}; proceed with caution")
-
-            return (
-                _adaptors.stubs2df(mutable / PyreInfer._OUTPUT_DIR / "types", subset=subset)
-                .assign(method=self.method(), topn=1)
-                .pipe(pt.DataFrame[InferredSchema])
+        if exitcode != commands.ExitCode.SUCCESS:
+            self.logger.warning(
+                f"pyre-infer indicated {exitcode} instead of {commands.ExitCode.SUCCESS}; proceed with caution"
             )
+
+        return (
+            _adaptors.stubs2df(
+                project_folder=mutable,
+                stubs_folder=mutable / PyreInfer._OUTPUT_DIR / "types",
+                subset=subset,
+            )
+            .assign(method=self.method(), topn=1)
+            .pipe(pt.DataFrame[InferredSchema])
+        )
