@@ -1,4 +1,4 @@
-import multiprocessing
+import concurrent.futures
 import pathlib
 import shutil
 
@@ -153,25 +153,24 @@ def cli_entrypoint(
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             # Run inference task for hour before aborting
-            with multiprocessing.Manager() as manager:
-                d: dict = manager.dict()
-                p = multiprocessing.Process(
-                    target=lambda t, m, r, s: d.update({t.method(): t.infer(m, r, s)}),
-                    args=(inference_tool, sc, inpath, subset),
-                )
-                p.start()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                tasks = [
+                    executor.submit(
+                        lambda t, m, r, s: t.infer(m, r, s), inference_tool, sc, inpath, subset
+                    )
+                ]
 
-                p.join(timeout=1 * 60 * 60)
-                if p.is_alive():
+                try:
+                    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
+                        inferred = task.result()
+
+                except concurrent.futures.TimeoutError as e:
                     inference_tool.logger.error(
                         "Took over an hour to infer types, killing inference subprocess. "
                         "Results will NOT be written to disk"
                     )
-                    p.terminate()
-                    p.join()
-                    continue
+                    inference_tool.logger.error(f"{e}")
 
-                inferred = d[inference_tool.method()]
             print(f"Writing results to {outdir}")
             if outdir.is_dir() and overwrite:
                 shutil.rmtree(outdir)

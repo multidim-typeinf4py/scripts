@@ -51,13 +51,14 @@ class ParallelStubber(codemod.ContextAwareTransformer):
             context=self.context, stub=libcst.parse_module(stubfile.read_text())
         )
 
-        return visitor(
+        stubbed = visitor(
             context=self.context,
             overwrite_existing_annotations=True,
             use_future_annotations=True,
             strict_posargs_matching=False,
             strict_annotation_matching=True,
         ).transform_module(tree)
+        return stubbed
 
 
 def stubs2df(
