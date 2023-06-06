@@ -152,7 +152,7 @@ class TypeCollectorVisitor(codemod.ContextAwareVisitor):
         file = pathlib.Path(self.context.filename).relative_to(
             self.context.metadata_manager.root_path
         )
-        self.logger.info(f"Collecting from {file}")
+        # self.logger.info(f"Collecting from {file}")
 
         from src.common.annotations import MultiVarTypeCollector
 
