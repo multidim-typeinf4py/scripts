@@ -56,9 +56,24 @@ class TT5FileNormalizer(codemod.ContextAwareTransformer):
     def leave_List(
         self, original_node: libcst.List, updated_node: libcst.List
     ) -> libcst.BaseExpression:
+        if len(updated_node.elements) > 1:
+            list_typing = [
+                libcst.SubscriptElement(
+                    libcst.Index(
+                        libcst.Subscript(
+                            value=libcst.Name("Union"),
+                            slice=self.replace_elements(updated_node.elements),
+                        )
+                    )
+                )
+            ]
+
+        else:
+            list_typing = self.replace_elements(updated_node.elements)
+
         return libcst.Subscript(
             value=libcst.Name("List"),
-            slice=self.replace_elements(updated_node.elements),
+            slice=list_typing,
         )
 
     def replace_elements(
