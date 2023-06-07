@@ -12,10 +12,12 @@ from scripts.common.schemas import (
 
 
 def context_vector_path(project: pathlib.Path) -> pathlib.Path:
-    return project / ".context-vectors.csv"
+    return project / "context-vectors.csv"
 
 
-def write_context_vectors(df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path) -> None:
+def write_context_vectors(
+    df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path
+) -> None:
     cpath = context_vector_path(project)
     cpath.parent.mkdir(parents=True, exist_ok=True)
 
@@ -35,24 +37,22 @@ def read_context_vectors(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSch
 
 
 def inferred_path(project: pathlib.Path) -> pathlib.Path:
-    return project / ".inferred.csv"
+    return project / "inferred.csv"
 
 
 def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
     ipath = inferred_path(project)
-    df.to_csv(
-        ipath,
-        index=False,
-        header=InferredSchema.to_schema().columns,
-    )
+    df.to_csv(ipath, index=False)
 
 
 def read_inferred(
-    inpath: pathlib.Path, tool: str, removed: list[TypeCollectionCategory]
+    inpath: pathlib.Path, tool: str, task: list[TypeCollectionCategory]
 ) -> pt.DataFrame[InferredSchema]:
-    outpath = inference_output_path(inpath, tool, removed)
+    outpath = inference_output_path(inpath, tool, task)
     ipath = inferred_path(outpath)
-    df = pd.read_csv(ipath, converters={"category": lambda c: TypeCollectionCategory[c]})
+    df = pd.read_csv(
+        ipath, converters={"category": lambda c: TypeCollectionCategory[c]}
+    )
 
     return df.pipe(pt.DataFrame[InferredSchema])
 
@@ -61,11 +61,9 @@ def inference_output_path(
     outpath: pathlib.Path,
     tool: str,
     removed: list[TypeCollectionCategory],
-    inferred: list[TypeCollectionCategory],
 ) -> pathlib.Path:
-    removed_names = ",".join(map(str, removed))
-    inferred_names = ",".join(map(str, inferred))
-    return outpath.parent / f"{tool}@[{removed_names}]+[{inferred_names}]" / f"{outpath.name}"
+    task_names = ",".join(map(str, removed))
+    return outpath.parent / f"{tool}@[{task_names}]" / f"{outpath.name}"
 
 
 def dataset_output_path(inpath: pathlib.Path, author_repo: str) -> pathlib.Path:
@@ -79,11 +77,17 @@ def write_dataset(
     opath = dataset_output_path(inpath, author_repo)
     print(f"Writing results to {opath}")
     opath.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(
-        opath,
-        index=False,
-        header=InferredSchema.to_schema().columns,
-    )
+    df.to_csv(opath, index=False)
+
+
+def read_dataset(
+    inpath: pathlib.Path, author_repo: str
+) -> pt.DataFrame[TypeCollectionSchema]:
+    rpath = dataset_output_path(inpath, author_repo)
+    print(f"Reading from {rpath}")
+    return pd.read_csv(
+        rpath, converters={"category": lambda c: TypeCollectionCategory[c]}
+    ).pipe(pt.DataFrame[TypeCollectionSchema])
 
 
 def error_log_path(outpath: pathlib.Path) -> pathlib.Path:

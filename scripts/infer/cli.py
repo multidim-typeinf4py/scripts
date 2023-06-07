@@ -107,7 +107,6 @@ def cli_entrypoint(
             outpath / author_repo,
             tool=inference_tool.method(),
             removed=tasked,
-            inferred=tasked,
         )
 
         # Skip if we are not overwriting results

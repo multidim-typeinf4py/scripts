@@ -128,7 +128,7 @@ def cli_entrypoint(
     if remove_ret_annos:
         removed.append(TypeCollectionCategory.CALLABLE_RETURN)
 
-    inferred = output.read_inferred(inpath, tool.method(), removed=removed)
+    inferred = output.read_inferred(inpath, tool.method(), task=removed)
 
     for _, topx in inferred.groupby(by=InferredSchema.topn):
         with scratchpad(inpath) as sc:
