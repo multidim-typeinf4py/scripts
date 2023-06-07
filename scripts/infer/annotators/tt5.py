@@ -47,6 +47,9 @@ class TT5FileNormalizer(codemod.ContextAwareTransformer):
     def leave_Tuple(
         self, original_node: libcst.Tuple, updated_node: libcst.Tuple
     ) -> libcst.BaseExpression:
+        if len(updated_node.elements) == 0:
+            return libcst.Name("Tuple")
+
         return libcst.Subscript(
             value=libcst.Name("Tuple"),
             slice=self.replace_elements(updated_node.elements),
@@ -56,7 +59,10 @@ class TT5FileNormalizer(codemod.ContextAwareTransformer):
     def leave_List(
         self, original_node: libcst.List, updated_node: libcst.List
     ) -> libcst.BaseExpression:
-        if len(updated_node.elements) > 1:
+        if len(updated_node.elements) == 0:
+            return libcst.Name("List")
+
+        elif len(updated_node.elements) > 1:
             list_typing = [
                 libcst.SubscriptElement(
                     libcst.Index(
