@@ -175,5 +175,9 @@ slurm/datasets/*
 
 .hityper
 
+# typewriter things...
+output/
+
+
 .context-datasets/
 .idea/
