@@ -558,7 +558,7 @@ class Typewriter2Annotations(libcst.codemod.ContextAwareTransformer):
         return param.with_changes(annotation=self._read_tw_pred(p.ty))
 
     def _read_tw_pred(self, annotation: Optional[str]) -> Optional[libcst.Annotation]:
-        if annotation is None or annotation in ("other", "unknown)":
+        if annotation is None or annotation in ("other", "unknown"):
             return None
 
         else:
