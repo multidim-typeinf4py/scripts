@@ -286,7 +286,7 @@ class _TypeWriter(ProjectWideInference):
                 )
                 return None
 
-            # self.logger.debug(f"Number of the extracted functions: {len(ext_funcs)}")
+            self.logger.debug(f"Number of the extracted functions: {len(ext_funcs)}")
 
             write_ext_funcs(ext_funcs, filename, TEMP_DIR)
 
@@ -296,9 +296,9 @@ class _TypeWriter(ProjectWideInference):
             ext_funcs_df = filter_functions(ext_funcs_df)
             ext_funcs_df_params = gen_argument_df_TW(ext_funcs_df)
 
-            # self.logger.debug(
-            #    f"Number of extracted arguments: {ext_funcs_df_params['arg_name'].count()}"
-            # )
+            self.logger.debug(
+               f"Number of extracted arguments: {ext_funcs_df_params['arg_name'].count()}"
+            )
             ext_funcs_df_params = ext_funcs_df_params[
                 (ext_funcs_df_params["arg_name"] != "self")
                 & (
@@ -307,9 +307,9 @@ class _TypeWriter(ProjectWideInference):
                 )
             ]
 
-            # self.logger.debug(
-            #    f"Number of Arguments after ignoring self and types with Any and None: {ext_funcs_df_params.shape[0]}"
-            # )
+            self.logger.debug(
+               f"Number of Arguments after ignoring self and types with Any and None: {ext_funcs_df_params.shape[0]}"
+            )
 
             ext_funcs_df_ret = filter_ret_funcs(ext_funcs_df)
             ext_funcs_df_ret = format_df(ext_funcs_df_ret)
@@ -421,7 +421,7 @@ class _TypeWriter(ProjectWideInference):
                 TEMP_DIR,
             )
 
-            # self.logger.info("--------------------Argument Types Prediction--------------------")
+            self.logger.debug("--------------------Argument Types Prediction--------------------")
             id_params, tok_params, com_params, aval_params = load_param_data(TEMP_DIR)
             params_data_loader = DataLoader(
                 TensorDataset(id_params, tok_params, com_params, aval_params)
@@ -438,12 +438,12 @@ class _TypeWriter(ProjectWideInference):
                 param = ext_funcs_df_params["arg_name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                # p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                # self.logger.debug(f"{fname}: {param} -> {p}")
+                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
+                self.logger.debug(f"{fname}: {param} -> {p}")
 
                 param_inf.append((fname, param, predictions))
 
-            # self.logger.info("--------------------Return Types Prediction--------------------")
+            self.logger.debug("--------------------Return Types Prediction--------------------")
             id_ret, tok_ret, com_ret, aval_ret = load_ret_data(TEMP_DIR)
             ret_data_loader = DataLoader(
                 TensorDataset(id_ret, tok_ret, com_ret, aval_ret)
@@ -458,8 +458,8 @@ class _TypeWriter(ProjectWideInference):
                 fname = ext_funcs_df_ret["name"].iloc[i]
                 predictions = list(self.label_encoder.inverse_transform(p))
 
-                # p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                # self.logger.debug(f"{fname} -> {p}")
+                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
+                self.logger.debug(f"{fname} -> {p}")
 
                 ret_inf.append((fname, predictions))
 
@@ -486,7 +486,7 @@ class _TypeWriter(ProjectWideInference):
 
 class _TypeWriterTopN(_TypeWriter):
     def __init__(self, topn: int):
-        super().__init__(model_path=pathlib.Path("models") / "typewriter", topn=topn)
+        super().__init__(model_path=pathlib.Path("/home/benji/Documents/Uni/heidelberg/05/masterarbeit/impls/scripts/models/typewriter"), topn=topn)
 
 
 class TypeWriterTop1(_TypeWriterTopN):
