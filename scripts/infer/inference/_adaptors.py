@@ -10,6 +10,8 @@ from libcst.codemod import visitors
 from scripts.common.schemas import TypeCollectionSchema
 from scripts.symbols.collector import build_type_collection
 
+from scripts import utils
+
 
 def hints2df(
     folder: pathlib.Path, subset: Optional[set[pathlib.Path]]
