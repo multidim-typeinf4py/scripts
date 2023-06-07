@@ -55,32 +55,32 @@ class TT5FileNormalizer(codemod.ContextAwareTransformer):
             slice=self.replace_elements(updated_node.elements),
         )
 
-    @m.call_if_inside(m.Annotation())
-    def leave_List(
-        self, original_node: libcst.List, updated_node: libcst.List
-    ) -> libcst.BaseExpression:
-        if len(updated_node.elements) == 0:
-            return libcst.Name("List")
-
-        elif len(updated_node.elements) > 1:
-            list_typing = [
-                libcst.SubscriptElement(
-                    libcst.Index(
-                        libcst.Subscript(
-                            value=libcst.Name("Union"),
-                            slice=self.replace_elements(updated_node.elements),
-                        )
-                    )
-                )
-            ]
-
-        else:
-            list_typing = self.replace_elements(updated_node.elements)
-
-        return libcst.Subscript(
-            value=libcst.Name("List"),
-            slice=list_typing,
-        )
+    #@m.leave(m.Annotation(m.List()))
+    #def leave_List(
+    #    self, original_node: libcst.List, updated_node: libcst.List
+    #) -> libcst.BaseExpression:
+    #    if len(updated_node.elements) == 0:
+    #         return libcst.Name("List")
+    #
+    #     elif len(updated_node.elements) > 1:
+    #         list_typing = [
+    #             libcst.SubscriptElement(
+    #                 libcst.Index(
+    #                     libcst.Subscript(
+    #                         value=libcst.Name("Union"),
+    #                         slice=self.replace_elements(updated_node.elements),
+    #                     )
+    #                 )
+    #             )
+    #         ]
+    #
+    #     else:
+    #         list_typing = self.replace_elements(updated_node.elements)
+    #
+    #     return libcst.Subscript(
+    #         value=libcst.Name("List"),
+    #         slice=list_typing,
+    #     )
 
     def replace_elements(
         self, elements: typing.Sequence[libcst.BaseElement]
