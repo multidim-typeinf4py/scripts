@@ -89,6 +89,6 @@ class ParallelTopNAnnotator(
                 collections.append(collection)
         return (
             pd.concat(collections, ignore_index=True)
-            .assign(method=tool)
+            .assign(method=tool.method())
             .pipe(pt.DataFrame[InferredSchema])
         )
