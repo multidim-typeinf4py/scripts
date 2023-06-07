@@ -34,3 +34,10 @@ def example_project_subset(tmp_path) -> ProjectSubset:
     return ProjectSubset(
         mutable=tmp_path, readonly=dataset, subset={pathlib.Path("x.py")}
     )
+
+
+@pytest.fixture()
+def unannotated(tmp_path) -> Project:
+    dataset = proj_root / "tests" / "resources" / "unannotated"
+    shutil.copytree(dataset, tmp_path, dirs_exist_ok=True)
+    return Project(mutable=tmp_path, readonly=dataset)
