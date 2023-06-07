@@ -444,7 +444,8 @@ class MultiVarTypeCollector(
             return libcst.Annotation(annotation=self._handle_NameOrAttribute(node.func))
 
         else:
-            raise ValueError(f"Unexpected annotation node: {_stringify(node)}")
+            code = libcst.Module([]).code_for_node(node)
+            raise ValueError(f"Unexpected annotation node: {code}")
 
     def _handle_Parameters(
         self,
