@@ -175,58 +175,61 @@ def cli_entrypoint(
             if outdir.is_dir() and overwrite:
                 shutil.rmtree(outdir)
 
-            # Copy original project
-            shutil.copytree(inpath, outdir, ignore_dangling_symlinks=True, symlinks=True)
-
             # Copy generated log files
+            outdir.mkdir(parents=True, exist_ok=True)
             for log_path in (output.info_log_path, output.debug_log_path, output.error_log_path):
                 shutil.copy(log_path(sc), log_path(outdir))
+                    
+            with pandas.option_context(
+                "display.max_rows",
+                None,
+                "display.max_columns",
+                None,
+                "display.expand_frame_repr",
+                False,
+            ):
+                inferred = inferred[inferred[TypeCollectionSchema.category].isin(inferring)]
+                print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
-        if removing:
-            # Reremove annotations
-            result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=TypeAnnotationRemover(
-                    context=codemod.CodemodContext(),
-                    variables=TypeCollectionCategory.VARIABLE in removing,
-                    parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
-                    rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
-                ),
-                jobs=worker_count(),
-                files=codemod.gather_files([str(outdir)]),
-                repo_root=str(outdir),
-            )
-            print(
-                format_parallel_exec_result(
-                    action="Annotation Removal Preservation (in case inference mutated codebase)",
-                    result=result,
+            output.write_inferred(inferred, outdir)
+            print(f"Inferred types have been stored at {outdir}")
+
+            if annotate:
+                # Copy original project
+                shutil.copytree(
+                    inpath, outdir, ignore_dangling_symlinks=True, symlinks=True, dirs_exist_ok=True
                 )
-            )
 
-        with pandas.option_context(
-            "display.max_rows",
-            None,
-            "display.max_columns",
-            None,
-            "display.expand_frame_repr",
-            False,
-        ):
-            inferred = inferred[inferred[TypeCollectionSchema.category].isin(inferring)]
-            print(inferred.sample(n=min(len(inferred), 20)).sort_index())
+                # Reremove annotations
+                result = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeAnnotationRemover(
+                        context=codemod.CodemodContext(),
+                        variables=TypeCollectionCategory.VARIABLE in removing,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
+                        rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
+                    ),
+                    jobs=worker_count(),
+                    files=codemod.gather_files([str(outdir)]),
+                    repo_root=str(outdir),
+                )
 
-        output.write_inferred(inferred, outdir)
-        print(f"Inferred types have been stored at {outdir}")
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Removal Preservation (in case inference mutated codebase)",
+                        result=result,
+                    )
+                )
 
-        if annotate:
-            print(f"Applying Annotations to codebase at {outdir}")
-            result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=TypeAnnotationApplierTransformer(
-                    codemod.CodemodContext(), top_preds_only(inferred)
-                ),
-                files=codemod.gather_files([str(outdir)]),
-                jobs=worker_count(),
-                repo_root=str(outdir),
-            )
-            print(format_parallel_exec_result(action="Annotation Application", result=result))
+                print(f"Applying Annotations to codebase at {outdir}")
+                result = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeAnnotationApplierTransformer(
+                        codemod.CodemodContext(), top_preds_only(inferred)
+                    ),
+                    files=codemod.gather_files([str(outdir)]),
+                    jobs=worker_count(),
+                    repo_root=str(outdir),
+                )
+                print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
