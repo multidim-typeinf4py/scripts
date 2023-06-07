@@ -18,7 +18,7 @@ if __name__ == "__main__":
     # datefmt="%Y-%m-%d %H:%M:%S"
 
     logging.basicConfig(level=logging.INFO)
-    # logging.info(f"{utils.worker_count()=}")
+    print(f"{utils.worker_count()=}")
     # logging.info(f"{sys.path=}")
 
     main = click.Group(
