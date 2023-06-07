@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import collections
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
@@ -142,6 +143,8 @@ class MultiVarTypeCollector(
         self.current_assign: Optional[libcst.Assign] = None  # used to collect typevars
         # Store the annotations.
         self.annotations = MultiVarAnnotations.empty()
+
+        self.logger = logging.getLogger(type(self).__qualname__)
 
     def annotated_function(
         self, function: libcst.FunctionDef, _: libcst.Annotation
@@ -445,7 +448,10 @@ class MultiVarTypeCollector(
 
         else:
             code = libcst.Module([]).code_for_node(node)
-            raise ValueError(f"Unexpected annotation node: {code}")
+            msg = f"{self.context.filename}: Unhandled annotation {code}"
+            
+            self.logger.error(msg)
+            raise ValueError(msg)
 
     def _handle_Parameters(
         self,

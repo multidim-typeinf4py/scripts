@@ -100,28 +100,6 @@ def build_type_collection(
     return TypeCollection(cs)
 
 
-# def build_type_collection_from_test_set(
-#     dataset: pathlib.Path, structure: DatasetFolderStructure
-# ) -> TypeCollection:
-#     test_files = structure.test_set(dataset)
-#
-#     collection: list[pt.DataFrame[TypeCollectionSchema]] = []
-#     for repo, files in test_files.items():
-#         file2code = dict()
-#         for file in tqdm.tqdm(files):
-#             file2code[file] = open(file).read()
-#
-#             collector = _ParallelTypeCollector(repo_root=str(repo), files=files)
-#             procc = process_map(
-#                 collector,
-#                 file2code.items(),
-#                 total=len(file2code),
-#                 desc=f"Building Type Collection from {repo}",
-#             )
-#             collection.extend(procc)
-#     return TypeCollection(pd.concat(collection, ignore_index=True))
-
-
 class TypeCollectorVisitor(codemod.ContextAwareVisitor):
     collection: TypeCollection
 
