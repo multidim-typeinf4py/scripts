@@ -48,6 +48,9 @@ def format_parallel_exec_result(action: str, result: ParallelTransformResult) ->
     Warnings:       {result.warnings}
     """
 
+    if result.failures > 0:
+        raise RuntimeError(f"{action} failed; aborting...")
+
     return format
 
 

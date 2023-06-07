@@ -23,6 +23,7 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionAnnotation,
 )
 
+from ..annotators.hityper import HiTyperProjectApplier
 from ... import utils
 from scripts.common.annotations import ApplyTypeAnnotationsVisitor
 from scripts.common.schemas import InferredSchema
@@ -204,33 +205,12 @@ class HiTyper(ProjectWideInference, ABC):
         repo_predictions = _HiTyperPredictions.parse_file(inferred_types_path)
         predictions = self._parse_predictions(repo_predictions, mutable)
 
-        collections = []
-        for topn in range(1, self.adaptor.topn() + 1):
-            with utils.scratchpad(mutable) as sc:
-                tw_hint_res = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=ParallelTypeApplier(
-                        context=codemod.CodemodContext(),
-                        path2batches=predictions,
-                        topn=topn - 1,
-                    ),
-                    jobs=utils.worker_count(),
-                    repo_root=str(sc),
-                    files=[sc / s for s in subset],
-                )
-                self.logger.info(
-                    utils.format_parallel_exec_result(
-                        f"Annotated with HiTyper @ topn={topn}", result=tw_hint_res
-                    )
-                )
-                collections.append(
-                    build_type_collection(root=sc, allow_stubs=False, subset=subset).df.assign(
-                        topn=topn
-                    )
-                )
-        return (
-            pd.concat(collections, ignore_index=True)
-            .assign(method=self.method())
-            .pipe(pt.DataFrame[InferredSchema])
+        return HiTyperProjectApplier.collect_topn(
+            project=mutable,
+            subset=subset,
+            predictions=predictions,
+            topn=self.adaptor.topn(),
+            tool=self,
         )
 
     def _parse_predictions(

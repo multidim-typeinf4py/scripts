@@ -27,7 +27,8 @@ from typed_ast.ast3 import (
 )
 
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
-from scripts.infer.inference.typilus import TypilusPrediction, Typilus
+from scripts.infer.inference.typilus import Typilus
+from scripts.infer.annotators.typilus import TypilusPrediction
 
 
 @dataclasses.dataclass

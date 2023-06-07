@@ -2,12 +2,10 @@ import dataclasses
 import json
 import pathlib
 import pickle
-import typing
 
 import libcst
 import numpy as np
 import onnxruntime
-import pandas as pd
 import pandera.typing as pt
 import torch
 import tqdm
@@ -22,10 +20,9 @@ from type4py.deploy.infer import (
     get_type_preds_single_file,
 )
 
-from ... import utils
 from scripts.common.schemas import InferredSchema
-from scripts.symbols.collector import build_type_collection
 from ._base import ProjectWideInference
+from ..annotators.type4py import Type4PyProjectApplier
 
 
 @dataclasses.dataclass
@@ -112,36 +109,6 @@ def _batchify(predictions: dict, topn: int) -> list[dict]:
     return batches
 
 
-class ParallelTypeApplier(codemod.ContextAwareTransformer):
-    def __init__(
-        self,
-        context: codemod.CodemodContext,
-        path2batches: dict[pathlib.Path, list[dict]],
-        topn: int,
-    ) -> None:
-        super().__init__(context)
-        self.path2batches = path2batches
-        self.topn = topn
-
-    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        assert self.context.filename is not None
-        assert self.context.metadata_manager is not None
-
-        path = pathlib.Path(self.context.filename).relative_to(
-            self.context.metadata_manager.root_path
-        )
-
-        if path not in self.path2batches:
-            return tree
-        batch = self.path2batches[path][self.topn]
-
-        return metadata.MetadataWrapper(
-            module=tree,
-            unsafe_skip_copy=True,
-            cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
-        ).visit(TypeApplier(f_processeed_dict=batch, apply_nlp=False))
-
-
 class _Type4Py(ProjectWideInference):
     def __init__(
         self,
@@ -190,34 +157,12 @@ class _Type4Py(ProjectWideInference):
             for p, dps in paths_with_predictions.items()
         }
 
-        collections = []
-        for topn in range(1, self.topn + 1):
-            with utils.scratchpad(mutable) as sc:
-                t4p_hint_res = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=ParallelTypeApplier(
-                        context=codemod.CodemodContext(),
-                        path2batches=paths2batches,
-                        topn=topn - 1,
-                    ),
-                    jobs=utils.worker_count(),
-                    repo_root=str(sc),
-                    files=[str(sc / p) for p in subset],
-                )
-                self.logger.info(
-                    utils.format_parallel_exec_result(
-                        f"Annotated with Type4Py @ topn={topn}", result=t4p_hint_res
-                    )
-                )
-                collections.append(
-                    build_type_collection(
-                        root=sc, allow_stubs=False, subset=set(proj_files)
-                    ).df.assign(topn=topn)
-                )
-
-        return (
-            pd.concat(collections, ignore_index=True)
-            .assign(method=self.method())
-            .pipe(pt.DataFrame[InferredSchema])
+        return Type4PyProjectApplier.collect_topn(
+            project=mutable,
+            subset=subset,
+            predictions=paths2batches,
+            topn=self.topn,
+            tool=self,
         )
 
     def _create_or_load_datapoints(

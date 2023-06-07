@@ -26,13 +26,16 @@ from libcst import codemod
 import pandera.typing as pt
 
 from scripts.common.schemas import InferredSchema
+from scripts.infer.annotators import TT5ProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
 from scripts.symbols.collector import build_type_collection
 from scripts import utils
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
+    def __init__(
+        self, context: codemod.CodemodContext, predictions: SignatureMap
+    ) -> None:
         super().__init__(context)
         self.predictions = predictions
 
@@ -92,37 +95,12 @@ class _TypeT5(ProjectWideInference):
             )
         )
 
-        collections = []
-        for topn, batch in enumerate(_batchify(rollout.final_sigmap, self.topn), start=1):
-            with utils.scratchpad(mutable) as sc:
-                res = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=TypeT5Applier(
-                        context=codemod.CodemodContext(),
-                        predictions=batch,
-                    ),
-                    jobs=utils.worker_count(),
-                    repo_root=str(sc),
-                    files=[str(sc / f) for f in subset],
-                )
-                self.logger.info(
-                    utils.format_parallel_exec_result(
-                        f"Annotated with TypeT5 @ topn={topn}", result=res
-                    )
-                )
-
-                collected = build_type_collection(root=sc, allow_stubs=False, subset=subset).df
-                collections.append(collected.assign(topn=topn))
-        return (
-            pd.concat(collections, ignore_index=True)
-            .assign(method=self.method())
-            .pipe(pt.DataFrame[InferredSchema])
-        )
-
-
-def _batchify(predictions: SignatureMapTopN, maxn: int) -> Generator[SignatureMap, None, None]:
-    for n in range(maxn):
-        yield SignatureMap(
-            {project_path: signatures[n] for project_path, signatures in predictions.items()}
+        return TT5ProjectApplier.collect_topn(
+            project=mutable,
+            subset=subset,
+            predictions=rollout.final_sigmap,
+            topn=self.topn,
+            tool=self,
         )
 
 
