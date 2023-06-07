@@ -2,5 +2,5 @@
 
 set -o nounset
 
-source ./slurm/_common.sh
+source ./hyper/_common.sh
 parameter_inference "typilustop10" "$1"
