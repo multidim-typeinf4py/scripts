@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
     # datefmt="%Y-%m-%d %H:%M:%S"
 
-    logging.basicConfig(level=logging.INFO)
+    # logging.basicConfig(level=logging.INFO)
     print(f"{utils.worker_count()=}")
     # logging.info(f"{sys.path=}")
 
