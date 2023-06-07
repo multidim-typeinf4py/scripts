@@ -2,7 +2,8 @@ import pathlib
 import typing
 
 import libcst
-from libcst import codemod
+import mpmath
+from libcst import codemod, matchers as m
 
 from typet5.static_analysis import SignatureMap, SignatureMapTopN
 from typet5.experiments import utils as typet5_utils
@@ -29,8 +30,39 @@ class TT5FileApplier(codemod.Codemod):
         self.sigmap = sigmap
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        return typet5_utils.apply_sigmap(
+        typet5_annotated = typet5_utils.apply_sigmap(
             m=tree,
             sigmap=self.sigmap,
             module_name=self.context.full_module_name,
         )
+        normalised = TT5FileNormalizer(context=self.context).transform_module(
+            typet5_annotated
+        )
+
+        return normalised
+
+
+class TT5FileNormalizer(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation())
+    def leave_Tuple(
+        self, original_node: libcst.Tuple, updated_node: libcst.Tuple
+    ) -> libcst.BaseExpression:
+        return libcst.Subscript(
+            value=libcst.Name("Tuple"),
+            slice=self.replace_elements(updated_node.elements),
+        )
+
+    @m.call_if_inside(m.Annotation())
+    def leave_List(
+        self, original_node: libcst.List, updated_node: libcst.List
+    ) -> libcst.BaseExpression:
+        return libcst.Subscript(
+            value=libcst.Name("List"),
+            slice=self.replace_elements(updated_node.elements),
+        )
+
+    def replace_elements(
+        self, elements: typing.Sequence[libcst.BaseElement]
+    ) -> list[libcst.SubscriptElement]:
+        assert all(map(lambda e: isinstance(e, libcst.Element), elements))
+        return [libcst.SubscriptElement(libcst.Index(value=e.value)) for e in elements]
