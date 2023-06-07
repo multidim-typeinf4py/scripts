@@ -33,7 +33,7 @@ from libcst.metadata import (
     ClassScope,
 )
 
-from scripts.common import transformers as t
+from scripts.common import transformers as t, _stringify
 from scripts.common.metadata.anno4inst import Annotation4InstanceProvider
 from scripts.common.visitors import (
     HintableDeclarationVisitor,
@@ -444,7 +444,7 @@ class MultiVarTypeCollector(
             return libcst.Annotation(annotation=self._handle_NameOrAttribute(node.func))
 
         else:
-            raise ValueError(f"Unexpected annotation node: {node}")
+            raise ValueError(f"Unexpected annotation node: {_stringify(node)}")
 
     def _handle_Parameters(
         self,
