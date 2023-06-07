@@ -13,7 +13,12 @@ from scripts.infer.inference._base import DatasetFolderStructure
 
 from scripts.infer.insertion import TypeAnnotationApplierTransformer
 
-from scripts.utils import format_parallel_exec_result, scratchpad, top_preds_only, worker_count
+from scripts.utils import (
+    format_parallel_exec_result,
+    scratchpad,
+    top_preds_only,
+    worker_count,
+)
 
 from .inference import Inference, factory, SUPPORTED_TOOLS
 
@@ -38,14 +43,18 @@ from libcst import codemod
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -57,8 +66,8 @@ from libcst import codemod
     help="Overwrite an existing output folder from previous run",
 )
 @click.option(
-    "-r",
-    "--remove",
+    "-e",
+    "--task",
     type=click.Choice(
         [
             str(TypeCollectionCategory.VARIABLE),
@@ -66,43 +75,22 @@ from libcst import codemod
             str(TypeCollectionCategory.CALLABLE_RETURN),
         ],
     ),
-    help="Remove annotations in the codebase",
+    help="Remove and infer annotations in the codebase",
     multiple=True,
     required=True,
 )
 @click.option(
-    "-i",
-    "--infer",
-    type=click.Choice(
-        [
-            str(TypeCollectionCategory.VARIABLE),
-            str(TypeCollectionCategory.CALLABLE_PARAMETER),
-            str(TypeCollectionCategory.CALLABLE_RETURN),
-        ],
-    ),
-    help="Retain only the given annotation categories in the codebase",
-    multiple=True,
-    required=True,
+    "-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase"
 )
-@click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
-    remove: list[str],
-    infer: list[str],
+    task: list[str],
     annotate: bool,
 ) -> None:
-    removing = list(map(TypeCollectionCategory.__getitem__, remove))
-    inferring = list(map(TypeCollectionCategory.__getitem__, infer))
-
-    if illegal := set(inferring) - set(removing):
-        print(
-            f"Refusing to perform inference; asking to infer {illegal}, while not removing them will deliver "
-            f"inaccurate results"
-        )
-        return
+    tasked = list(map(TypeCollectionCategory.__getitem__, task))
 
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
@@ -118,8 +106,8 @@ def cli_entrypoint(
         outdir = output.inference_output_path(
             outpath / author_repo,
             tool=inference_tool.method(),
-            removed=removing,
-            inferred=inferring,
+            removed=tasked,
+            inferred=tasked,
         )
 
         # Skip if we are not overwriting results
@@ -137,26 +125,36 @@ def cli_entrypoint(
                 print(f"Skipping {project}, no Python files found!")
                 continue
 
-            if removing:
-                print(f"annotation removal flag provided, removing annotations on '{sc}'")
+            if tasked:
+                print(
+                    f"annotation removal flag provided, removing annotations on '{sc}'"
+                )
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
-                        variables=TypeCollectionCategory.VARIABLE in removing,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
-                        rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
+                        variables=TypeCollectionCategory.VARIABLE in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
+                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                     ),
                     jobs=worker_count(),
                     files=files,
                     repo_root=str(sc),
                 )
-                print(format_parallel_exec_result(action="Annotation Removal", result=result))
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Removal", result=result
+                    )
+                )
 
             # Run inference task for hour before aborting
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 tasks = [
                     executor.submit(
-                        lambda t, m, r, s: t.infer(m, r, s), inference_tool, sc, inpath, subset
+                        lambda t, m, r, s: t.infer(m, r, s),
+                        inference_tool,
+                        sc,
+                        inpath,
+                        subset,
                     )
                 ]
 
@@ -177,9 +175,13 @@ def cli_entrypoint(
 
             # Copy generated log files
             outdir.mkdir(parents=True, exist_ok=True)
-            for log_path in (output.info_log_path, output.debug_log_path, output.error_log_path):
+            for log_path in (
+                output.info_log_path,
+                output.debug_log_path,
+                output.error_log_path,
+            ):
                 shutil.copy(log_path(sc), log_path(outdir))
-                    
+
             with pandas.option_context(
                 "display.max_rows",
                 None,
@@ -188,7 +190,9 @@ def cli_entrypoint(
                 "display.expand_frame_repr",
                 False,
             ):
-                inferred = inferred[inferred[TypeCollectionSchema.category].isin(inferring)]
+                inferred = inferred[
+                    inferred[TypeCollectionSchema.category].isin(tasked)
+                ]
                 print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
             output.write_inferred(inferred, outdir)
@@ -197,16 +201,20 @@ def cli_entrypoint(
             if annotate:
                 # Copy original project
                 shutil.copytree(
-                    inpath, outdir, ignore_dangling_symlinks=True, symlinks=True, dirs_exist_ok=True
+                    inpath,
+                    outdir,
+                    ignore_dangling_symlinks=True,
+                    symlinks=True,
+                    dirs_exist_ok=True,
                 )
 
                 # Reremove annotations
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
-                        variables=TypeCollectionCategory.VARIABLE in removing,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in removing,
-                        rets=TypeCollectionCategory.CALLABLE_RETURN in removing,
+                        variables=TypeCollectionCategory.VARIABLE in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
+                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                     ),
                     jobs=worker_count(),
                     files=codemod.gather_files([str(outdir)]),
@@ -229,7 +237,11 @@ def cli_entrypoint(
                     jobs=worker_count(),
                     repo_root=str(outdir),
                 )
-                print(format_parallel_exec_result(action="Annotation Application", result=result))
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Application", result=result
+                    )
+                )
 
 
 if __name__ == "__main__":
