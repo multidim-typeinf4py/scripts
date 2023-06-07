@@ -16,6 +16,7 @@ class FuncPred:
     ret_type_p: list[ModelAdaptor.Prediction] = dataclasses.field(default_factory=list)
     variables_p: dict = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class ClassPred:
     q_name: str
@@ -55,9 +56,7 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
         self.ret_cursor = 0
 
         self.file_predictions = FilePredictions()
-        self.insertion_point_stack: list[ClassPred | FilePredictions] = [
-            self.file_predictions
-        ]
+        self.insertion_point_stack: list[ClassPred | FilePredictions] = [self.file_predictions]
 
         self.topn = topn
 
@@ -164,9 +163,9 @@ class TypeWriterAdaptor(ModelAdaptor):
             ).visit(visitor)
 
             file_predictions = dataclasses.asdict(visitor.file_predictions)
-            hityper_predictions[
-                str(path.resolve())
-            ] = ModelAdaptor.FilePredictions.parse_obj(file_predictions)
+            hityper_predictions[str(path.resolve())] = ModelAdaptor.FilePredictions.parse_obj(
+                file_predictions
+            )
 
         return ModelAdaptor.ProjectPredictions(__root__=hityper_predictions)
 
@@ -180,14 +179,13 @@ class TypeWriterAdaptor(ModelAdaptor):
             for x in range(len(topn_parameters[0]))
         ]
         ret_types = [
-            [topn_returns[n][x] for n in range(self.topn())]
-            for x in range(len(topn_returns[0]))
+            [topn_returns[n][x] for n in range(self.topn())] for x in range(len(topn_returns[0]))
         ]
 
         return param_types, ret_types
 
 
-class _HiTyperTypeWriterTopN(HiTyper):
+class _HiTwTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(
             TypeWriterAdaptor(
@@ -197,24 +195,24 @@ class _HiTyperTypeWriterTopN(HiTyper):
         )
 
     def method(self) -> str:
-        return f"HiTyperTypeWriterN{self.adaptor.topn()}"
+        return f"HiTypewriterN{self.adaptor.topn()}"
 
 
-class HiTyperTypeWriterTop1(_HiTyperTypeWriterTopN):
+class HiTypewriterTop1(_HiTwTopN):
     def __init__(self) -> None:
         super().__init__(topn=1)
 
 
-class HiTyperTypeWriterTop3(_HiTyperTypeWriterTopN):
+class HiTypewriterTop3(_HiTwTopN):
     def __init__(self) -> None:
         super().__init__(topn=3)
 
 
-class HiTyperTypeWriterTop5(_HiTyperTypeWriterTopN):
+class HiTypewriterTop5(_HiTwTopN):
     def __init__(self) -> None:
         super().__init__(topn=5)
 
 
-class HiTyperTypeWriterTop10(_HiTyperTypeWriterTopN):
+class HiTypewriterTop10(_HiTwTopN):
     def __init__(self) -> None:
         super().__init__(topn=10)

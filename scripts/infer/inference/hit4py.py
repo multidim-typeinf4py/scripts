@@ -18,10 +18,10 @@ class Type4PyAdaptor(ModelAdaptor):
     def topn(self) -> int:
         return self.type4py.topn
 
-    def predict(self, project: pathlib.Path, subset: set[pathlib.Path]) -> ModelAdaptor.ProjectPredictions:
-        r = ModelAdaptor.ProjectPredictions(
-            __root__=dict()
-        )
+    def predict(
+        self, project: pathlib.Path, subset: set[pathlib.Path]
+    ) -> ModelAdaptor.ProjectPredictions:
+        r = ModelAdaptor.ProjectPredictions(__root__=dict())
 
         for file in subset:
             with (project / file).open() as f:
@@ -52,32 +52,29 @@ class Type4PyAdaptor(ModelAdaptor):
         return r
 
 
-class _HiTyperType4PyTopN(HiTyper):
+class _HiType4PyTopN(HiTyper):
     def __init__(self, topn: int) -> None:
         super().__init__(Type4PyAdaptor(model_path=pathlib.Path("models") / "type4py", topn=topn))
 
     def method(self) -> str:
-        return f"HiTyperType4PyN{self.adaptor.topn()}"
+        return f"HiType4PyN{self.adaptor.topn()}"
 
 
-class HiTyperType4PyTop1(_HiTyperType4PyTopN):
+class HiType4PyTop1(_HiType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=1)
 
 
-class HiTyperType4PyTop3(_HiTyperType4PyTopN):
+class HiType4Py3(_HiType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=3)
 
 
-class HiTyperType4PyTop5(_HiTyperType4PyTopN):
+class HiType4Py5(_HiType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=5)
 
 
-class HiTyperType4PyTop10(_HiTyperType4PyTopN):
+class HiType4PyTop10(_HiType4PyTopN):
     def __init__(self) -> None:
         super().__init__(topn=10)
-
-
-

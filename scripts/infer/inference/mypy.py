@@ -57,7 +57,11 @@ class MyPy(ProjectWideInference):
         finally:
             if (mutable / MyPy._OUTPUT_DIR).is_dir():
                 return (
-                    _adaptors.stubs2df(mutable / MyPy._OUTPUT_DIR, subset=subset)
+                    _adaptors.stubs2df(
+                        project_folder=mutable,
+                        stubs_folder=mutable / MyPy._OUTPUT_DIR,
+                        subset=subset,
+                    )
                     .assign(method=self.method(), topn=1)
                     .pipe(pt.DataFrame[InferredSchema])
                 )

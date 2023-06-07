@@ -97,7 +97,7 @@ class DatasetFolderStructure(enum.Enum):
             for repo in repo_suffix.iterdir():
                 if repo.is_dir() and (fs := codemod.gather_files([repo_suffix / repo])):
                     mapping[repo_suffix / repo] = set(
-                        map(lambda p: pathlib.Path(p).relative_to(repo_suffix), fs)
+                        map(lambda p: pathlib.Path(p).relative_to(repo_suffix / repo), fs)
                     )
 
             return mapping
