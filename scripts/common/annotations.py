@@ -33,7 +33,7 @@ from libcst.metadata import (
     ClassScope,
 )
 
-from scripts.common import transformers as t, _stringify
+from scripts.common import transformers as t
 from scripts.common.metadata.anno4inst import Annotation4InstanceProvider
 from scripts.common.visitors import (
     HintableDeclarationVisitor,
