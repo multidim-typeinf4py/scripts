@@ -1,19 +1,24 @@
+import functools
 import pathlib
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
-from libsa4py.cst_extractor import Extractor
-from type4py.deploy.infer import (
-    get_dps_single_file,
-    get_type_preds_single_file,
-)
-
-from scripts.infer.inference.t4py import PTType4Py
+from scripts.infer.inference.t4py import Type4PyTopN
 from ._hityper import ModelAdaptor, HiTyper
 
 
 class Type4PyAdaptor(ModelAdaptor):
-    def __init__(self, model_path: pathlib.Path, topn: int) -> None:
-        super().__init__(model_path)
-        self.type4py = PTType4Py(pre_trained_model_path=model_path, topn=topn)
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__()
+        self.type4py = Type4PyTopN(
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
+        )
 
     def topn(self) -> int:
         return self.type4py.topn
@@ -21,60 +26,37 @@ class Type4PyAdaptor(ModelAdaptor):
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
-        r = ModelAdaptor.ProjectPredictions(__root__=dict())
+        datapoints = self.type4py.extract_datapoints(project, subset)
+        predictions = self.type4py.make_predictions(datapoints, subset)
 
-        for file in subset:
-            with (project / file).open() as f:
-                src_f_read = f.read()
-            type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
+        root: dict[str, ModelAdaptor.FilePredictions] = {
+            str(project.resolve() / file): ModelAdaptor.FilePredictions.parse_obj(p)
+            for file, p in predictions.items()
+            if p
+        }
+        return ModelAdaptor.ProjectPredictions(__root__=root)
 
-            (
-                all_type_slots,
-                vars_type_hints,
-                params_type_hints,
-                rets_type_hints,
-            ) = get_dps_single_file(type_hints)
 
-            if not any(h for h in (vars_type_hints, params_type_hints, rets_type_hints)):
-                continue
-
-            p = get_type_preds_single_file(
-                type_hints,
-                all_type_slots,
-                (vars_type_hints, params_type_hints, rets_type_hints),
-                self.type4py,
-                filter_pred_types=False,
+class HiType4PyTopN(HiTyper):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__(
+            Type4PyAdaptor(
+                topn=topn,
+                cpu_executor=cpu_executor,
+                model_executor=model_executor,
             )
-
-            parsed = ModelAdaptor.FilePredictions.parse_obj(p)
-            r.__root__[str(project.resolve() / file)] = parsed
-
-        return r
-
-
-class _HiType4PyTopN(HiTyper):
-    def __init__(self, topn: int) -> None:
-        super().__init__(Type4PyAdaptor(model_path=pathlib.Path("models") / "type4py", topn=topn))
+        )
 
     def method(self) -> str:
         return f"HiType4PyN{self.adaptor.topn()}"
 
 
-class HiType4PyTop1(_HiType4PyTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=1)
-
-
-class HiType4Py3(_HiType4PyTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=3)
-
-
-class HiType4Py5(_HiType4PyTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=5)
-
-
-class HiType4PyTop10(_HiType4PyTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=10)
+HiType4PyTop1 = functools.partial(HiType4PyTopN, topn=1)
+HiType4PyTop3 = functools.partial(HiType4PyTopN, topn=3)
+HiType4PyTop5 = functools.partial(HiType4PyTopN, topn=5)
+HiType4PyTop10 = functools.partial(HiType4PyTopN, topn=10)

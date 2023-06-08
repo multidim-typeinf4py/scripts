@@ -1,12 +1,20 @@
 import dataclasses
+import functools
 import pathlib
+import tempfile
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import libcst
 from libcst import metadata
 from typewriter.dltpy.preprocessing.pipeline import preprocessor
 
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
-from scripts.infer.inference.typewriter import _TypeWriter, Parameter, Return
+from scripts.infer.inference.typewriter import (
+    _TypeWriter,
+    Parameter,
+    Return,
+    TypeWriterTopN,
+)
 
 
 @dataclasses.dataclass
@@ -56,7 +64,9 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
         self.ret_cursor = 0
 
         self.file_predictions = FilePredictions()
-        self.insertion_point_stack: list[ClassPred | FilePredictions] = [self.file_predictions]
+        self.insertion_point_stack: list[ClassPred | FilePredictions] = [
+            self.file_predictions
+        ]
 
         self.topn = topn
 
@@ -135,9 +145,18 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
 
 
 class TypeWriterAdaptor(ModelAdaptor):
-    def __init__(self, model_path: pathlib.Path, topn: int):
-        super().__init__(model_path)
-        self.typewriter = _TypeWriter(model_path, topn=topn)
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__()
+        self.typewriter = TypeWriterTopN(
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
+        )
 
     def topn(self) -> int:
         return self.typewriter.topn
@@ -145,14 +164,22 @@ class TypeWriterAdaptor(ModelAdaptor):
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
-        file2predictions: dict[pathlib.Path, tuple | None] = {
-            project / s: self.typewriter.infer_for_file(project, s) for s in subset
+        with tempfile.TemporaryDirectory() as td:
+            paths2predictables = self.typewriter.extract_predictables(
+                td, project, subset
+            )
+            paths2predictions = self.typewriter.make_predictions(
+                td, paths2predictables, subset
+            )
+
+        file2predictions: dict[pathlib.Path, tuple] = {
+            project / s: preds for s, preds in paths2predictions.items()
         }
 
         hityper_predictions = dict[str, FilePredictions]()
 
         for path, model_preds in file2predictions.items():
-            if not model_preds:
+            if model_preds == ([], []):
                 continue
 
             parameters, returns = self.transform_predictions(*model_preds)
@@ -163,9 +190,9 @@ class TypeWriterAdaptor(ModelAdaptor):
             ).visit(visitor)
 
             file_predictions = dataclasses.asdict(visitor.file_predictions)
-            hityper_predictions[str(path.resolve())] = ModelAdaptor.FilePredictions.parse_obj(
-                file_predictions
-            )
+            hityper_predictions[
+                str(path.resolve())
+            ] = ModelAdaptor.FilePredictions.parse_obj(file_predictions)
 
         return ModelAdaptor.ProjectPredictions(__root__=hityper_predictions)
 
@@ -179,18 +206,25 @@ class TypeWriterAdaptor(ModelAdaptor):
             for x in range(len(topn_parameters[0]))
         ]
         ret_types = [
-            [topn_returns[n][x] for n in range(self.topn())] for x in range(len(topn_returns[0]))
+            [topn_returns[n][x] for n in range(self.topn())]
+            for x in range(len(topn_returns[0]))
         ]
 
         return param_types, ret_types
 
 
-class _HiTwTopN(HiTyper):
-    def __init__(self, topn: int) -> None:
+class HiTypeWriterTopN(HiTyper):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
         super().__init__(
             TypeWriterAdaptor(
-                model_path=pathlib.Path("models") / "typewriter",
                 topn=topn,
+                cpu_executor=cpu_executor,
+                model_executor=model_executor,
             )
         )
 
@@ -198,21 +232,7 @@ class _HiTwTopN(HiTyper):
         return f"HiTypewriterN{self.adaptor.topn()}"
 
 
-class HiTypewriterTop1(_HiTwTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=1)
-
-
-class HiTypewriterTop3(_HiTwTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=3)
-
-
-class HiTypewriterTop5(_HiTwTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=5)
-
-
-class HiTypewriterTop10(_HiTwTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=10)
+HiTypeWriterTop1 = functools.partial(HiTypeWriterTopN, topn=1)
+HiTypeWriterTop3 = functools.partial(HiTypeWriterTopN, topn=3)
+HiTypeWriterTop5 = functools.partial(HiTypeWriterTopN, topn=5)
+HiTypeWriterTop10 = functools.partial(HiTypeWriterTopN, topn=10)

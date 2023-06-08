@@ -1,5 +1,7 @@
+import functools
 import json
 import pathlib
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import pandera.typing as pt
 from data_preparation.scripts.graph_generator import extract_graphs
@@ -13,8 +15,14 @@ from scripts.infer.inference._base import ProjectWideInference
 
 
 class Typilus(ProjectWideInference):
-    def __init__(self, model_folder: pathlib.Path, topn: int) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        model_folder: pathlib.Path,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
 
         self.topn = topn
 
@@ -116,26 +124,22 @@ class Typilus(ProjectWideInference):
         )
 
 
-class _TypilusTopN(Typilus):
-    def __init__(self, topn: int) -> None:
-        super().__init__(model_folder=pathlib.Path("models") / "typilus", topn=topn)
+class TypilusTopN(Typilus):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__(
+            model_folder=pathlib.Path("models/typilus"),
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
+        )
 
 
-class TypilusTop1(_TypilusTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=1)
-
-
-class TypilusTop3(_TypilusTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=3)
-
-
-class TypilusTop5(_TypilusTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=5)
-
-
-class TypilusTop10(_TypilusTopN):
-    def __init__(self) -> None:
-        super().__init__(topn=10)
+TypilusTop1 = functools.partial(TypilusTopN, topn=1)
+TypilusTop3 = functools.partial(TypilusTopN, topn=3)
+TypilusTop5 = functools.partial(TypilusTopN, topn=5)
+TypilusTop10 = functools.partial(TypilusTopN, topn=10)

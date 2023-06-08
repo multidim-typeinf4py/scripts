@@ -1,3 +1,4 @@
+import functools
 import pathlib
 import torch
 
@@ -62,9 +63,14 @@ class TypeT5Configs:
     )
 
 
-class _TypeT5(ProjectWideInference):
-    def __init__(self, topn: int) -> None:
-        super().__init__()
+class TypeT5TopN(ProjectWideInference):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
         self.wrapper = ModelWrapper.load_from_hub("MrVPlusOne/TypeT5-v7")
         self.wrapper.args = DecodingArgs(
             sampling_max_tokens=TypeT5Configs.Default.ctx_size,
@@ -110,21 +116,7 @@ class _TypeT5(ProjectWideInference):
         )
 
 
-class TypeT5Top1(_TypeT5):
-    def __init__(self) -> None:
-        super().__init__(topn=1)
-
-
-class TypeT5Top3(_TypeT5):
-    def __init__(self) -> None:
-        super().__init__(topn=3)
-
-
-class TypeT5Top5(_TypeT5):
-    def __init__(self) -> None:
-        super().__init__(topn=5)
-
-
-class TypeT5Top10(_TypeT5):
-    def __init__(self) -> None:
-        super().__init__(topn=10)
+TypeT5Top1 = functools.partial(TypeT5TopN, topn=1)
+TypeT5Top3 = functools.partial(TypeT5TopN, topn=3)
+TypeT5Top5 = functools.partial(TypeT5TopN, topn=5)
+TypeT5Top10 = functools.partial(TypeT5TopN, topn=10)

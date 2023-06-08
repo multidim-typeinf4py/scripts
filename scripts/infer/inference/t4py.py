@@ -4,6 +4,7 @@ import itertools
 import json
 import pathlib
 import pickle
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import numpy as np
 import onnxruntime
@@ -131,8 +132,10 @@ class _Type4Py(ProjectWideInference):
         self,
         model_path: pathlib.Path,
         topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
     ):
-        super().__init__()
+        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
 
         self.topn = topn
         self.pretrained = PTType4Py(model_path, topn=topn)
@@ -263,28 +266,22 @@ def _file2datapoint(
     )
 
 
-class _Type4PyTopN(_Type4Py):
-    def __init__(self, topn: int):
+class Type4PyTopN(_Type4Py):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ):
         super().__init__(
-            model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn
+            model_path=pathlib.Path("models/type4py"),
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
         )
 
 
-class Type4PyTop1(_Type4PyTopN):
-    def __init__(self):
-        super().__init__(topn=1)
-
-
-class Type4PyTop3(_Type4PyTopN):
-    def __init__(self):
-        super().__init__(topn=3)
-
-
-class Type4PyTop5(_Type4PyTopN):
-    def __init__(self):
-        super().__init__(topn=5)
-
-
-class Type4PyTop10(_Type4PyTopN):
-    def __init__(self):
-        super().__init__(topn=10)
+Type4PyTop1 = functools.partial(Type4PyTopN, topn=1)
+Type4PyTop3 = functools.partial(Type4PyTopN, topn=3)
+Type4PyTop5 = functools.partial(Type4PyTopN, topn=5)
+Type4PyTop10 = functools.partial(Type4PyTopN, topn=10)

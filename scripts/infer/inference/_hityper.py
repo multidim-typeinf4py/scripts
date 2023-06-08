@@ -7,6 +7,7 @@ import json
 import logging
 import pathlib
 from abc import ABC
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional
 
@@ -81,9 +82,6 @@ class _HiTyperPrediction(pydantic.BaseModel):
         use_enum_values = True
 
 
-
-
-
 _HiTyperScope2Prediction = dict[str, list[_HiTyperPrediction]]
 
 
@@ -140,17 +138,16 @@ class ModelAdaptor(abc.ABC):
     class ProjectPredictions(pydantic.BaseModel):
         __root__: dict[str, ModelAdaptor.FilePredictions]
 
-    def __init__(self, model_path: pathlib.Path) -> None:
-        self.model_path = model_path
-        super().__init__()
-
     @abc.abstractmethod
     def topn(self) -> int:
         ...
 
     @abc.abstractmethod
-    def predict(self, project: pathlib.Path, subset: set[pathlib.Path]) -> ModelAdaptor.ProjectPredictions:
+    def predict(
+        self, project: pathlib.Path, subset: set[pathlib.Path]
+    ) -> ModelAdaptor.ProjectPredictions:
         ...
+
 
 ModelAdaptor.FuncPrediction.update_forward_refs()
 ModelAdaptor.ClassPrediction.update_forward_refs()
@@ -162,7 +159,7 @@ class HiTyper(ProjectWideInference, ABC):
     def __init__(self, adaptor: ModelAdaptor) -> None:
         super().__init__()
         self.adaptor = adaptor
-        logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
+        # logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -178,10 +175,15 @@ class HiTyper(ProjectWideInference, ABC):
 
         # Provide ML predictions for ALL files
         # so that static analysis has best chance
-        model_preds = self.adaptor.predict(mutable, subset=set(map(
-            lambda r: pathlib.Path(r).relative_to(mutable),
-            codemod.gather_files([str(mutable)])
-        )))
+        model_preds = self.adaptor.predict(
+            mutable,
+            subset=set(
+                map(
+                    lambda r: pathlib.Path(r).relative_to(mutable),
+                    codemod.gather_files([str(mutable)]),
+                )
+            ),
+        )
 
         outpath = output_dir / f"__{self.adaptor.__class__.__qualname__}__.json"
         assert not outpath.is_file()
@@ -200,7 +202,10 @@ class HiTyper(ProjectWideInference, ABC):
         )
 
         inferred_types_path = (
-            str(output_dir) + "/" + str(mutable).replace("/", "_") + "_INFERREDTYPES.json"
+            str(output_dir)
+            + "/"
+            + str(mutable).replace("/", "_")
+            + "_INFERREDTYPES.json"
         )
         repo_predictions = _HiTyperPredictions.parse_file(inferred_types_path)
         predictions = self._parse_predictions(repo_predictions, mutable)
@@ -226,7 +231,8 @@ class HiTyper(ProjectWideInference, ABC):
                 for scope, predictions in batch.items():
                     scope_components = _derive_qname(scope)
                     for prediction in filter(
-                        lambda p: p.category == _HiTyperPredictionCategory.LOCAL, predictions
+                        lambda p: p.category == _HiTyperPredictionCategory.LOCAL,
+                        predictions,
                     ):
                         if (ty := prediction.type[0]) is None:
                             continue
@@ -235,7 +241,9 @@ class HiTyper(ProjectWideInference, ABC):
                         scope_key = ".".join((*scope_components, prediction.name))
                         annotations.attributes[scope_key] = annotation
 
-                        scope_key = ".".join((*scope_components, "self", prediction.name))
+                        scope_key = ".".join(
+                            (*scope_components, "self", prediction.name)
+                        )
                         annotations.attributes[scope_key] = annotation
 
                     if scope != "global@global":
@@ -249,7 +257,8 @@ class HiTyper(ProjectWideInference, ABC):
                         returns: Optional[libcst.Annotation] = None
 
                         for prediction in filter(
-                            lambda p: p.category != _HiTyperPredictionCategory.LOCAL, predictions
+                            lambda p: p.category != _HiTyperPredictionCategory.LOCAL,
+                            predictions,
                         ):
                             ty = prediction.type[0]
                             if prediction.category == _HiTyperPredictionCategory.ARG:
@@ -257,7 +266,9 @@ class HiTyper(ProjectWideInference, ABC):
                                     libcst.Param(
                                         name=libcst.Name(prediction.name),
                                         annotation=(
-                                            libcst.Annotation(libcst.parse_expression(ty))
+                                            libcst.Annotation(
+                                                libcst.parse_expression(ty)
+                                            )
                                             if ty is not None
                                             else None
                                         ),
@@ -277,10 +288,14 @@ class HiTyper(ProjectWideInference, ABC):
                         fkey = FunctionKey.make(scope_key, ps)
                         annotations.functions[fkey] = FunctionAnnotation(ps, returns)
 
-                path2batchpreds[pathlib.Path(file).relative_to(project)].append(annotations)
+                path2batchpreds[pathlib.Path(file).relative_to(project)].append(
+                    annotations
+                )
         return path2batchpreds
 
-    def _batchify_scopes(self, scopes: _HiTyperScope2Prediction) -> list[_HiTyperScope2Prediction]:
+    def _batchify_scopes(
+        self, scopes: _HiTyperScope2Prediction
+    ) -> list[_HiTyperScope2Prediction]:
         batches: list[_HiTyperScope2Prediction] = []
 
         for n in range(self.adaptor.topn()):
@@ -293,7 +308,9 @@ class HiTyper(ProjectWideInference, ABC):
                         _HiTyperPrediction(
                             category=prediction.category,
                             name=prediction.name,
-                            type=[prediction.type[n] if n < len(prediction.type) else None],
+                            type=[
+                                prediction.type[n] if n < len(prediction.type) else None
+                            ],
                         )
                     )
 

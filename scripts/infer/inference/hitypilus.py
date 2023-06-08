@@ -3,12 +3,14 @@ from __future__ import annotations
 import codecs
 import dataclasses
 import enum
+import functools
 import gzip
 import itertools
 import json
 import math
 import operator
 import pathlib
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Iterator
 
 import astunparse
@@ -27,38 +29,30 @@ from typed_ast.ast3 import (
 )
 
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
-from scripts.infer.inference.typilus import Typilus
+from scripts.infer.inference.typilus import Typilus, TypilusTopN
 from scripts.infer.annotators.typilus import TypilusPrediction
 
 
 @dataclasses.dataclass
 class FuncPred:
     q_name: str
-    params_p: ModelAdaptor.VarPrediction = dataclasses.field(
-        default_factory=dict
-    )
+    params_p: ModelAdaptor.VarPrediction = dataclasses.field(default_factory=dict)
     ret_type_p: list[ModelAdaptor.Prediction] = dataclasses.field(default_factory=list)
-    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(
-        default_factory=dict
-    )
+    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class ClassPred:
     q_name: str
     funcs: list[FuncPred] = dataclasses.field(default_factory=list)
-    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(
-        default_factory=dict
-    )
+    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class FilePredictions:
     classes: list[ClassPred] = dataclasses.field(default_factory=list)
     funcs: list[FuncPred] = dataclasses.field(default_factory=list)
-    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(
-        default_factory=dict
-    )
+    variables_p: ModelAdaptor.VarPrediction = dataclasses.field(default_factory=dict)
 
 
 class TypilusHiTyperVisitor(NodeVisitor):
@@ -92,24 +86,31 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 assert hasattr(self.insertion_point, "variables_p")
                 if symbol not in self.insertion_point.variables_p:
                     self.insertion_point.variables_p[symbol] = []
-                self.insertion_point.variables_p[symbol].append((prediction, probability))
+                self.insertion_point.variables_p[symbol].append(
+                    (prediction, probability)
+                )
 
             case AnnotationKind.PARA:
                 assert hasattr(self.insertion_point, "funcs")
                 if symbol not in self.insertion_point.funcs[-1].params_p:
                     self.insertion_point.funcs[-1].params_p[symbol] = []
-                self.insertion_point.funcs[-1].params_p[symbol].append((prediction, probability))
+                self.insertion_point.funcs[-1].params_p[symbol].append(
+                    (prediction, probability)
+                )
 
             case AnnotationKind.FUNC:
                 assert hasattr(self.insertion_point, "funcs")
                 assert symbol == self.insertion_point.funcs[-1].q_name
-                self.insertion_point.funcs[-1].ret_type_p.append((prediction, probability))
+                self.insertion_point.funcs[-1].ret_type_p.append(
+                    (prediction, probability)
+                )
 
     # ! arg exists in only Python 3; Python 2 uses Name.
     # ! See https://greentreesnakes.readthedocs.io/en/latest/nodes.html#arg
     def visit_arg(self, node: arg):
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(node.arg, node.lineno, AnnotationKind.PARA) or []
+            self.__extract_types_and_probs(node.arg, node.lineno, AnnotationKind.PARA)
+            or []
         ):
             self.add_inferred(
                 symbol=node.arg,
@@ -124,9 +125,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
             # and continue
             return
 
-        self.insertion_point.classes.append(
-            ClassPred(q_name=self.qname(node.name))
-        )
+        self.insertion_point.classes.append(ClassPred(q_name=self.qname(node.name)))
 
         self.insertion_point_stack.append(self.insertion_point.classes[-1])
         self.qnames.append(node.name)
@@ -146,7 +145,8 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self.insertion_point.funcs.append(FuncPred(q_name=fqname))
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(node.name, node.lineno, AnnotationKind.FUNC) or []
+            self.__extract_types_and_probs(node.name, node.lineno, AnnotationKind.FUNC)
+            or []
         ):
             self.add_inferred(
                 symbol=fqname,
@@ -180,10 +180,14 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 return
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR) or []
+            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR)
+            or []
         ):
             self.add_inferred(
-                symbol=symbol, prediction=pred_type, probability=pred_prob, kind=AnnotationKind.VAR
+                symbol=symbol,
+                prediction=pred_type,
+                probability=pred_prob,
+                kind=AnnotationKind.VAR,
             )
 
     def visit_Assign(self, node: Assign):
@@ -205,10 +209,14 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 return
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR) or []
+            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR)
+            or []
         ):
             self.add_inferred(
-                symbol=symbol, prediction=pred_type, probability=pred_prob, kind=AnnotationKind.VAR
+                symbol=symbol,
+                prediction=pred_type,
+                probability=pred_prob,
+                kind=AnnotationKind.VAR,
             )
 
     def __extract_types_and_probs(
@@ -235,9 +243,18 @@ class TypilusHiTyperVisitor(NodeVisitor):
 
 
 class Typilus2HiTyper(ModelAdaptor):
-    def __init__(self, model_folder: pathlib.Path, topn: int) -> None:
-        super().__init__(model_folder)
-        self.typilus = Typilus(model_folder=model_folder, topn=topn)
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__()
+        self.typilus = TypilusTopN(
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
+        )
 
     def topn(self) -> int:
         return self.typilus.topn
@@ -246,20 +263,28 @@ class Typilus2HiTyper(ModelAdaptor):
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
         dataset = self.typilus.repo_to_dataset(project)
-        predictions = self.typilus.predict(dataset, project / "typilus-predictions.json.gz")
+        predictions = self.typilus.predict(
+            dataset, project / "typilus-predictions.json.gz"
+        )
 
         # Load predictions from disk and perform same sifting
         # that annotator from typilus does, i.e. select using fpath
         sifted = list[TypilusPrediction](
             filter(
                 lambda p: any(f"/{s}" == p["provenance"] for s in subset),
-                (prediction for batch in _load_json_gz(predictions.path) for prediction in batch),
+                (
+                    prediction
+                    for batch in _load_json_gz(predictions.path)
+                    for prediction in batch
+                ),
             )
         )
 
         project_predictions = dict[str, ModelAdaptor.FilePredictions]()
 
-        for provenance, predictions in itertools.groupby(sifted, key=operator.itemgetter("provenance")):
+        for provenance, predictions in itertools.groupby(
+            sifted, key=operator.itemgetter("provenance")
+        ):
             provenance = pathlib.Path(provenance[1:])
             predictions = list[TypilusPrediction](predictions)
 
@@ -271,12 +296,11 @@ class Typilus2HiTyper(ModelAdaptor):
             visitor.visit(typilus_ast)
 
             hity_json = dataclasses.asdict(visitor.hityper_json)
-            project_predictions[str(fullpath.resolve())] = ModelAdaptor.FilePredictions.parse_obj(
-                hity_json
-            )
+            project_predictions[
+                str(fullpath.resolve())
+            ] = ModelAdaptor.FilePredictions.parse_obj(hity_json)
 
         return ModelAdaptor.ProjectPredictions(__root__=project_predictions)
-
 
 
 def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
@@ -286,12 +310,18 @@ def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
             yield json.loads(line, object_pairs_hook=TypilusPrediction)
 
 
-class _HiTypilusTopN(HiTyper):
-    def __init__(self, topn: int) -> None:
+class HiTypilusTopN(HiTyper):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
         super().__init__(
             Typilus2HiTyper(
-                model_folder=pathlib.Path("models") / "typilus",
                 topn=topn,
+                cpu_executor=cpu_executor,
+                model_executor=model_executor,
             )
         )
 
@@ -299,21 +329,7 @@ class _HiTypilusTopN(HiTyper):
         return f"HiTypilusN{self.adaptor.topn()}"
 
 
-class HiTypilusTop1(_HiTypilusTopN):
-    def __init__(self):
-        super().__init__(topn=1)
-
-
-class HiTypilusTop3(_HiTypilusTopN):
-    def __init__(self):
-        super().__init__(topn=3)
-
-
-class HiTypilusTop5(_HiTypilusTopN):
-    def __init__(self):
-        super().__init__(topn=5)
-
-
-class HiTypilusTop10(_HiTypilusTopN):
-    def __init__(self):
-        super().__init__(topn=10)
+HiTypilusTop1 = functools.partial(HiTypilusTopN, topn=1)
+HiTypilusTop3 = functools.partial(HiTypilusTopN, topn=3)
+HiTypilusTop5 = functools.partial(HiTypilusTopN, topn=5)
+HiTypilusTop10 = functools.partial(HiTypilusTopN, topn=10)

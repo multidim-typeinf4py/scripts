@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import itertools
 import logging
 import os
@@ -9,6 +10,7 @@ import pickle
 import re
 import tempfile
 from ast import literal_eval
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from os.path import splitext, basename, join
 from typing import List, no_type_check, Optional
 
@@ -193,8 +195,14 @@ class _TypeWriter(ProjectWideInference):
     def method(self) -> str:
         return f"typewriterN{self.topn}"
 
-    def __init__(self, model_path: pathlib.Path, topn: int):
-        super().__init__()
+    def __init__(
+        self,
+        model_path: pathlib.Path,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ):
+        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
         self.topn = topn
         self.model_path = model_path
 
@@ -496,26 +504,22 @@ def _file2predictables(
     return file, (ext_funcs_df_params, ext_funcs_df_ret)
 
 
-class _TypeWriterTopN(_TypeWriter):
-    def __init__(self, topn: int):
-        super().__init__(model_path=pathlib.Path("models/typewriter"), topn=topn)
+class TypeWriterTopN(_TypeWriter):
+    def __init__(
+        self,
+        topn: int,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ):
+        super().__init__(
+            model_path=pathlib.Path("models/typewriter"),
+            topn=topn,
+            cpu_executor=cpu_executor,
+            model_executor=model_executor,
+        )
 
 
-class TypeWriterTop1(_TypeWriterTopN):
-    def __init__(self):
-        super().__init__(topn=1)
-
-
-class TypeWriterTop3(_TypeWriterTopN):
-    def __init__(self):
-        super().__init__(topn=3)
-
-
-class TypeWriterTop5(_TypeWriterTopN):
-    def __init__(self):
-        super().__init__(topn=5)
-
-
-class TypeWriterTop10(_TypeWriterTopN):
-    def __init__(self):
-        super().__init__(topn=10)
+TypeWriterTop1 = functools.partial(TypeWriterTopN, topn=1)
+TypeWriterTop3 = functools.partial(TypeWriterTopN, topn=3)
+TypeWriterTop5 = functools.partial(TypeWriterTopN, topn=5)
+TypeWriterTop10 = functools.partial(TypeWriterTopN, topn=10)
