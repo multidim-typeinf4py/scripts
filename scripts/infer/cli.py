@@ -90,10 +90,10 @@ def cli_entrypoint(
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
 
+    mp.set_start_method('spawn')
     inference_tool = tool()
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
-    mp.set_start_method('spawn')
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
 
