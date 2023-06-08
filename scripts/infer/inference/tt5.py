@@ -86,15 +86,20 @@ class _TypeT5(ProjectWideInference):
         project = PythonProject.parse_from_root(root=mutable)
         rctx = RolloutCtx(model=self.wrapper)
 
-        rollout: RolloutPredictionTopN = asyncio.run(
-            rctx.run_on_project(
-                project,
-                pre_args=PreprocessArgs(),
-                decode_order=DecodingOrders.DoubleTraversal(),
-                num_return_sequences=self.topn,
-                concurrency=utils.worker_count()
+        with (
+            self.cpu_executor() as cpu,
+            self.model_executor() as model,
+        ):
+            rollout: RolloutPredictionTopN = asyncio.run(
+                rctx.project_rollout_topn(
+                    project=project,
+                    pre_args=PreprocessArgs(),
+                    decode_order=DecodingOrders.DoubleTraversal(),
+                    cpu_executor=cpu,
+                    model_executor=model,
+                    num_return_sequences=self.topn,
+                )
             )
-        )
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
