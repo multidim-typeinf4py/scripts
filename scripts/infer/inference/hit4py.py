@@ -4,6 +4,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 from scripts.infer.inference.t4py import Type4PyTopN
 from ._hityper import ModelAdaptor, HiTyper
+from ._utils import wrapped_partial
 
 
 class Type4PyAdaptor(ModelAdaptor):
@@ -56,7 +57,7 @@ class HiType4PyTopN(HiTyper):
         return f"HiType4PyN{self.adaptor.topn()}"
 
 
-HiType4PyTop1 = functools.partial(HiType4PyTopN, topn=1)
-HiType4PyTop3 = functools.partial(HiType4PyTopN, topn=3)
-HiType4PyTop5 = functools.partial(HiType4PyTopN, topn=5)
-HiType4PyTop10 = functools.partial(HiType4PyTopN, topn=10)
+HiType4PyTop1 = wrapped_partial(HiType4PyTopN, topn=1)
+HiType4PyTop3 = wrapped_partial(HiType4PyTopN, topn=3)
+HiType4PyTop5 = wrapped_partial(HiType4PyTopN, topn=5)
+HiType4PyTop10 = wrapped_partial(HiType4PyTopN, topn=10)

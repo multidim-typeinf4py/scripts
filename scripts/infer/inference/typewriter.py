@@ -41,6 +41,7 @@ from typewriter.prepocessing import (
     gen_argument_df_TW,
 )
 
+from ._utils import wrapped_partial
 from ..annotators.typewriter import Parameter, Return, TWProjectApplier
 from scripts.common.schemas import InferredSchema
 from scripts.symbols.collector import build_type_collection
@@ -519,7 +520,7 @@ class TypeWriterTopN(_TypeWriter):
         )
 
 
-TypeWriterTop1 = functools.partial(TypeWriterTopN, topn=1)
-TypeWriterTop3 = functools.partial(TypeWriterTopN, topn=3)
-TypeWriterTop5 = functools.partial(TypeWriterTopN, topn=5)
-TypeWriterTop10 = functools.partial(TypeWriterTopN, topn=10)
+TypeWriterTop1 = wrapped_partial(TypeWriterTopN, topn=1)
+TypeWriterTop3 = wrapped_partial(TypeWriterTopN, topn=3)
+TypeWriterTop5 = wrapped_partial(TypeWriterTopN, topn=5)
+TypeWriterTop10 = wrapped_partial(TypeWriterTopN, topn=10)

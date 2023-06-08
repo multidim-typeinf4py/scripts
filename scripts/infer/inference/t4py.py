@@ -21,6 +21,7 @@ from type4py.deploy.infer import (
 
 from scripts.common.schemas import InferredSchema
 from ._base import ProjectWideInference
+from ._utils import wrapped_partial
 from ..annotators.type4py import Type4PyProjectApplier
 
 
@@ -281,7 +282,7 @@ class Type4PyTopN(_Type4Py):
         )
 
 
-Type4PyTop1 = functools.partial(Type4PyTopN, topn=1)
-Type4PyTop3 = functools.partial(Type4PyTopN, topn=3)
-Type4PyTop5 = functools.partial(Type4PyTopN, topn=5)
-Type4PyTop10 = functools.partial(Type4PyTopN, topn=10)
+Type4PyTop1 = wrapped_partial(Type4PyTopN, topn=1)
+Type4PyTop3 = wrapped_partial(Type4PyTopN, topn=3)
+Type4PyTop5 = wrapped_partial(Type4PyTopN, topn=5)
+Type4PyTop10 = wrapped_partial(Type4PyTopN, topn=10)

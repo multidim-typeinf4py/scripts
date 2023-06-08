@@ -1,16 +1,8 @@
-from io import BytesIO
+from functools import partial, update_wrapper
 
-import torch
-import pickle
-
-
-class BetterUnpickler(pickle.Unpickler):
-    def __init__(self, *args, map_location="cpu", **kwargs):
-        self._map_location = map_location
-        super().__init__(*args, **kwargs)
-
-    def find_class(self, module, name):
-        if module == "torch.storage" and name == "_load_from_bytes":
-            return lambda b: torch.load(BytesIO(b), map_location=self._map_location)
-        else:
-            return super().find_class(module, name)
+def wrapped_partial(func, *args, **kwargs):
+    """http://louistiao.me/posts/adding-__name__-and-__doc__-attributes-to-functoolspartial-objects/"""
+    partial_func = partial(func, *args, **kwargs)
+    update_wrapper(partial_func, func)
+    partial_func.__name__ = f"{partial_func.__name__}{kwargs['topn']}"
+    return partial_func

@@ -29,6 +29,7 @@ from typed_ast.ast3 import (
 )
 
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
+from scripts.infer.inference._utils import wrapped_partial
 from scripts.infer.inference.typilus import Typilus, TypilusTopN
 from scripts.infer.annotators.typilus import TypilusPrediction
 
@@ -329,7 +330,7 @@ class HiTypilusTopN(HiTyper):
         return f"HiTypilusN{self.adaptor.topn()}"
 
 
-HiTypilusTop1 = functools.partial(HiTypilusTopN, topn=1)
-HiTypilusTop3 = functools.partial(HiTypilusTopN, topn=3)
-HiTypilusTop5 = functools.partial(HiTypilusTopN, topn=5)
-HiTypilusTop10 = functools.partial(HiTypilusTopN, topn=10)
+HiTypilusTop1 = wrapped_partial(HiTypilusTopN, topn=1)
+HiTypilusTop3 = wrapped_partial(HiTypilusTopN, topn=3)
+HiTypilusTop5 = wrapped_partial(HiTypilusTopN, topn=5)
+HiTypilusTop10 = wrapped_partial(HiTypilusTopN, topn=10)

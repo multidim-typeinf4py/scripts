@@ -29,6 +29,7 @@ import pandera.typing as pt
 from scripts.common.schemas import InferredSchema
 from scripts.infer.annotators import TT5ProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
+from scripts.infer.inference._utils import wrapped_partial
 from scripts.symbols.collector import build_type_collection
 from scripts import utils
 
@@ -116,7 +117,7 @@ class TypeT5TopN(ProjectWideInference):
         )
 
 
-TypeT5Top1 = functools.partial(TypeT5TopN, topn=1)
-TypeT5Top3 = functools.partial(TypeT5TopN, topn=3)
-TypeT5Top5 = functools.partial(TypeT5TopN, topn=5)
-TypeT5Top10 = functools.partial(TypeT5TopN, topn=10)
+TypeT5Top1 = wrapped_partial(TypeT5TopN, topn=1)
+TypeT5Top3 = wrapped_partial(TypeT5TopN, topn=3)
+TypeT5Top5 = wrapped_partial(TypeT5TopN, topn=5)
+TypeT5Top10 = wrapped_partial(TypeT5TopN, topn=10)

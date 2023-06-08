@@ -9,6 +9,7 @@ from libcst import metadata
 from typewriter.dltpy.preprocessing.pipeline import preprocessor
 
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
+from scripts.infer.inference._utils import wrapped_partial
 from scripts.infer.inference.typewriter import (
     _TypeWriter,
     Parameter,
@@ -232,7 +233,7 @@ class HiTypeWriterTopN(HiTyper):
         return f"HiTypewriterN{self.adaptor.topn()}"
 
 
-HiTypeWriterTop1 = functools.partial(HiTypeWriterTopN, topn=1)
-HiTypeWriterTop3 = functools.partial(HiTypeWriterTopN, topn=3)
-HiTypeWriterTop5 = functools.partial(HiTypeWriterTopN, topn=5)
-HiTypeWriterTop10 = functools.partial(HiTypeWriterTopN, topn=10)
+HiTypeWriterTop1 = wrapped_partial(HiTypeWriterTopN, topn=1)
+HiTypeWriterTop3 = wrapped_partial(HiTypeWriterTopN, topn=3)
+HiTypeWriterTop5 = wrapped_partial(HiTypeWriterTopN, topn=5)
+HiTypeWriterTop10 = wrapped_partial(HiTypeWriterTopN, topn=10)

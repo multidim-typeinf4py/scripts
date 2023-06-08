@@ -12,6 +12,7 @@ from typilus.utils.predict import ignore_annotation
 from scripts.common.schemas import InferredSchema
 from scripts.infer.annotators.typilus import TypilusProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
+from scripts.infer.inference._utils import wrapped_partial
 
 
 class Typilus(ProjectWideInference):
@@ -139,7 +140,7 @@ class TypilusTopN(Typilus):
         )
 
 
-TypilusTop1 = functools.partial(TypilusTopN, topn=1)
-TypilusTop3 = functools.partial(TypilusTopN, topn=3)
-TypilusTop5 = functools.partial(TypilusTopN, topn=5)
-TypilusTop10 = functools.partial(TypilusTopN, topn=10)
+TypilusTop1 = wrapped_partial(TypilusTopN, topn=1)
+TypilusTop3 = wrapped_partial(TypilusTopN, topn=3)
+TypilusTop5 = wrapped_partial(TypilusTopN, topn=5)
+TypilusTop10 = wrapped_partial(TypilusTopN, topn=10)

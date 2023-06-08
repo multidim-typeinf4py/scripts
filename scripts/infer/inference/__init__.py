@@ -20,23 +20,23 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     PyreQuery.__name__.lower(): PyreQuery,
 
     # ML Models @ Top 1
-    Type4PyTop1.func.__name__.lower(): Type4PyTop1,
-    TypilusTop1.func.__name__.lower(): TypilusTop1,
-    TypeWriterTop1.func.__name__.lower(): TypeWriterTop1,
+    Type4PyTop1.__name__.lower(): Type4PyTop1,
+    TypilusTop1.__name__.lower(): TypilusTop1,
+    TypeWriterTop1.__name__.lower(): TypeWriterTop1,
 
     # ML Models @ Top 10
-    Type4PyTop10.func.__name__.lower(): Type4PyTop10,
-    TypilusTop10.func.__name__.lower(): TypilusTop10,
-    TypeWriterTop10.func.__name__.lower(): TypeWriterTop10,
+    Type4PyTop10.__name__.lower(): Type4PyTop10,
+    TypilusTop10.__name__.lower(): TypilusTop10,
+    TypeWriterTop10.__name__.lower(): TypeWriterTop10,
 
     # Hybrid TypeT5
-    TypeT5Top1.func.__name__.lower(): TypeT5Top1,
-    TypeT5Top10.func.__name__.lower(): TypeT5Top10,
+    TypeT5Top1.__name__.lower(): TypeT5Top1,
+    TypeT5Top10.__name__.lower(): TypeT5Top10,
 
     # Hybrid HiTyper integrations
-    HiType4PyTop10.func.__name__.lower(): HiType4PyTop10,
-    HiTypilusTop10.func.__name__.lower(): HiTypilusTop10,
-    HiTypeWriterTop10.func.__name__.lower(): HiTypeWriterTop10,
+    HiType4PyTop10.__name__.lower(): HiType4PyTop10,
+    HiTypilusTop10.__name__.lower(): HiTypilusTop10,
+    HiTypeWriterTop10.__name__.lower(): HiTypeWriterTop10,
 }
 
 
