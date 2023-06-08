@@ -92,6 +92,7 @@ class _TypeT5(ProjectWideInference):
                 pre_args=PreprocessArgs(),
                 decode_order=DecodingOrders.DoubleTraversal(),
                 num_return_sequences=self.topn,
+                concurrency=utils.worker_count()
             )
         )
 
