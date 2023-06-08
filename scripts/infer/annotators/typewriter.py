@@ -45,6 +45,8 @@ class TWProjectApplier(
             return [], []
 
         topn_parameters, topn_returns = path2topn[path]
+        if not topn_parameters and not topn_returns:
+            return [], []
         parameters, returns = topn_parameters[self.topn], topn_returns[self.topn]
 
         return parameters, returns

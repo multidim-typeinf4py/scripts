@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import logging
 import os
 import pathlib
@@ -13,6 +14,7 @@ from typing import List, no_type_check, Optional
 
 import libcst
 import libcst as cst
+import tqdm
 from libcst import metadata, codemod
 import numpy as np
 import pandas as pd
@@ -187,44 +189,6 @@ def evaluate_TW(model: torch.nn.Module, data_loader: DataLoader, top_n=1):
     return predicted_labels
 
 
-class ParallelTypeApplier(codemod.ContextAwareTransformer):
-    def __init__(
-        self,
-        context: codemod.CodemodContext,
-        path2batches: dict[
-            pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]
-        ],
-        topn: int,
-        logger: logging.Logger,
-    ) -> None:
-        super().__init__(context)
-
-        self.paths2batches = path2batches
-        self.topn = topn
-        self.logger = logger
-
-    def transform_module_impl(self, tree: cst.Module) -> cst.Module:
-        assert self.context.filename is not None
-        assert self.context.metadata_manager is not None
-
-        path = pathlib.Path(self.context.filename).relative_to(
-            self.context.metadata_manager.root_path
-        )
-
-        if path not in self.paths2batches:
-            return tree
-        topn_parameters, topn_returns = self.paths2batches[path]
-        parameters, returns = topn_parameters[self.topn], topn_returns[self.topn]
-
-        return metadata.MetadataWrapper(
-            module=tree,
-            unsafe_skip_copy=True,
-            cache=self.context.metadata_manager.get_cache_for_path(
-                path=self.context.filename
-            ),
-        ).visit(Typewriter2Annotations(self.context, parameters, returns, self.logger))
-
-
 class _TypeWriter(ProjectWideInference):
     def method(self) -> str:
         return f"typewriterN{self.topn}"
@@ -255,238 +219,286 @@ class _TypeWriter(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        proj_files = subset
+        with tempfile.TemporaryDirectory() as td:
+            self.logger.info("Extracting predictables...")
+            paths2predictables = self.extract_predictables(td, mutable, subset)
+            self.logger.debug(paths2predictables)
 
-        file2topnpreds: dict[
-            pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]
-        ] = {}
-        for file in proj_files:
-            if (predictions := self.infer_for_file(mutable, file)) is None:
-                continue
-            file2topnpreds[file] = predictions
+            self.logger.info("Transforming sequences and executing model...")
+            paths2predictions = self.make_predictions(td, paths2predictables, subset)
+            self.logger.debug(paths2predictions)
 
         return TWProjectApplier.collect_topn(
             project=mutable,
-            predictions=file2topnpreds,
+            predictions=paths2predictions,
             subset=subset,
             topn=self.topn,
             tool=self,
         )
 
-    def infer_for_file(
-        self, root: pathlib.Path, relative: pathlib.Path
-    ) -> Optional[tuple[list[list[Parameter]], list[list[Return]]]]:
-        filename = str(root / relative)
-
-        with tempfile.TemporaryDirectory() as TEMP_DIR:
-            ext_funcs = process_py_src_file(filename)
-            if not ext_funcs:
-                self.logger.warning(
-                    f"Did not find any functions in {relative}, therefore no types to infer"
-                )
-                return None
-
-            self.logger.debug(f"Number of the extracted functions: {len(ext_funcs)}")
-
-            write_ext_funcs(ext_funcs, filename, TEMP_DIR)
-
-            ext_funcs_df = pd.read_csv(
-                os.path.join(TEMP_DIR, f"ext_funcs_{relative.with_suffix('').name}.csv")
+    def extract_predictables(
+        self, td: str, project: pathlib.Path, subset: set[pathlib.Path]
+    ) -> dict[pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None]:
+        top999_types = pd.read_csv(join(self.model_path, "top_999_types.csv"))
+        with self.cpu_executor() as executor:
+            tasks = executor.map(
+                _file2predictables,
+                itertools.repeat(td),
+                itertools.repeat(project),
+                subset,
+                itertools.repeat(top999_types),
             )
-            ext_funcs_df = filter_functions(ext_funcs_df)
-            ext_funcs_df_params = gen_argument_df_TW(ext_funcs_df)
-
-            self.logger.debug(
-               f"Number of extracted arguments: {ext_funcs_df_params['arg_name'].count()}"
-            )
-            ext_funcs_df_params = ext_funcs_df_params[
-                (ext_funcs_df_params["arg_name"] != "self")
-                & (
-                    (ext_funcs_df_params["arg_type"] != "Any")
-                    & (ext_funcs_df_params["arg_type"] != "None")
-                )
-            ]
-
-            self.logger.debug(
-               f"Number of Arguments after ignoring self and types with Any and None: {ext_funcs_df_params.shape[0]}"
+            paths2datapoints = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Predictable Extraction")
             )
 
-            ext_funcs_df_ret = filter_ret_funcs(ext_funcs_df)
-            ext_funcs_df_ret = format_df(ext_funcs_df_ret)
+            # Remove all entries that
 
-            ext_funcs_df_ret["arg_names_str"] = ext_funcs_df_ret["arg_names"].apply(
-                lambda l: " ".join([v for v in l if v != "self"])
-            )
-            ext_funcs_df_ret["return_expr_str"] = ext_funcs_df_ret["return_expr"].apply(
-                lambda l: " ".join([re.sub(r"self\.?", "", v) for v in l])
-            )
-            ext_funcs_df_ret = ext_funcs_df_ret.drop(
-                columns=[
-                    "has_type",
-                    "arg_names",
-                    "arg_types",
-                    "arg_descrs",
-                    "return_expr",
-                ]
-            )
+            return paths2datapoints
 
-            df_avl_types = pd.read_csv(join(self.model_path, "top_999_types.csv"))
-            ext_funcs_df_params, ext_funcs_df_ret = encode_aval_types_TW(
-                ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
+    def make_predictions(
+        self,
+        td: str,
+        paths2predictables: dict[
+            pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None
+        ],
+        subset: set[pathlib.Path],
+    ) -> dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]]:
+        with self.model_executor() as executor:
+            tasks = executor.map(
+                self._predictables2predictions,
+                itertools.repeat(td),
+                itertools.repeat(paths2predictables),
+                subset,
             )
-
-            ext_funcs_df_params.to_csv(
-                os.path.join(TEMP_DIR, "ext_funcs_params.csv"), index=False
-            )
-            ext_funcs_df_ret.to_csv(
-                os.path.join(TEMP_DIR, "ext_funcs_ret.csv"), index=False
+            paths2datapoints = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
             )
 
-            # Arguments transformers
-            id_trans_func_param = lambda row: IdentifierSequence(
-                self.w2v_token_model, row.arg_name, row.other_args, row.func_name
+            return paths2datapoints
+
+    def _predictables2predictions(
+        self,
+        temp_dir: str,
+        paths2predictables: dict[
+            pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None
+        ],
+        file: pathlib.Path,
+    ) -> tuple[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]]:
+        if (predictables := paths2predictables.get(file, None)) is None:
+            return file, ([], [])
+
+        ext_funcs_df_params, ext_funcs_df_ret = predictables
+        temp_dir = os.path.join(temp_dir, str(file.with_suffix("")))
+
+        # Arguments transformers
+        id_trans_func_param = lambda row: IdentifierSequence(
+            self.w2v_token_model, row.arg_name, row.other_args, row.func_name
+        )
+        token_trans_func_param = lambda row: TokenSequence(
+            self.w2v_token_model, 7, 3, row.arg_occur, None
+        )
+        cm_trans_func_param = lambda row: CommentSequence(
+            self.w2v_comments_model, row.func_descr, row.arg_comment, None
+        )
+
+        # Returns transformers
+        id_trans_func_ret = lambda row: IdentifierSequence(
+            self.w2v_token_model, None, row.arg_names_str, row.name
+        )
+        token_trans_func_ret = lambda row: TokenSequence(
+            self.w2v_token_model, 7, 3, None, row.return_expr_str
+        )
+        cm_trans_func_ret = lambda row: CommentSequence(
+            self.w2v_comments_model, row.func_descr, None, row.return_descr
+        )
+
+        dp_ids_params = process_datapoints_TW(
+            os.path.join(temp_dir, "ext_funcs_params.csv"),
+            temp_dir,
+            "identifiers_",
+            "params",
+            id_trans_func_param,
+        )
+
+        dp_ids_ret = process_datapoints_TW(
+            os.path.join(temp_dir, "ext_funcs_ret.csv"),
+            temp_dir,
+            "identifiers_",
+            "ret",
+            id_trans_func_ret,
+        )
+
+        # print("Generating tokens sequences")
+        dp_tokens_params = process_datapoints_TW(
+            os.path.join(temp_dir, "ext_funcs_params.csv"),
+            temp_dir,
+            "tokens_",
+            "params",
+            token_trans_func_param,
+        )
+        dp_tokens_ret = process_datapoints_TW(
+            os.path.join(temp_dir, "ext_funcs_ret.csv"),
+            temp_dir,
+            "tokens_",
+            "ret",
+            token_trans_func_ret,
+        )
+
+        # print("Generating comments sequences")
+        dp_cms_params = process_datapoints_TW(
+            join(temp_dir, "ext_funcs_params.csv"),
+            temp_dir,
+            "comments_",
+            "params",
+            cm_trans_func_param,
+        )
+        dp_cms_ret = process_datapoints_TW(
+            join(temp_dir, "ext_funcs_ret.csv"),
+            temp_dir,
+            "comments_",
+            "ret",
+            cm_trans_func_ret,
+        )
+
+        # print("Generating sequences for available types hints")
+        dp_params_aval_types, dp_ret__aval_types = gen_aval_types_datapoints(
+            join(temp_dir, "ext_funcs_params.csv"),
+            join(temp_dir, "ext_funcs_ret.csv"),
+            "",
+            temp_dir,
+        )
+
+        self.logger.debug(
+            "--------------------Argument Types Prediction--------------------"
+        )
+        id_params, tok_params, com_params, aval_params = load_param_data(temp_dir)
+        params_data_loader = DataLoader(
+            TensorDataset(id_params, tok_params, com_params, aval_params)
+        )
+
+        params_pred = [
+            p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)
+        ]
+
+        # (function, parameter, [type]s)
+        param_inf: list[tuple[str, str, list[str]]] = []
+        for i, p in enumerate(params_pred):
+            fname = ext_funcs_df_params["func_name"].iloc[i]
+            param = ext_funcs_df_params["arg_name"].iloc[i]
+            predictables = list(self.label_encoder.inverse_transform(p))
+
+            p = " ".join(
+                ["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)]
             )
-            token_trans_func_param = lambda row: TokenSequence(
-                self.w2v_token_model, 7, 3, row.arg_occur, None
+            self.logger.debug(f"{file} -> {fname}: {param} -> {p}")
+
+            param_inf.append((fname, param, predictables))
+
+        self.logger.debug(
+            "--------------------Return Types Prediction--------------------"
+        )
+        id_ret, tok_ret, com_ret, aval_ret = load_ret_data(temp_dir)
+        ret_data_loader = DataLoader(TensorDataset(id_ret, tok_ret, com_ret, aval_ret))
+
+        ret_pred = [p for p in evaluate_TW(self.tw_model, ret_data_loader, self.topn)]
+
+        ret_inf: list[tuple[str, list[str]]] = []
+        for i, p in enumerate(ret_pred):
+            fname = ext_funcs_df_ret["name"].iloc[i]
+            predictables = list(self.label_encoder.inverse_transform(p))
+
+            p = " ".join(
+                ["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)]
             )
-            cm_trans_func_param = lambda row: CommentSequence(
-                self.w2v_comments_model, row.func_descr, row.arg_comment, None
-            )
+            self.logger.debug(f"{file} -> {fname} -> {p}")
 
-            # Returns transformers
-            id_trans_func_ret = lambda row: IdentifierSequence(
-                self.w2v_token_model, None, row.arg_names_str, row.name
-            )
-            token_trans_func_ret = lambda row: TokenSequence(
-                self.w2v_token_model, 7, 3, None, row.return_expr_str
-            )
-            cm_trans_func_ret = lambda row: CommentSequence(
-                self.w2v_comments_model, row.func_descr, None, row.return_descr
-            )
+            ret_inf.append((fname, predictables))
 
-            # print("Generating identifiers sequences")
-            dp_ids_params = process_datapoints_TW(
-                os.path.join(TEMP_DIR, "ext_funcs_params.csv"),
-                TEMP_DIR,
-                "identifiers_",
-                "params",
-                id_trans_func_param,
-            )
+        arg_batches: list[list[Parameter]] = []
+        ret_batches: list[list[Return]] = []
 
-            dp_ids_ret = process_datapoints_TW(
-                os.path.join(TEMP_DIR, "ext_funcs_ret.csv"),
-                TEMP_DIR,
-                "identifiers_",
-                "ret",
-                id_trans_func_ret,
-            )
+        for n in range(self.topn):
+            arg_batch: list[Parameter] = []
+            ret_batch: list[Return] = []
 
-            # print("Generating tokens sequences")
-            dp_tokens_params = process_datapoints_TW(
-                os.path.join(TEMP_DIR, "ext_funcs_params.csv"),
-                TEMP_DIR,
-                "tokens_",
-                "params",
-                token_trans_func_param,
-            )
-            dp_tokens_ret = process_datapoints_TW(
-                os.path.join(TEMP_DIR, "ext_funcs_ret.csv"),
-                TEMP_DIR,
-                "tokens_",
-                "ret",
-                token_trans_func_ret,
-            )
+            for fname, argname, ppreds in param_inf:
+                arg_batch.append(Parameter(fname=fname, pname=argname, ty=ppreds[n]))
 
-            # print("Generating comments sequences")
-            dp_cms_params = process_datapoints_TW(
-                join(TEMP_DIR, "ext_funcs_params.csv"),
-                TEMP_DIR,
-                "comments_",
-                "params",
-                cm_trans_func_param,
-            )
-            dp_cms_ret = process_datapoints_TW(
-                join(TEMP_DIR, "ext_funcs_ret.csv"),
-                TEMP_DIR,
-                "comments_",
-                "ret",
-                cm_trans_func_ret,
-            )
+            for fname, rp in ret_inf:
+                ret_batch.append(Return(fname=fname, ty=rp[n]))
 
-            # print("Generating sequences for available types hints")
-            dp_params_aval_types, dp_ret__aval_types = gen_aval_types_datapoints(
-                join(TEMP_DIR, "ext_funcs_params.csv"),
-                join(TEMP_DIR, "ext_funcs_ret.csv"),
-                "",
-                TEMP_DIR,
-            )
+            arg_batches.append(arg_batch)
+            ret_batches.append(ret_batch)
 
-            self.logger.debug("--------------------Argument Types Prediction--------------------")
-            id_params, tok_params, com_params, aval_params = load_param_data(TEMP_DIR)
-            params_data_loader = DataLoader(
-                TensorDataset(id_params, tok_params, com_params, aval_params)
-            )
+        return file, (arg_batches, ret_batches)
 
-            params_pred = [
-                p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)
-            ]
 
-            # (function, parameter, [type]s)
-            param_inf: list[tuple[str, str, list[str]]] = []
-            for i, p in enumerate(params_pred):
-                fname = ext_funcs_df_params["func_name"].iloc[i]
-                param = ext_funcs_df_params["arg_name"].iloc[i]
-                predictions = list(self.label_encoder.inverse_transform(p))
+def _file2predictables(
+    temp_dir: str,
+    project: pathlib.Path,
+    file: pathlib.Path,
+    top999_types: pd.DataFrame,
+) -> tuple[pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None]:
+    filename = str(project / file)
+    temp_dir = os.path.join(temp_dir, str(file.with_suffix("")))
 
-                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                self.logger.debug(f"{fname}: {param} -> {p}")
+    os.makedirs(name=temp_dir, exist_ok=True)
 
-                param_inf.append((fname, param, predictions))
+    ext_funcs = process_py_src_file(filename)
+    if not ext_funcs:
+        return file, None
 
-            self.logger.debug("--------------------Return Types Prediction--------------------")
-            id_ret, tok_ret, com_ret, aval_ret = load_ret_data(TEMP_DIR)
-            ret_data_loader = DataLoader(
-                TensorDataset(id_ret, tok_ret, com_ret, aval_ret)
-            )
+    write_ext_funcs(ext_funcs, filename, temp_dir)
+    ext_funcs_df = pd.read_csv(
+        os.path.join(temp_dir, f"ext_funcs_{file.with_suffix('').name}.csv")
+    )
+    ext_funcs_df = filter_functions(ext_funcs_df)
+    ext_funcs_df_params = gen_argument_df_TW(ext_funcs_df)
 
-            ret_pred = [
-                p for p in evaluate_TW(self.tw_model, ret_data_loader, self.topn)
-            ]
+    ext_funcs_df_params = ext_funcs_df_params[
+        (ext_funcs_df_params["arg_name"] != "self")
+        & (
+            (ext_funcs_df_params["arg_type"] != "Any")
+            & (ext_funcs_df_params["arg_type"] != "None")
+        )
+    ]
 
-            ret_inf: list[tuple[str, list[str]]] = []
-            for i, p in enumerate(ret_pred):
-                fname = ext_funcs_df_ret["name"].iloc[i]
-                predictions = list(self.label_encoder.inverse_transform(p))
+    ext_funcs_df_ret = filter_ret_funcs(ext_funcs_df)
+    ext_funcs_df_ret = format_df(ext_funcs_df_ret)
 
-                p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictions, start=1)])
-                self.logger.debug(f"{fname} -> {p}")
+    ext_funcs_df_ret["arg_names_str"] = ext_funcs_df_ret["arg_names"].apply(
+        lambda l: " ".join([v for v in l if v != "self"])
+    )
+    ext_funcs_df_ret["return_expr_str"] = ext_funcs_df_ret["return_expr"].apply(
+        lambda l: " ".join([re.sub(r"self\.?", "", v) for v in l])
+    )
+    ext_funcs_df_ret = ext_funcs_df_ret.drop(
+        columns=[
+            "has_type",
+            "arg_names",
+            "arg_types",
+            "arg_descrs",
+            "return_expr",
+        ]
+    )
 
-                ret_inf.append((fname, predictions))
+    df_avl_types = top999_types
+    ext_funcs_df_params, ext_funcs_df_ret = encode_aval_types_TW(
+        ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
+    )
 
-            arg_batches: list[list[Parameter]] = []
-            ret_batches: list[list[Return]] = []
+    ext_funcs_df_params.to_csv(
+        os.path.join(temp_dir, "ext_funcs_params.csv"), index=False
+    )
+    ext_funcs_df_ret.to_csv(os.path.join(temp_dir, "ext_funcs_ret.csv"), index=False)
 
-            for n in range(self.topn):
-                arg_batch: list[Parameter] = []
-                ret_batch: list[Return] = []
-
-                for fname, argname, ppreds in param_inf:
-                    arg_batch.append(
-                        Parameter(fname=fname, pname=argname, ty=ppreds[n])
-                    )
-
-                for fname, rp in ret_inf:
-                    ret_batch.append(Return(fname=fname, ty=rp[n]))
-
-                arg_batches.append(arg_batch)
-                ret_batches.append(ret_batch)
-
-            return arg_batches, ret_batches
+    return file, (ext_funcs_df_params, ext_funcs_df_ret)
 
 
 class _TypeWriterTopN(_TypeWriter):
     def __init__(self, topn: int):
-        super().__init__(model_path=pathlib.Path("/home/benji/Documents/Uni/heidelberg/05/masterarbeit/impls/scripts/models/typewriter"), topn=topn)
+        super().__init__(model_path=pathlib.Path("models/typewriter"), topn=topn)
 
 
 class TypeWriterTop1(_TypeWriterTopN):
