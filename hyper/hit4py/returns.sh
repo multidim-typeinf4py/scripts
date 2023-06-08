@@ -3,4 +3,4 @@
 set -o nounset
 
 source ./hyper/_common.sh
-parameter_inference "hitype4pytop10" "$1"
+return_inference "hitype4pytop10" "$1"
