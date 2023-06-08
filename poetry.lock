@@ -5447,7 +5447,7 @@ tqdm = "^4.64.1"
 type = "git"
 url = "https://github.com/multidim-typeinf4py/typewriter.git"
 reference = "feature/dltinproj"
-resolved_reference = "5ebf9a1f218f1b96c47fac606f39819b4f9b6a56"
+resolved_reference = "2fc8ce2c7a61b71fd1ed62a0aa1914479beeccb8"
 
 [[package]]
 name = "typilus"
