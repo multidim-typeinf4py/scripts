@@ -76,21 +76,21 @@ from libcst import codemod
     multiple=True,
     required=True,
 )
-@click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
+# @click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
     task: list[str],
-    annotate: bool,
 ) -> None:
+    annotate = False
     tasked = list(map(TypeCollectionCategory.__getitem__, task))
 
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
 
-    mp.set_start_method('spawn')
+    mp.set_start_method("spawn")
     inference_tool = tool()
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
@@ -116,7 +116,7 @@ def cli_entrypoint(
         with (
             scratchpad(inpath) as sc,
             inference_tool.activate_logging(sc),
-            concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor,
+            concurrent.futures.ProcessPoolExecutor(max_workers=worker_count() + 1) as executor,
         ):
             print(f"Using {sc} as a scratchpad for inference!")
             if tasked:
