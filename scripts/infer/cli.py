@@ -44,14 +44,18 @@ from libcst import codemod
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -93,11 +97,16 @@ def cli_entrypoint(
     # mp.set_start_method("spawn")
 
     with (
-        concurrent.futures.ProcessPoolExecutor(max_workers=worker_count()) as cpu_executor,
+        concurrent.futures.ProcessPoolExecutor(
+            max_workers=worker_count()
+        ) as cpu_executor,
         concurrent.futures.ThreadPoolExecutor(max_workers=1) as model_executor,
         # concurrent.futures.ProcessPoolExecutor(max_workers=1) as timeout,
     ):
         inference_tool = tool(cpu_executor=cpu_executor, model_executor=model_executor)
+        inference_tool.logger.info(
+            f"Tool has {cpu_executor._processes} CPU subprocesses, {model_executor._max_workers} GPU subthreads"
+        )
         test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
         for project, subset in (pbar := tqdm.tqdm(test_set.items())):
@@ -125,19 +134,26 @@ def cli_entrypoint(
             ):
                 print(f"Using {sc} as a scratchpad for inference!")
                 if tasked:
-                    print(f"annotation removal flag provided, removing annotations on '{sc}'")
+                    print(
+                        f"annotation removal flag provided, removing annotations on '{sc}'"
+                    )
                     result = codemod.parallel_exec_transform_with_prettyprint(
                         transform=TypeAnnotationRemover(
                             context=codemod.CodemodContext(),
                             variables=TypeCollectionCategory.VARIABLE in tasked,
-                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
+                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER
+                            in tasked,
                             rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                         ),
                         jobs=worker_count(),
                         files=[sc / s for s in subset],
                         repo_root=str(sc),
                     )
-                    print(format_parallel_exec_result(action="Annotation Removal", result=result))
+                    print(
+                        format_parallel_exec_result(
+                            action="Annotation Removal", result=result
+                        )
+                    )
 
                 # Run inference task for hour before aborting
                 # print("Starting inference task with 1h timeout")
@@ -155,7 +171,9 @@ def cli_entrypoint(
                     continue
 
                 except Exception as e:
-                    inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
+                    inference_tool.logger.error(
+                        f"Unhandled error occurred", exc_info=True
+                    )
                     continue
 
                 else:
@@ -171,7 +189,9 @@ def cli_entrypoint(
                         "display.expand_frame_repr",
                         False,
                     ):
-                        inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
+                        inferred = inferred[
+                            inferred[TypeCollectionSchema.category].isin(tasked)
+                        ]
                         print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
                     output.write_inferred(inferred, outdir)
@@ -203,7 +223,8 @@ def cli_entrypoint(
                         transform=TypeAnnotationRemover(
                             context=codemod.CodemodContext(),
                             variables=TypeCollectionCategory.VARIABLE in tasked,
-                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
+                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER
+                            in tasked,
                             rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                         ),
                         jobs=worker_count(),
@@ -228,7 +249,9 @@ def cli_entrypoint(
                         repo_root=str(outdir),
                     )
                     print(
-                        format_parallel_exec_result(action="Annotation Application", result=result)
+                        format_parallel_exec_result(
+                            action="Annotation Application", result=result
+                        )
                     )
 
 
