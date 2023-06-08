@@ -146,7 +146,7 @@ def cli_entrypoint(
                 )
 
             # Run inference task for hour before aborting
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 tasks = [
                     executor.submit(
                         lambda t, m, r, s: t.infer(m, r, s),
