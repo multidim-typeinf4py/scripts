@@ -89,32 +89,6 @@ class _HiTyperPredictions(pydantic.BaseModel):
     __root__: dict[pathlib.Path, _HiTyperScope2Prediction]
 
 
-class ParallelTypeApplier(codemod.ContextAwareTransformer):
-    def __init__(
-        self,
-        context: codemod.CodemodContext,
-        path2batches: dict[pathlib.Path, list[Annotations]],
-        topn: int,
-    ) -> None:
-        super().__init__(context)
-
-        self.paths2batches = path2batches
-        self.topn = topn
-
-    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        assert self.context.filename is not None
-        assert self.context.metadata_manager is not None
-
-        path = pathlib.Path(self.context.filename).relative_to(
-            self.context.metadata_manager.root_path
-        )
-
-        annotations = self.paths2batches[path][self.topn]
-        return metadata.MetadataWrapper(tree, unsafe_skip_copy=True).visit(
-            ApplyTypeAnnotationsVisitor(self.context, annotations=annotations)
-        )
-
-
 class ModelAdaptor(abc.ABC):
     Prediction = tuple[str, float]
     VarPrediction = dict[str, list[Prediction]]
@@ -159,7 +133,7 @@ class HiTyper(ProjectWideInference, ABC):
     def __init__(self, adaptor: ModelAdaptor) -> None:
         super().__init__()
         self.adaptor = adaptor
-        # logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
+        logging.getLogger(hityper.__name__).setLevel(logging.WARNING)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
