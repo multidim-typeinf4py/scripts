@@ -105,7 +105,7 @@ def cli_entrypoint(
     ):
         inference_tool = tool(cpu_executor=cpu_executor, model_executor=model_executor)
         inference_tool.logger.info(
-            f"Tool has {cpu_executor._processes} CPU subprocesses, {model_executor._max_workers} GPU subthreads"
+            f"Tool has {cpu_executor._max_workers} CPU subprocesses, {model_executor._max_workers} GPU subthreads"
         )
         test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
