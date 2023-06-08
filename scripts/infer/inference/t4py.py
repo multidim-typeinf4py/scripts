@@ -1,9 +1,10 @@
 import dataclasses
+import functools
+import itertools
 import json
 import pathlib
 import pickle
 
-import libcst
 import numpy as np
 import onnxruntime
 import pandera.typing as pt
@@ -11,10 +12,7 @@ import torch
 import tqdm
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
-from libcst import codemod
-from libcst import metadata
 from libsa4py.cst_extractor import Extractor
-from libsa4py.cst_transformers import TypeApplier
 from type4py.deploy.infer import (
     get_dps_single_file,
     get_type_preds_single_file,
@@ -62,14 +60,16 @@ class PTType4Py:
         ...
 
 
-def _batchify(predictions: dict, topn: int) -> list[dict]:
+def _batchify(
+    predictions: dict[pathlib.Path, dict], path: pathlib.Path, topn: int
+) -> tuple[pathlib.Path, list[dict]]:
     def read_or_null(l: list, n: int) -> str:
         if n < len(l):
             return l[n][0]
         return ""
 
     def variables_read(d: dict, n: int) -> dict:
-        return {v: read_or_null(d["variables_p"][v], n) for v in d["variables"]}
+        return {v: read_or_null(d["variables_p"][v], n) for v in d.get("variables", [])}
 
     def funcs_read(d: dict, n: int) -> list:
         return [
@@ -80,7 +80,7 @@ def _batchify(predictions: dict, topn: int) -> list[dict]:
                 "ret_type": (read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""),
                 "variables": variables_read(fn, n),
             }
-            for fn in d["funcs"]
+            for fn in d.get("funcs", [])
         ]
 
     def classes_read(d: dict, n: int) -> list:
@@ -91,9 +91,10 @@ def _batchify(predictions: dict, topn: int) -> list[dict]:
                 "funcs": funcs_read(clazz, n),
                 "variables": variables_read(clazz, n),
             }
-            for clazz in d["classes"]
+            for clazz in d.get("classes", [])
         ]
 
+    predictions = predictions[path]
     batches: list[dict] = []
 
     # Transfer variables_p into variables, same with params_p and ret_type_p
@@ -106,7 +107,7 @@ def _batchify(predictions: dict, topn: int) -> list[dict]:
             }
         )
 
-    return batches
+    return path, batches
 
 
 class _Type4Py(ProjectWideInference):
@@ -126,36 +127,34 @@ class _Type4Py(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        proj_files = subset
-
-        paths2datapoints = self._create_or_load_datapoints(mutable, proj_files)
-        paths_with_predictions = {
-            p: dp
-            for p, dp in paths2datapoints.items()
-            if dp is not None
-            and any(
-                dp_hint
-                for dp_hint in (
-                    dp.vars_type_hints,
-                    dp.param_type_hints,
-                    dp.rets_type_hints,
-                )
+        # Datapoint collection
+        self.logger.info("Extracting datapoints...")
+        with self.cpu_executor() as executor:
+            tasks = executor.map(_file2datapoint, itertools.repeat(mutable), subset)
+            paths2datapoints = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
             )
-        }
+        self.logger.debug(paths2datapoints)
 
-        paths2batches = {
-            p: _batchify(
-                get_type_preds_single_file(
-                    dps.ext_type_hints,
-                    dps.all_type_slots,
-                    (dps.vars_type_hints, dps.param_type_hints, dps.rets_type_hints),
-                    self.pretrained,
-                    filter_pred_types=False,
-                ),
-                topn=self.topn,
+        # Type prediction
+        self.logger.info("Executing model...")
+        with self.model_executor() as executor:
+            tasks = executor.map(
+                self._infer_from_datapoints,
+                itertools.repeat(paths2datapoints),
+                subset,
             )
-            for p, dps in paths_with_predictions.items()
-        }
+            paths2predictions = dict(tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction"))
+        self.logger.debug(paths2predictions)
+
+        # Batchification
+        self.logger.info("Converting predictions into Top-N batches")
+        with self.cpu_executor() as executor:
+            tasks = executor.map(
+                _batchify, itertools.repeat(paths2predictions), subset, itertools.repeat(self.topn)
+            )
+            paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
+        self.logger.debug(paths2batches)
 
         return Type4PyProjectApplier.collect_topn(
             project=mutable,
@@ -165,44 +164,55 @@ class _Type4Py(ProjectWideInference):
             tool=self,
         )
 
-    def _create_or_load_datapoints(
-        self, project: pathlib.Path, proj_files: set[pathlib.Path]
-    ) -> dict[pathlib.Path, FileDatapoints]:
-        datapoints = dict[pathlib.Path, FileDatapoints]()
+    def _infer_from_datapoints(
+        self,
+        datapoints: dict[pathlib.Path, FileDatapoints],
+        file: pathlib.Path,
+    ) -> tuple[pathlib.Path, dict]:
+        datapoints = datapoints[file]
 
-        for file in (pbar := tqdm.tqdm(proj_files)):
-            pbar.set_description(desc=f"Computing datapoints for {file}")
-            filepath = project / file
+        # Filter out files for which no predictions were made
+        has_type_slots = any(
+            dp_hint
+            for dp_hint in (
+                datapoints.vars_type_hints,
+                datapoints.param_type_hints,
+                datapoints.rets_type_hints,
+            )
+        )
+        if not has_type_slots:
+            return file, dict()
 
-            try:
-                with filepath.open() as f:
-                    src_f_read = f.read()
-                type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
+        return file, get_type_preds_single_file(
+            datapoints.ext_type_hints,
+            datapoints.all_type_slots,
+            (datapoints.vars_type_hints, datapoints.param_type_hints, datapoints.rets_type_hints),
+            self.pretrained,
+            filter_pred_types=False,
+        )
 
-                (
-                    all_type_slots,
-                    vars_type_hints,
-                    params_type_hints,
-                    rets_type_hints,
-                ) = get_dps_single_file(type_hints)
 
-                datapoints[file] = FileDatapoints(
-                    ext_type_hints=type_hints,
-                    all_type_slots=all_type_slots,
-                    vars_type_hints=vars_type_hints,
-                    param_type_hints=params_type_hints,
-                    rets_type_hints=rets_type_hints,
-                )
+def _file2datapoint(
+    project: pathlib.Path,
+    file: pathlib.Path,
+) -> tuple[pathlib.Path, FileDatapoints]:
+    filepath = project / file
+    type_hints = Extractor.extract(filepath.read_text(), include_seq2seq=False).to_dict()
 
-            except (
-                UnicodeDecodeError,
-                FileNotFoundError,
-                IsADirectoryError,
-                SyntaxError,
-            ) as e:
-                self.logger.warning(f"Skipping {file} during datapoint calculation - {e}")
+    (
+        all_type_slots,
+        vars_type_hints,
+        params_type_hints,
+        rets_type_hints,
+    ) = get_dps_single_file(type_hints)
 
-        return datapoints
+    return file, FileDatapoints(
+        ext_type_hints=type_hints,
+        all_type_slots=all_type_slots,
+        vars_type_hints=vars_type_hints,
+        param_type_hints=params_type_hints,
+        rets_type_hints=rets_type_hints,
+    )
 
 
 class _Type4PyTopN(_Type4Py):
