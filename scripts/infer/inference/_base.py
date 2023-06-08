@@ -1,4 +1,5 @@
 import abc
+import concurrent.futures
 import contextlib
 import enum
 import pathlib
@@ -6,6 +7,7 @@ import sys
 import typing
 from typing import Optional
 
+from scripts import utils
 from scripts.common import output
 from scripts.common.schemas import InferredSchema
 
@@ -97,7 +99,10 @@ class DatasetFolderStructure(enum.Enum):
             for repo in repo_suffix.iterdir():
                 if repo.is_dir() and (fs := codemod.gather_files([repo_suffix / repo])):
                     mapping[repo_suffix / repo] = set(
-                        map(lambda p: pathlib.Path(p).relative_to(repo_suffix / repo), fs)
+                        map(
+                            lambda p: pathlib.Path(p).relative_to(repo_suffix / repo),
+                            fs,
+                        )
                     )
 
             return mapping
@@ -115,11 +120,34 @@ class DatasetFolderStructure(enum.Enum):
 class Inference(abc.ABC):
     def __init__(
         self,
+        cpu_executor: concurrent.futures.ProcessPoolExecutor | None = None,
+        model_executor: concurrent.futures.ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__()
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.INFO)
+
+        self._cpu_executor = cpu_executor
+        self._model_executor = model_executor
+
+    @contextlib.contextmanager
+    def cpu_executor(self) -> typing.Generator[concurrent.futures.ProcessPoolExecutor, None, None]:
+        if self._cpu_executor is None:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=utils.worker_count()) as pool:
+                yield pool
+
+        else:
+            yield self._cpu_executor
+
+    @contextlib.contextmanager
+    def model_executor(self) -> typing.Generator[concurrent.futures.ThreadPoolExecutor, None, None]:
+        if self._model_executor is None:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                yield pool
+
+        else:
+            yield self._model_executor
 
     @abc.abstractmethod
     def infer(
