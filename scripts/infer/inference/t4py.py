@@ -39,17 +39,31 @@ class PTType4Py:
         self.type4py_model = onnxruntime.InferenceSession(
             str(self.model_path / f"type4py_complete_model.onnx"),
             providers=[
-                "CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
+                "CUDAExecutionProvider"
+                if torch.cuda.is_available()
+                else "CPUExecutionProvider"
             ],
         )
-        self.type4py_model_params = json.load((self.model_path / "model_params.json").open())
+        self.type4py_model_params = json.load(
+            (self.model_path / "model_params.json").open()
+        )
         self.type4py_model_params["k"] = topn
 
-        self.w2v_model = Word2Vec.load(fname=str(self.model_path / "w2v_token_model.bin"))
-        self.type_clusters_idx = AnnoyIndex(self.type4py_model_params["output_size"], "euclidean")
-        self.type_clusters_idx.load(str(self.model_path / "type4py_complete_type_cluster"))
-        self.type_clusters_labels = np.load(str(self.model_path / f"type4py_complete_true.npy"))
-        self.label_enc = pickle.load((self.model_path / "label_encoder_all.pkl").open("rb"))
+        self.w2v_model = Word2Vec.load(
+            fname=str(self.model_path / "w2v_token_model.bin")
+        )
+        self.type_clusters_idx = AnnoyIndex(
+            self.type4py_model_params["output_size"], "euclidean"
+        )
+        self.type_clusters_idx.load(
+            str(self.model_path / "type4py_complete_type_cluster")
+        )
+        self.type_clusters_labels = np.load(
+            str(self.model_path / f"type4py_complete_true.npy")
+        )
+        self.label_enc = pickle.load(
+            (self.model_path / "label_encoder_all.pkl").open("rb")
+        )
 
         self.topn = topn
         self.vths = None
@@ -77,7 +91,9 @@ def _batchify(
                 "name": fn["name"],
                 "q_name": fn["q_name"],
                 "params": {p: read_or_null(fn["params_p"][p], n) for p in fn["params"]},
-                "ret_type": (read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""),
+                "ret_type": (
+                    read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""
+                ),
                 "variables": variables_read(fn, n),
             }
             for fn in d.get("funcs", [])
@@ -127,33 +143,16 @@ class _Type4Py(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        # Datapoint collection
         self.logger.info("Extracting datapoints...")
-        with self.cpu_executor() as executor:
-            tasks = executor.map(_file2datapoint, itertools.repeat(mutable), subset)
-            paths2datapoints = dict(
-                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
-            )
+        paths2datapoints = self.extract_datapoints(mutable, subset)
         self.logger.debug(paths2datapoints)
 
-        # Type prediction
         self.logger.info("Executing model...")
-        with self.model_executor() as executor:
-            tasks = executor.map(
-                self._infer_from_datapoints,
-                itertools.repeat(paths2datapoints),
-                subset,
-            )
-            paths2predictions = dict(tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction"))
+        paths2predictions = self.make_predictions(paths2datapoints, subset)
         self.logger.debug(paths2predictions)
 
-        # Batchification
         self.logger.info("Converting predictions into Top-N batches")
-        with self.cpu_executor() as executor:
-            tasks = executor.map(
-                _batchify, itertools.repeat(paths2predictions), subset, itertools.repeat(self.topn)
-            )
-            paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
+        paths2batches = self.make_topn_batches(paths2predictions, subset)
         self.logger.debug(paths2batches)
 
         return Type4PyProjectApplier.collect_topn(
@@ -163,6 +162,49 @@ class _Type4Py(ProjectWideInference):
             topn=self.topn,
             tool=self,
         )
+
+    def extract_datapoints(
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
+    ) -> dict[pathlib.Path, FileDatapoints]:
+        with self.cpu_executor() as executor:
+            tasks = executor.map(_file2datapoint, itertools.repeat(mutable), subset)
+            paths2datapoints = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
+            )
+
+        return paths2datapoints
+
+    def make_predictions(
+        self,
+        paths2datapoints: dict[pathlib.Path, FileDatapoints],
+        subset: set[pathlib.Path],
+    ) -> dict[pathlib.Path, dict]:
+        # Type prediction
+        with self.model_executor() as executor:
+            tasks = executor.map(
+                self._infer_from_datapoints,
+                itertools.repeat(paths2datapoints),
+                subset,
+            )
+            paths2predictions = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction")
+            )
+        return paths2predictions
+
+    def make_topn_batches(
+        self, paths2predictions: dict[pathlib.Path, dict], subset: set[pathlib.Path]
+    ) -> dict[pathlib.Path, list[dict]]:  # Batchification
+        with self.cpu_executor() as executor:
+            tasks = executor.map(
+                _batchify,
+                itertools.repeat(paths2predictions),
+                subset,
+                itertools.repeat(self.topn),
+            )
+            paths2batches = dict(
+                tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching")
+            )
+        return paths2batches
 
     def _infer_from_datapoints(
         self,
@@ -186,7 +228,11 @@ class _Type4Py(ProjectWideInference):
         return file, get_type_preds_single_file(
             datapoints.ext_type_hints,
             datapoints.all_type_slots,
-            (datapoints.vars_type_hints, datapoints.param_type_hints, datapoints.rets_type_hints),
+            (
+                datapoints.vars_type_hints,
+                datapoints.param_type_hints,
+                datapoints.rets_type_hints,
+            ),
             self.pretrained,
             filter_pred_types=False,
         )
@@ -197,7 +243,9 @@ def _file2datapoint(
     file: pathlib.Path,
 ) -> tuple[pathlib.Path, FileDatapoints]:
     filepath = project / file
-    type_hints = Extractor.extract(filepath.read_text(), include_seq2seq=False).to_dict()
+    type_hints = Extractor.extract(
+        filepath.read_text(), include_seq2seq=False
+    ).to_dict()
 
     (
         all_type_slots,
@@ -217,7 +265,9 @@ def _file2datapoint(
 
 class _Type4PyTopN(_Type4Py):
     def __init__(self, topn: int):
-        super().__init__(model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn)
+        super().__init__(
+            model_path=pathlib.Path.cwd() / "models" / "type4py", topn=topn
+        )
 
 
 class Type4PyTop1(_Type4PyTopN):
