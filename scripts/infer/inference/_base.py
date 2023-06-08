@@ -119,7 +119,7 @@ class Inference(abc.ABC):
         super().__init__()
 
         self.logger = logging.getLogger(type(self).__qualname__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
 
     @abc.abstractmethod
     def infer(
@@ -131,7 +131,7 @@ class Inference(abc.ABC):
         pass
 
     @contextlib.contextmanager
-    def with_handlers(self, filepath: pathlib.Path) -> typing.Generator[None, None, None]:
+    def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:
         formatter = logging.Formatter(
             fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -141,25 +141,25 @@ class Inference(abc.ABC):
         generic_sout_handler.setLevel(logging.INFO)
         generic_sout_handler.setFormatter(fmt=formatter)
 
-        generic_filehandler = logging.FileHandler(filename=output.info_log_path(filepath), mode="w")
+        generic_filehandler = logging.FileHandler(filename=output.info_log_path(project), mode="w")
         generic_filehandler.setLevel(logging.INFO)
         generic_filehandler.setFormatter(fmt=formatter)
 
-        debug_handler = logging.FileHandler(filename=output.debug_log_path(filepath), mode="w")
+        debug_handler = logging.FileHandler(filename=output.debug_log_path(project), mode="w")
         debug_handler.setLevel(logging.DEBUG)
         debug_handler.addFilter(filter=lambda record: record.levelno == logging.DEBUG)
         debug_handler.setFormatter(fmt=formatter)
 
-        error_handler = logging.FileHandler(filename=output.error_log_path(filepath), mode="w")
+        error_handler = logging.FileHandler(filename=output.error_log_path(project), mode="w")
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(fmt=formatter)
 
-        for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
+        for handler in (generic_filehandler, debug_handler, error_handler):
             self.logger.addHandler(hdlr=handler)
 
         yield
 
-        for handler in (generic_sout_handler, generic_filehandler, debug_handler, error_handler):
+        for handler in (generic_filehandler, debug_handler, error_handler):
             self.logger.removeHandler(hdlr=handler)
 
     @abc.abstractmethod
@@ -174,22 +174,21 @@ class ProjectWideInference(Inference):
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
     ) -> pt.DataFrame[InferredSchema]:
-        with self.with_handlers(mutable):
-            self.logger.info(f"Inferring project-wide for {readonly}")
+        self.logger.info(f"Inferring project-wide for {readonly}")
 
-            if subset is not None:
-                subset = {s for s in subset if (mutable / s).is_file()}
-            else:
-                subset = set(
-                    map(
-                        lambda r: pathlib.Path(r).relative_to(mutable),
-                        codemod.gather_files([str(mutable)]),
-                    )
+        if subset is not None:
+            subset = {s for s in subset if (mutable / s).is_file()}
+        else:
+            subset = set(
+                map(
+                    lambda r: pathlib.Path(r).relative_to(mutable),
+                    codemod.gather_files([str(mutable)]),
                 )
+            )
 
-            inferred = self._infer_project(mutable, subset)
-            self.logger.info("Inference completed")
-            return inferred
+        inferred = self._infer_project(mutable, subset)
+        self.logger.info("Inference completed")
+        return inferred
 
     @abc.abstractmethod
     def _infer_project(
@@ -205,28 +204,21 @@ class PerFileInference(Inference):
         readonly: pathlib.Path,
         subset: Optional[set[pathlib.Path]] = None,
     ) -> pt.DataFrame[InferredSchema]:
-        updates = list()
+        updates = [InferredSchema.example(size=0)]
 
         if subset is not None:
             paths = map(lambda p: mutable / p, subset)
         else:
             paths = mutable.rglob("*.py")
 
-        with self.with_handlers(mutable):
-            for subfile in paths:
-                if not subfile.is_file():
-                    continue
-                relative = subfile.relative_to(mutable)
-                self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
-                reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
-                updates.append(reldf)
+        for subfile in paths:
+            relative = subfile.relative_to(mutable)
+            self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
+            reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
+            updates.append(reldf)
 
-            self.logger.info("Inference completed")
-
-            if updates:
-                return pd.concat(updates, ignore_index=True).pipe(pt.DataFrame[InferredSchema])
-            else:
-                return InferredSchema.example(size=0)
+        self.logger.info("Inference completed")
+        return pd.concat(updates, ignore_index=True).pipe(pt.DataFrame[InferredSchema])
 
     @abc.abstractmethod
     def _infer_file(

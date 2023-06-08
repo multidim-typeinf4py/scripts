@@ -7,7 +7,7 @@ from .pyrequery import PyreQuery
 from .typewriter import TypeWriterTop10, TypeWriterTop1
 from .typilus import TypilusTop10, TypilusTop1
 from .t4py import Type4PyTop10, Type4PyTop1
-from .tt5 import TypeT5Top10
+from .tt5 import TypeT5Top10, TypeT5Top1
 
 from .hit4py import HiType4PyTop10
 from .hitypilus import HiTypilusTop10
@@ -30,6 +30,7 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     TypeWriterTop10.__name__.lower(): TypeWriterTop10,
 
     # Hybrid TypeT5
+    TypeT5Top1.__name__.lower(): TypeT5Top1,
     TypeT5Top10.__name__.lower(): TypeT5Top10,
 
     # Hybrid HiTyper integrations

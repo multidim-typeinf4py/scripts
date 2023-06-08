@@ -112,13 +112,12 @@ def cli_entrypoint(
             continue
 
         inpath = project
-        with scratchpad(inpath) as sc:
+        with (
+            scratchpad(inpath) as sc,
+            inference_tool.activate_logging(sc),
+            concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor,
+        ):
             print(f"Using {sc} as a scratchpad for inference!")
-
-            if not (files := codemod.gather_files([str(sc)])):
-                print(f"Skipping {project}, no Python files found!")
-                continue
-
             if tasked:
                 print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
@@ -129,63 +128,66 @@ def cli_entrypoint(
                         rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                     ),
                     jobs=worker_count(),
-                    files=files,
+                    files=[sc / s for s in subset],
                     repo_root=str(sc),
                 )
                 print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             # Run inference task for hour before aborting
-            with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-                tasks = [
-                    executor.submit(
-                        type(inference_tool).infer,
-                        inference_tool,
-                        sc,
-                        inpath,
-                        subset,
-                    )
-                ]
+            print("Starting inference task with 1h timeout")
+            tasks = [
+                executor.submit(
+                    type(inference_tool).infer,
+                    inference_tool,
+                    sc,
+                    inpath,
+                    subset,
+                )
+            ]
 
-                try:
-                    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
-                        inferred = task.result()
+            try:
+                for task in concurrent.futures.as_completed(tasks, timeout=60**2):
+                    inferred = task.result()
 
-                except concurrent.futures.TimeoutError as e:
-                    inference_tool.logger.error(
-                        "Took over an hour to infer types, killing inference subprocess. "
-                        "Results will NOT be written to disk",
-                        exc_info=True,
-                    )
+            except concurrent.futures.TimeoutError as e:
+                inference_tool.logger.error(
+                    "Took over an hour to infer types, killing inference subprocess. "
+                    "Results will NOT be written to disk",
+                    exc_info=True,
+                )
 
-                except Exception as e:
-                    inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
+            except Exception as e:
+                inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
 
-            print(f"Writing results to {outdir}")
-            if outdir.is_dir() and overwrite:
-                shutil.rmtree(outdir)
+            else:
+                if outdir.is_dir() and overwrite:
+                    shutil.rmtree(outdir)
 
-            # Copy generated log files
-            outdir.mkdir(parents=True, exist_ok=True)
-            for log_path in (
-                output.info_log_path,
-                output.debug_log_path,
-                output.error_log_path,
-            ):
-                shutil.copy(log_path(sc), log_path(outdir))
+                outdir.mkdir(parents=True, exist_ok=True)
+                with pandas.option_context(
+                    "display.max_rows",
+                    None,
+                    "display.max_columns",
+                    None,
+                    "display.expand_frame_repr",
+                    False,
+                ):
+                    inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
+                    print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
-            with pandas.option_context(
-                "display.max_rows",
-                None,
-                "display.max_columns",
-                None,
-                "display.expand_frame_repr",
-                False,
-            ):
-                inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
-                print(inferred.sample(n=min(len(inferred), 20)).sort_index())
+                output.write_inferred(inferred, outdir)
+                print(f"Inferred types have been stored at {outdir}")
 
-            output.write_inferred(inferred, outdir)
-            print(f"Inferred types have been stored at {outdir}")
+            finally:
+                # Copy generated log files
+                outdir.mkdir(parents=True, exist_ok=True)
+                for log_path in (
+                    output.info_log_path,
+                    output.debug_log_path,
+                    output.error_log_path,
+                ):
+                    shutil.copy(log_path(sc), log_path(outdir))
+                print(f"Logs have been stored at {outdir}")
 
             if annotate:
                 # Copy original project
