@@ -115,7 +115,7 @@ def cli_entrypoint(
         with (
             scratchpad(inpath) as sc,
             inference_tool.activate_logging(sc),
-            concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor,
+            concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor,
         ):
             print(f"Using {sc} as a scratchpad for inference!")
             if tasked:
