@@ -1,4 +1,5 @@
 import concurrent.futures
+import functools
 import pathlib
 import shutil
 
@@ -43,18 +44,14 @@ from libcst import codemod
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(
-        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(
-        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -79,9 +76,7 @@ from libcst import codemod
     multiple=True,
     required=True,
 )
-@click.option(
-    "-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase"
-)
+@click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
@@ -125,9 +120,7 @@ def cli_entrypoint(
                 continue
 
             if tasked:
-                print(
-                    f"annotation removal flag provided, removing annotations on '{sc}'"
-                )
+                print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
@@ -139,17 +132,13 @@ def cli_entrypoint(
                     files=files,
                     repo_root=str(sc),
                 )
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Removal", result=result
-                    )
-                )
+                print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             # Run inference task for hour before aborting
             with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                 tasks = [
                     executor.submit(
-                        lambda t, m, r, s: t.infer(m, r, s),
+                        type(inference_tool).infer,
                         inference_tool,
                         sc,
                         inpath,
@@ -164,9 +153,12 @@ def cli_entrypoint(
                 except concurrent.futures.TimeoutError as e:
                     inference_tool.logger.error(
                         "Took over an hour to infer types, killing inference subprocess. "
-                        "Results will NOT be written to disk"
+                        "Results will NOT be written to disk",
+                        exc_info=True,
                     )
-                    inference_tool.logger.error(f"{e}")
+
+                except Exception as e:
+                    inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
 
             print(f"Writing results to {outdir}")
             if outdir.is_dir() and overwrite:
@@ -189,9 +181,7 @@ def cli_entrypoint(
                 "display.expand_frame_repr",
                 False,
             ):
-                inferred = inferred[
-                    inferred[TypeCollectionSchema.category].isin(tasked)
-                ]
+                inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
                 print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
             output.write_inferred(inferred, outdir)
@@ -236,11 +226,7 @@ def cli_entrypoint(
                     jobs=worker_count(),
                     repo_root=str(outdir),
                 )
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Application", result=result
-                    )
-                )
+                print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
