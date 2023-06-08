@@ -1,5 +1,4 @@
 import concurrent.futures
-import functools
 import pathlib
 import shutil
 
@@ -23,6 +22,7 @@ from scripts.utils import (
 
 from .inference import Inference, factory, SUPPORTED_TOOLS
 
+import torch.multiprocessing as mp
 from libcst import codemod
 
 
@@ -93,6 +93,7 @@ def cli_entrypoint(
     inference_tool = tool()
     test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
+    mp.set_start_method('spawn')
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
 
@@ -115,7 +116,7 @@ def cli_entrypoint(
         with (
             scratchpad(inpath) as sc,
             inference_tool.activate_logging(sc),
-            concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor,
+            concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor,
         ):
             print(f"Using {sc} as a scratchpad for inference!")
             if tasked:
