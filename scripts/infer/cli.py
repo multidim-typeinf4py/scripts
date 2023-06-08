@@ -155,9 +155,11 @@ def cli_entrypoint(
                     "Results will NOT be written to disk",
                     exc_info=True,
                 )
+                continue
 
             except Exception as e:
                 inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
+                continue
 
             else:
                 if outdir.is_dir() and overwrite:
