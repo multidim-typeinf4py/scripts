@@ -90,7 +90,7 @@ def cli_entrypoint(
     structure = DatasetFolderStructure.from_folderpath(dataset)
     print(dataset, structure)
 
-    mp.set_start_method("spawn")
+    # mp.set_start_method("spawn")
 
     with (
         concurrent.futures.ProcessPoolExecutor(max_workers=worker_count()) as cpu_executor,
