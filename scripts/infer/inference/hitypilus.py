@@ -247,14 +247,10 @@ class Typilus2HiTyper(ModelAdaptor):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__()
         self.typilus = TypilusTopN(
             topn=topn,
-            cpu_executor=cpu_executor,
-            model_executor=model_executor,
         )
 
     def topn(self) -> int:
@@ -315,14 +311,10 @@ class HiTypilusTopN(HiTyper):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__(
             Typilus2HiTyper(
                 topn=topn,
-                cpu_executor=cpu_executor,
-                model_executor=model_executor,
             )
         )
 

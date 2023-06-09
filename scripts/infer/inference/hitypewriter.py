@@ -8,10 +8,11 @@ import libcst
 from libcst import metadata
 from typewriter.dltpy.preprocessing.pipeline import preprocessor
 
+from scripts.infer.inference import _utils
+from scripts.infer.inference._base import ParallelisableInference
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
 from scripts.infer.inference._utils import wrapped_partial
 from scripts.infer.inference.typewriter import (
-    _TypeWriter,
     Parameter,
     Return,
     TypeWriterTopN,

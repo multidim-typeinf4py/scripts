@@ -1,54 +1,29 @@
 import abc
-import concurrent.futures
 import contextlib
+import logging
 import pathlib
 import sys
 import typing
+import weakref
+from abc import ABC
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from typing import Optional
 
-from scripts import utils
-from scripts.common import output
-from scripts.common.schemas import InferredSchema
-
-import logging
-
+import pandas as pd
+import pandera.typing as pt
 from libcst import codemod
 
-import pandera.typing as pt
-import pandas as pd
+from scripts.common import output
+from scripts.common.schemas import InferredSchema
+from scripts.infer.inference import _utils
 
 
 class Inference(abc.ABC):
-    def __init__(
-        self,
-        cpu_executor: concurrent.futures.ProcessPoolExecutor | None = None,
-        model_executor: concurrent.futures.ThreadPoolExecutor | None = None,
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.INFO)
-
-        self._cpu_executor = cpu_executor
-        self._model_executor = model_executor
-
-    @contextlib.contextmanager
-    def cpu_executor(self) -> typing.Generator[concurrent.futures.ProcessPoolExecutor, None, None]:
-        if self._cpu_executor is None:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=utils.worker_count()) as pool:
-                yield pool
-
-        else:
-            yield self._cpu_executor
-
-    @contextlib.contextmanager
-    def model_executor(self) -> typing.Generator[concurrent.futures.ThreadPoolExecutor, None, None]:
-        if self._model_executor is None:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                yield pool
-
-        else:
-            yield self._model_executor
 
     @abc.abstractmethod
     def infer(
@@ -60,7 +35,9 @@ class Inference(abc.ABC):
         pass
 
     @contextlib.contextmanager
-    def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:
+    def activate_logging(
+        self, project: pathlib.Path
+    ) -> typing.Generator[None, None, None]:
         formatter = logging.Formatter(
             fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -70,16 +47,22 @@ class Inference(abc.ABC):
         generic_sout_handler.setLevel(logging.INFO)
         generic_sout_handler.setFormatter(fmt=formatter)
 
-        generic_filehandler = logging.FileHandler(filename=output.info_log_path(project), mode="w")
+        generic_filehandler = logging.FileHandler(
+            filename=output.info_log_path(project), mode="w"
+        )
         generic_filehandler.setLevel(logging.INFO)
         generic_filehandler.setFormatter(fmt=formatter)
 
-        debug_handler = logging.FileHandler(filename=output.debug_log_path(project), mode="w")
+        debug_handler = logging.FileHandler(
+            filename=output.debug_log_path(project), mode="w"
+        )
         debug_handler.setLevel(logging.DEBUG)
         debug_handler.addFilter(filter=lambda record: record.levelno == logging.DEBUG)
         debug_handler.setFormatter(fmt=formatter)
 
-        error_handler = logging.FileHandler(filename=output.error_log_path(project), mode="w")
+        error_handler = logging.FileHandler(
+            filename=output.error_log_path(project), mode="w"
+        )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(fmt=formatter)
 
@@ -142,7 +125,9 @@ class PerFileInference(Inference):
 
         for subfile in paths:
             relative = subfile.relative_to(mutable)
-            self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
+            self.logger.info(
+                f"Inferring per-file on {relative} @ {mutable} ({readonly})"
+            )
             reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
             updates.append(reldf)
 
@@ -154,3 +139,24 @@ class PerFileInference(Inference):
         self, root: pathlib.Path, relative: pathlib.Path
     ) -> pt.DataFrame[InferredSchema]:
         pass
+
+
+class ParallelisableInference(ProjectWideInference, ABC):
+    def __init__(
+        self,
+        cpu_executor: ProcessPoolExecutor | None = None,
+        model_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        super().__init__()
+        self.cpu_executor = cpu_executor or _utils.cpu_executor()
+        self.model_executor = model_executor or _utils.model_executor()
+
+        self.logger.info(
+            f"Tool has {self.cpu_executor._max_workers} CPU subprocesses, {self.model_executor._max_workers} GPU subthreads"
+        )
+
+        self.shutdown_hook = weakref.finalize(self, self._shutdown_hook)
+
+    def _shutdown_hook(self) -> None:
+        self.cpu_executor.shutdown(wait=True, cancel_futures=False)
+        self.model_executor.shutdown(wait=True, cancel_futures=False)

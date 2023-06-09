@@ -20,7 +20,8 @@ from type4py.deploy.infer import (
 )
 
 from scripts.common.schemas import InferredSchema
-from ._base import ProjectWideInference
+from . import _utils
+from ._base import ParallelisableInference
 from ._utils import wrapped_partial
 from ..annotators.type4py import Type4PyProjectApplier
 
@@ -41,17 +42,31 @@ class PTType4Py:
         self.type4py_model = onnxruntime.InferenceSession(
             str(self.model_path / f"type4py_complete_model.onnx"),
             providers=[
-                "CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
+                "CUDAExecutionProvider"
+                if torch.cuda.is_available()
+                else "CPUExecutionProvider"
             ],
         )
-        self.type4py_model_params = json.load((self.model_path / "model_params.json").open())
+        self.type4py_model_params = json.load(
+            (self.model_path / "model_params.json").open()
+        )
         self.type4py_model_params["k"] = topn
 
-        self.w2v_model = Word2Vec.load(fname=str(self.model_path / "w2v_token_model.bin"))
-        self.type_clusters_idx = AnnoyIndex(self.type4py_model_params["output_size"], "euclidean")
-        self.type_clusters_idx.load(str(self.model_path / "type4py_complete_type_cluster"))
-        self.type_clusters_labels = np.load(str(self.model_path / f"type4py_complete_true.npy"))
-        self.label_enc = pickle.load((self.model_path / "label_encoder_all.pkl").open("rb"))
+        self.w2v_model = Word2Vec.load(
+            fname=str(self.model_path / "w2v_token_model.bin")
+        )
+        self.type_clusters_idx = AnnoyIndex(
+            self.type4py_model_params["output_size"], "euclidean"
+        )
+        self.type_clusters_idx.load(
+            str(self.model_path / "type4py_complete_type_cluster")
+        )
+        self.type_clusters_labels = np.load(
+            str(self.model_path / f"type4py_complete_true.npy")
+        )
+        self.label_enc = pickle.load(
+            (self.model_path / "label_encoder_all.pkl").open("rb")
+        )
 
         self.topn = topn
         self.vths = None
@@ -79,7 +94,9 @@ def _batchify(
                 "name": fn["name"],
                 "q_name": fn["q_name"],
                 "params": {p: read_or_null(fn["params_p"][p], n) for p in fn["params"]},
-                "ret_type": (read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""),
+                "ret_type": (
+                    read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""
+                ),
                 "variables": variables_read(fn, n),
             }
             for fn in d.get("funcs", [])
@@ -112,14 +129,14 @@ def _batchify(
     return path, batches
 
 
-class _Type4Py(ProjectWideInference):
+class _Type4Py(ParallelisableInference):
     def __init__(
         self,
         model_path: pathlib.Path,
         topn: int,
         cpu_executor: ProcessPoolExecutor | None = None,
         model_executor: ThreadPoolExecutor | None = None,
-    ):
+    ) -> None:
         super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
 
         self.topn = topn
@@ -154,11 +171,12 @@ class _Type4Py(ProjectWideInference):
     def extract_datapoints(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> dict[pathlib.Path, FileDatapoints]:
-        with self.cpu_executor() as executor:
-            tasks = executor.map(_file2datapoint, itertools.repeat(mutable), subset)
-            paths2datapoints = dict(
-                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
-            )
+        tasks = self.cpu_executor.map(
+            _file2datapoint, itertools.repeat(mutable), subset
+        )
+        paths2datapoints = dict(
+            tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
+        )
 
         return paths2datapoints
 
@@ -168,26 +186,26 @@ class _Type4Py(ProjectWideInference):
         subset: set[pathlib.Path],
     ) -> dict[pathlib.Path, dict]:
         # Type prediction
-        with self.model_executor() as executor:
-            tasks = executor.map(
-                self._infer_from_datapoints,
-                itertools.repeat(paths2datapoints),
-                subset,
-            )
-            paths2predictions = dict(tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction"))
+        tasks = self.model_executor.map(
+            self._infer_from_datapoints,
+            itertools.repeat(paths2datapoints),
+            subset,
+        )
+        paths2predictions = dict(
+            tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction")
+        )
         return paths2predictions
 
     def make_topn_batches(
         self, paths2predictions: dict[pathlib.Path, dict], subset: set[pathlib.Path]
     ) -> dict[pathlib.Path, list[dict]]:  # Batchification
-        with self.cpu_executor() as executor:
-            tasks = executor.map(
-                _batchify,
-                itertools.repeat(paths2predictions),
-                subset,
-                itertools.repeat(self.topn),
-            )
-            paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
+        tasks = self.cpu_executor.map(
+            _batchify,
+            itertools.repeat(paths2predictions),
+            subset,
+            itertools.repeat(self.topn),
+        )
+        paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
         return paths2batches
 
     def _infer_from_datapoints(

@@ -20,10 +20,8 @@ class Typilus(ProjectWideInference):
         self,
         model_folder: pathlib.Path,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
-        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
+        super().__init__()
 
         self.topn = topn
 
@@ -98,9 +96,7 @@ class Typilus(ProjectWideInference):
                     annot = "typing.Any"
                 filtered_logprobs.append((annot, logprob))
 
-            filtered_logprobs.extend(
-                [("typing.Any", -1000)] * (self.topn - len(filtered_logprobs))
-            )
+            filtered_logprobs.extend([("typing.Any", -1000)] * (self.topn - len(filtered_logprobs)))
             annotation_dict["predicted_annotation_logprob_dist"] = filtered_logprobs
 
             ps.append(annotation_dict)
@@ -129,14 +125,10 @@ class TypilusTopN(Typilus):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__(
             model_folder=pathlib.Path("models/typilus"),
             topn=topn,
-            cpu_executor=cpu_executor,
-            model_executor=model_executor,
         )
 
 

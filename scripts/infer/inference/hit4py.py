@@ -3,6 +3,7 @@ import pathlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 from scripts.infer.inference.t4py import Type4PyTopN
+from . import _utils
 from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
 
@@ -11,8 +12,8 @@ class Type4PyAdaptor(ModelAdaptor):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
+        cpu_executor: ProcessPoolExecutor,
+        model_executor: ThreadPoolExecutor,
     ) -> None:
         super().__init__()
         self.type4py = Type4PyTopN(

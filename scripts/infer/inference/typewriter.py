@@ -41,11 +41,12 @@ from typewriter.prepocessing import (
     gen_argument_df_TW,
 )
 
+from . import _utils
 from ._utils import wrapped_partial
 from ..annotators.typewriter import Parameter, Return, TWProjectApplier
 from scripts.common.schemas import InferredSchema
 from scripts.symbols.collector import build_type_collection
-from ._base import ProjectWideInference
+from ._base import ProjectWideInference, ParallelisableInference
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -192,7 +193,7 @@ def evaluate_TW(model: torch.nn.Module, data_loader: DataLoader, top_n=1):
     return predicted_labels
 
 
-class _TypeWriter(ProjectWideInference):
+class _TypeWriter(ParallelisableInference):
     def method(self) -> str:
         return f"typewriterN{self.topn}"
 
@@ -249,21 +250,18 @@ class _TypeWriter(ProjectWideInference):
         self, td: str, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> dict[pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None]:
         top999_types = pd.read_csv(join(self.model_path, "top_999_types.csv"))
-        with self.cpu_executor() as executor:
-            tasks = executor.map(
-                _file2predictables,
-                itertools.repeat(td),
-                itertools.repeat(project),
-                subset,
-                itertools.repeat(top999_types),
-            )
-            paths2datapoints = dict(
-                tqdm.tqdm(tasks, total=len(subset), desc="Predictable Extraction")
-            )
+        tasks = self.cpu_executor.map(
+            _file2predictables,
+            itertools.repeat(td),
+            itertools.repeat(project),
+            subset,
+            itertools.repeat(top999_types),
+        )
+        paths2datapoints = dict(
+            tqdm.tqdm(tasks, total=len(subset), desc="Predictable Extraction")
+        )
 
-            # Remove all entries that
-
-            return paths2datapoints
+        return paths2datapoints
 
     def make_predictions(
         self,
@@ -273,18 +271,17 @@ class _TypeWriter(ProjectWideInference):
         ],
         subset: set[pathlib.Path],
     ) -> dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]]:
-        with self.model_executor() as executor:
-            tasks = executor.map(
-                self._predictables2predictions,
-                itertools.repeat(td),
-                itertools.repeat(paths2predictables),
-                subset,
-            )
-            paths2datapoints = dict(
-                tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
-            )
+        tasks = self.model_executor.map(
+            self._predictables2predictions,
+            itertools.repeat(td),
+            itertools.repeat(paths2predictables),
+            subset,
+        )
+        paths2datapoints = dict(
+            tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
+        )
 
-            return paths2datapoints
+        return paths2datapoints
 
     def _predictables2predictions(
         self,

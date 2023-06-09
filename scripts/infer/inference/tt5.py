@@ -1,43 +1,36 @@
-import functools
 import pathlib
+
+import libcst
+import pandera.typing as pt
 import torch
-
-from typet5.model import ModelWrapper
-from typet5.utils import *
-
+from libcst import codemod
+from typet5.experiments import utils as typet5_utils
 from typet5.function_decoding import (
     RolloutCtx,
     PreprocessArgs,
     DecodingOrders,
     RolloutPredictionTopN,
     SignatureMap,
-    SignatureMapTopN,
+)
+from typet5.model import ModelWrapper
+from typet5.static_analysis import (
+    PythonProject,
 )
 from typet5.train import (
     TrainingConfig,
     DecodingArgs,
 )
-from typet5.static_analysis import (
-    PythonProject,
-)
-from typet5.experiments import utils as typet5_utils
+from typet5.utils import *
 
-import libcst
-from libcst import codemod
-import pandera.typing as pt
-
+from scripts import utils
 from scripts.common.schemas import InferredSchema
 from scripts.infer.annotators import TT5ProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
 from scripts.infer.inference._utils import wrapped_partial
-from scripts.symbols.collector import build_type_collection
-from scripts import utils
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    def __init__(
-        self, context: codemod.CodemodContext, predictions: SignatureMap
-    ) -> None:
+    def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
         super().__init__(context)
         self.predictions = predictions
 
@@ -65,13 +58,8 @@ class TypeT5Configs:
 
 
 class TypeT5TopN(ProjectWideInference):
-    def __init__(
-        self,
-        topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
-    ) -> None:
-        super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
+    def __init__(self, topn: int) -> None:
+        super().__init__()
         self.wrapper = ModelWrapper.load_from_hub("MrVPlusOne/TypeT5-v7")
         self.wrapper.args = DecodingArgs(
             sampling_max_tokens=TypeT5Configs.Default.ctx_size,
@@ -93,20 +81,15 @@ class TypeT5TopN(ProjectWideInference):
         project = PythonProject.parse_from_root(root=mutable)
         rctx = RolloutCtx(model=self.wrapper)
 
-        with (
-            self.cpu_executor() as cpu,
-            self.model_executor() as model,
-        ):
-            rollout: RolloutPredictionTopN = asyncio.run(
-                rctx.project_rollout_topn(
-                    project=project,
-                    pre_args=PreprocessArgs(),
-                    decode_order=DecodingOrders.DoubleTraversal(),
-                    cpu_executor=cpu,
-                    model_executor=model,
-                    num_return_sequences=self.topn,
-                )
+        rollout: RolloutPredictionTopN = asyncio.run(
+            rctx.run_on_project(
+                project=project,
+                pre_args=PreprocessArgs(),
+                decode_order=DecodingOrders.DoubleTraversal(),
+                concurrency=utils.worker_count(),
+                num_return_sequences=self.topn,
             )
+        )
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,

@@ -9,6 +9,7 @@ import tqdm
 from scripts.common.annotations import TypeAnnotationRemover
 from scripts.common import output
 from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from scripts.infer.inference._base import ParallelisableInference
 from scripts.infer.structure import DatasetFolderStructure
 
 from scripts.infer.insertion import TypeAnnotationApplierTransformer
@@ -94,165 +95,153 @@ def cli_entrypoint(
     structure = DatasetFolderStructure(dataset)
     print("Inferred dataset kind:", structure)
 
-    # mp.set_start_method("spawn")
+    inference_tool = tool()
+    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
-    with (
-        concurrent.futures.ProcessPoolExecutor(
-            max_workers=worker_count()
-        ) as cpu_executor,
-        concurrent.futures.ThreadPoolExecutor(max_workers=1) as model_executor,
-        # concurrent.futures.ProcessPoolExecutor(max_workers=1) as timeout,
-    ):
-        inference_tool = tool(cpu_executor=cpu_executor, model_executor=model_executor)
-        inference_tool.logger.info(
-            f"Tool has {cpu_executor._max_workers} CPU subprocesses, {model_executor._max_workers} GPU subthreads"
+    for project, subset in (pbar := tqdm.tqdm(test_set.items())):
+        pbar.set_description(desc=f"Inferring over {project}")
+
+        ar = structure.author_repo(project)
+        author_repo = f"{ar['author']}.{ar['repo']}"
+        outdir = output.inference_output_path(
+            outpath / author_repo,
+            tool=inference_tool.method(),
+            removed=tasked,
         )
-        test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
 
-        for project, subset in (pbar := tqdm.tqdm(test_set.items())):
-            pbar.set_description(desc=f"Inferring over {project}")
-
-            ar = structure.author_repo(project)
-            author_repo = f"{ar['author']}.{ar['repo']}"
-            outdir = output.inference_output_path(
-                outpath / author_repo,
-                tool=inference_tool.method(),
-                removed=tasked,
+        # Skip if we are not overwriting results
+        if outdir.is_dir() and not overwrite:
+            print(
+                f"Skipping {project}, results are already at {outdir}, and --overwrite was not given!"
             )
+            continue
 
-            # Skip if we are not overwriting results
-            if outdir.is_dir() and not overwrite:
+        inpath = project
+        with (
+            scratchpad(inpath) as sc,
+            inference_tool.activate_logging(sc),
+        ):
+            print(f"Using {sc} as a scratchpad for inference!")
+            if tasked:
                 print(
-                    f"Skipping {project}, results are already at {outdir}, and --overwrite was not given!"
+                    f"annotation removal flag provided, removing annotations on '{sc}'"
+                )
+                result = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeAnnotationRemover(
+                        context=codemod.CodemodContext(),
+                        variables=TypeCollectionCategory.VARIABLE in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER
+                        in tasked,
+                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
+                    ),
+                    jobs=worker_count(),
+                    files=[sc / s for s in subset],
+                    repo_root=str(sc),
+                )
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Removal", result=result
+                    )
+                )
+
+            # Run inference task for hour before aborting
+            # print("Starting inference task with 1h timeout")
+            try:
+                inferred = inference_tool.infer(sc, inpath, subset)
+            #    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
+            #        inferred = task.result()
+
+            except concurrent.futures.TimeoutError as e:
+                inference_tool.logger.error(
+                    "Took over an hour to infer types, killing inference subprocess. "
+                    "Results will NOT be written to disk",
+                    exc_info=True,
                 )
                 continue
 
-            inpath = project
-            with (
-                scratchpad(inpath) as sc,
-                inference_tool.activate_logging(sc),
-            ):
-                print(f"Using {sc} as a scratchpad for inference!")
-                if tasked:
-                    print(
-                        f"annotation removal flag provided, removing annotations on '{sc}'"
+            except Exception as e:
+                inference_tool.logger.error(
+                    f"Unhandled error occurred", exc_info=True
+                )
+                continue
+
+            else:
+                if outdir.is_dir() and overwrite:
+                    shutil.rmtree(outdir)
+
+                outdir.mkdir(parents=True, exist_ok=True)
+                with pandas.option_context(
+                    "display.max_rows",
+                    None,
+                    "display.max_columns",
+                    None,
+                    "display.expand_frame_repr",
+                    False,
+                ):
+                    inferred = inferred[
+                        inferred[TypeCollectionSchema.category].isin(tasked)
+                    ]
+                    print(inferred.sample(n=min(len(inferred), 20)).sort_index())
+
+                output.write_inferred(inferred, outdir)
+                print(f"Inferred types have been stored at {outdir}")
+
+            finally:
+                # Copy generated log files
+                outdir.mkdir(parents=True, exist_ok=True)
+                for log_path in (
+                    output.info_log_path,
+                    output.debug_log_path,
+                    output.error_log_path,
+                ):
+                    shutil.copy(log_path(sc), log_path(outdir))
+                print(f"Logs have been stored at {outdir}")
+
+            if annotate:
+                # Copy original project
+                shutil.copytree(
+                    inpath,
+                    outdir,
+                    ignore_dangling_symlinks=True,
+                    symlinks=True,
+                    dirs_exist_ok=True,
+                )
+
+                # Reremove annotations
+                result = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeAnnotationRemover(
+                        context=codemod.CodemodContext(),
+                        variables=TypeCollectionCategory.VARIABLE in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER
+                        in tasked,
+                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
+                    ),
+                    jobs=worker_count(),
+                    files=codemod.gather_files([str(outdir)]),
+                    repo_root=str(outdir),
+                )
+
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Removal Preservation (in case inference mutated codebase)",
+                        result=result,
                     )
-                    result = codemod.parallel_exec_transform_with_prettyprint(
-                        transform=TypeAnnotationRemover(
-                            context=codemod.CodemodContext(),
-                            variables=TypeCollectionCategory.VARIABLE in tasked,
-                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER
-                            in tasked,
-                            rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
-                        ),
-                        jobs=worker_count(),
-                        files=[sc / s for s in subset],
-                        repo_root=str(sc),
+                )
+
+                print(f"Applying Annotations to codebase at {outdir}")
+                result = codemod.parallel_exec_transform_with_prettyprint(
+                    transform=TypeAnnotationApplierTransformer(
+                        codemod.CodemodContext(), top_preds_only(inferred)
+                    ),
+                    files=codemod.gather_files([str(outdir)]),
+                    jobs=worker_count(),
+                    repo_root=str(outdir),
+                )
+                print(
+                    format_parallel_exec_result(
+                        action="Annotation Application", result=result
                     )
-                    print(
-                        format_parallel_exec_result(
-                            action="Annotation Removal", result=result
-                        )
-                    )
-
-                # Run inference task for hour before aborting
-                # print("Starting inference task with 1h timeout")
-                try:
-                    inferred = inference_tool.infer(sc, inpath, subset)
-                #    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
-                #        inferred = task.result()
-
-                except concurrent.futures.TimeoutError as e:
-                    inference_tool.logger.error(
-                        "Took over an hour to infer types, killing inference subprocess. "
-                        "Results will NOT be written to disk",
-                        exc_info=True,
-                    )
-                    continue
-
-                except Exception as e:
-                    inference_tool.logger.error(
-                        f"Unhandled error occurred", exc_info=True
-                    )
-                    continue
-
-                else:
-                    if outdir.is_dir() and overwrite:
-                        shutil.rmtree(outdir)
-
-                    outdir.mkdir(parents=True, exist_ok=True)
-                    with pandas.option_context(
-                        "display.max_rows",
-                        None,
-                        "display.max_columns",
-                        None,
-                        "display.expand_frame_repr",
-                        False,
-                    ):
-                        inferred = inferred[
-                            inferred[TypeCollectionSchema.category].isin(tasked)
-                        ]
-                        print(inferred.sample(n=min(len(inferred), 20)).sort_index())
-
-                    output.write_inferred(inferred, outdir)
-                    print(f"Inferred types have been stored at {outdir}")
-
-                finally:
-                    # Copy generated log files
-                    outdir.mkdir(parents=True, exist_ok=True)
-                    for log_path in (
-                        output.info_log_path,
-                        output.debug_log_path,
-                        output.error_log_path,
-                    ):
-                        shutil.copy(log_path(sc), log_path(outdir))
-                    print(f"Logs have been stored at {outdir}")
-
-                if annotate:
-                    # Copy original project
-                    shutil.copytree(
-                        inpath,
-                        outdir,
-                        ignore_dangling_symlinks=True,
-                        symlinks=True,
-                        dirs_exist_ok=True,
-                    )
-
-                    # Reremove annotations
-                    result = codemod.parallel_exec_transform_with_prettyprint(
-                        transform=TypeAnnotationRemover(
-                            context=codemod.CodemodContext(),
-                            variables=TypeCollectionCategory.VARIABLE in tasked,
-                            parameters=TypeCollectionCategory.CALLABLE_PARAMETER
-                            in tasked,
-                            rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
-                        ),
-                        jobs=worker_count(),
-                        files=codemod.gather_files([str(outdir)]),
-                        repo_root=str(outdir),
-                    )
-
-                    print(
-                        format_parallel_exec_result(
-                            action="Annotation Removal Preservation (in case inference mutated codebase)",
-                            result=result,
-                        )
-                    )
-
-                    print(f"Applying Annotations to codebase at {outdir}")
-                    result = codemod.parallel_exec_transform_with_prettyprint(
-                        transform=TypeAnnotationApplierTransformer(
-                            codemod.CodemodContext(), top_preds_only(inferred)
-                        ),
-                        files=codemod.gather_files([str(outdir)]),
-                        jobs=worker_count(),
-                        repo_root=str(outdir),
-                    )
-                    print(
-                        format_parallel_exec_result(
-                            action="Annotation Application", result=result
-                        )
-                    )
+                )
 
 
 if __name__ == "__main__":
