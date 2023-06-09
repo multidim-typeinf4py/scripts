@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export MDTI4PY_CPUS=4
+export MDTI4PY_CPUS=${MDTI4PY_CPUS:=8}
 
 parameter_inference() {
     echo "Tool: $1 - Inferring: Parameters"
