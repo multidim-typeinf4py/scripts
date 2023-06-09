@@ -1,7 +1,6 @@
 import abc
 import concurrent.futures
 import contextlib
-import enum
 import pathlib
 import sys
 import typing
@@ -17,104 +16,6 @@ from libcst import codemod
 
 import pandera.typing as pt
 import pandas as pd
-
-
-class DatasetFolderStructure(enum.Enum):
-    MANYTYPES4PY = enum.auto()
-    BETTERTYPES4PY = enum.auto()
-    PROJECT = enum.auto()
-
-    @staticmethod
-    def from_folderpath(path: pathlib.Path) -> "DatasetFolderStructure":
-        if path.name.lower() == "many-types-4-py-dataset":
-            return DatasetFolderStructure.MANYTYPES4PY
-        elif path.name.lower() == "better-types-4-py-dataset":
-            return DatasetFolderStructure.BETTERTYPES4PY
-        else:
-            return DatasetFolderStructure.PROJECT
-
-    def project_iter(
-        self, dataset_root: pathlib.Path
-    ) -> typing.Generator[pathlib.Path, None, None]:
-        if self == DatasetFolderStructure.MANYTYPES4PY:
-            repo_suffix = dataset_root / "repos"
-            authors = (
-                author
-                for author in repo_suffix.iterdir()
-                if author.is_dir() and not author.name.startswith(".")
-            )
-            for author in authors:
-                repos = (repo for repo in author.iterdir() if repo.is_dir())
-                yield from repos
-
-        elif self == DatasetFolderStructure.BETTERTYPES4PY:
-            repo_suffix = dataset_root / "repos" / "test"
-            repos = (repo for repo in repo_suffix.iterdir() if repo.is_dir())
-            yield from repos
-        elif self == DatasetFolderStructure.PROJECT:
-            yield dataset_root
-
-    def author_repo(self, repo: pathlib.Path) -> dict:
-        if self == DatasetFolderStructure.MANYTYPES4PY:
-            return {"author": repo.parent.name, "repo": repo.name}
-        elif self == DatasetFolderStructure.BETTERTYPES4PY:
-            return dict(
-                zip(
-                    ("author", "repo"),
-                    repo.name.split("__"),
-                    strict=True,
-                )
-            )
-        else:
-            return {"author": repo.name, "repo": repo.name}
-
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
-        if self == DatasetFolderStructure.MANYTYPES4PY:
-            splits = pd.read_csv(
-                dataset_root / "data" / "dataset_split.csv",
-                header=None,
-                names=["split", "filepath"],
-            )
-            test_split = splits[splits["split"] == "test"]["filepath"]
-
-            test_set: dict[pathlib.Path, set[pathlib.Path]] = {}
-            for key, g in (
-                test_split.str.strip(to_strip='"')
-                .str.removeprefix("repos/")
-                .str.split(pat=r"\/", n=2, expand=True)
-                .set_axis(["author", "project", "file"], axis=1)
-                .groupby(by=["author", "project"])
-            ):
-                author, project = key
-                test_set[dataset_root / "repos" / author / project] = set(
-                    map(pathlib.Path, g["file"].tolist())
-                )
-            return test_set
-
-        elif self == DatasetFolderStructure.BETTERTYPES4PY:
-            repo_suffix = dataset_root / "repos" / "test"
-
-            mapping = dict[pathlib.Path, set[pathlib.Path]]()
-
-            for repo in repo_suffix.iterdir():
-                if repo.is_dir() and (fs := codemod.gather_files([repo_suffix / repo])):
-                    mapping[repo_suffix / repo] = set(
-                        map(
-                            lambda p: pathlib.Path(p).relative_to(repo_suffix / repo),
-                            fs,
-                        )
-                    )
-
-            return mapping
-
-        elif self == DatasetFolderStructure.PROJECT:
-            subfiles = set(
-                map(
-                    lambda p: pathlib.Path(p).relative_to(dataset_root),
-                    codemod.gather_files([str(dataset_root)]),
-                )
-            )
-            return {dataset_root: subfiles}
 
 
 class Inference(abc.ABC):

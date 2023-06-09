@@ -9,7 +9,7 @@ import tqdm
 from scripts.common.annotations import TypeAnnotationRemover
 from scripts.common import output
 from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema
-from scripts.infer.inference._base import DatasetFolderStructure
+from scripts.infer.structure import DatasetFolderStructure
 
 from scripts.infer.insertion import TypeAnnotationApplierTransformer
 
@@ -91,8 +91,8 @@ def cli_entrypoint(
     annotate = False
     tasked = list(map(TypeCollectionCategory.__getitem__, task))
 
-    structure = DatasetFolderStructure.from_folderpath(dataset)
-    print(dataset, structure)
+    structure = DatasetFolderStructure(dataset)
+    print("Inferred dataset kind:", structure)
 
     # mp.set_start_method("spawn")
 
