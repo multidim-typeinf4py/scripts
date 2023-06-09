@@ -93,19 +93,18 @@ class BetterTypes4Py(DatasetFolderStructure):
         )
 
     def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
-        repo_suffix = dataset_root / "repos" / "test"
-
         mapping = dict[pathlib.Path, set[pathlib.Path]]()
 
-        for repo in repo_suffix.iterdir():
-            if repo.is_dir() and (fs := codemod.gather_files([str(repo_suffix / repo)])):
-                mapping[repo_suffix / repo] = set(
-                    map(
-                        lambda p: pathlib.Path(p).relative_to(repo_suffix / repo),
-                        fs,
-                    )
-                )
+        repo_suffix = dataset_root / "repos" / "test"
 
+        for repo in repo_suffix.iterdir():
+            if repo.is_dir() and (fs := codemod.gather_files([str(repo)])):
+                mapping[repo] = set(map(
+                    lambda p: pathlib.Path(p).relative_to(repo),
+                    fs,
+                ))
+
+        assert mapping, f"No repos found!"
         return mapping
 
 
