@@ -3,4 +3,4 @@
 set -o nounset
 
 source ./hyper/_common.sh
-parameter_inference "typilustopn10" "$1"
+parameter_inference "typilustopn1" "$1"
