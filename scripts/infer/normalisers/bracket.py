@@ -1,6 +1,5 @@
 import typing
 
-
 import libcst
 from libcst import codemod, matchers as m
 

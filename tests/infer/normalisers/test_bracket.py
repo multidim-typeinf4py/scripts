@@ -1,10 +1,6 @@
-import textwrap
 
-import libcst
 from libcst import codemod
-from typet5.static_analysis import SignatureMap, ProjectPath, VariableSignature
 
-from scripts.infer.annotators.tt5 import TT5FileApplier
 
 from scripts.infer.normalisers import bracket
 

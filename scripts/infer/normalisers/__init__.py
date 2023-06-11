@@ -1,3 +1,3 @@
-from . import bracket
+from . import bracket, union
 
-__all__ = ["bracket"]
+__all__ = ["bracket", "union"]
