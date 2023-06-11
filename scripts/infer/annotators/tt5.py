@@ -1,14 +1,14 @@
 import pathlib
-import typing
 
 import libcst
-import mpmath
-from libcst import codemod, matchers as m
+from libcst import codemod
 
 from typet5.static_analysis import SignatureMap, SignatureMapTopN
 from typet5.experiments import utils as typet5_utils
 
-from .tool_annotator import ParallelTopNAnnotator, U, T
+
+from scripts.infer.normalisers import bracket
+from .tool_annotator import ParallelTopNAnnotator
 
 
 class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
@@ -16,8 +16,7 @@ class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
         self, path2topn: SignatureMapTopN, path: pathlib.Path, topn: int
     ) -> SignatureMap:
         return SignatureMap(
-            (project_path, signatures[topn])
-            for project_path, signatures in path2topn.items()
+            (project_path, signatures[topn]) for project_path, signatures in path2topn.items()
         )
 
     def annotator(self, annotations: SignatureMap) -> codemod.Codemod:
@@ -35,55 +34,9 @@ class TT5FileApplier(codemod.Codemod):
             sigmap=self.sigmap,
             module_name=self.context.full_module_name,
         )
-        normalised = TT5FileNormalizer(context=self.context).transform_module(
-            typet5_annotated
+
+        return (
+            typet5_annotated \
+            .visit(bracket.RoundBracketsToTuple(context=self.context)) \
+            .visit(bracket.SquareBracketsToList(context=self.context))
         )
-
-        return normalised
-
-
-class TT5FileNormalizer(codemod.ContextAwareTransformer):
-    @m.call_if_inside(m.Annotation())
-    def leave_Tuple(
-        self, original_node: libcst.Tuple, updated_node: libcst.Tuple
-    ) -> libcst.BaseExpression:
-        if len(updated_node.elements) == 0:
-            return libcst.Name("Tuple")
-
-        return libcst.Subscript(
-            value=libcst.Name("Tuple"),
-            slice=self.replace_elements(updated_node.elements),
-        )
-
-    @m.leave(m.Annotation(m.List()))
-    def leave_outer_list_anno(
-       self, original_node: libcst.Annotation, updated_node: libcst.Annotation
-    ) -> libcst.Annotation:
-        if len(updated_node.annotation.elements) == 0:
-            return libcst.Annotation(libcst.Name("List"))
-
-        elif len(updated_node.annotation.elements) > 1:
-            list_typing = [
-                libcst.SubscriptElement(
-                    libcst.Index(
-                        libcst.Subscript(
-                            value=libcst.Name("Union"),
-                            slice=self.replace_elements(updated_node.annotation.elements),
-                        )
-                    )
-                )
-            ]
-
-        else:
-            list_typing = self.replace_elements(updated_node.annotation.elements)
-
-        return libcst.Annotation(libcst.Subscript(
-            value=libcst.Name("List"),
-            slice=list_typing,
-        ))
-
-    def replace_elements(
-        self, elements: typing.Sequence[libcst.BaseElement]
-    ) -> list[libcst.SubscriptElement]:
-        assert all(map(lambda e: isinstance(e, libcst.Element), elements))
-        return [libcst.SubscriptElement(libcst.Index(value=e.value)) for e in elements]
