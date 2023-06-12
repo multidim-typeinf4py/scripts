@@ -4,7 +4,7 @@ from libcst import codemod
 
 
 class Test_Unnested(codemod.CodemodTest):
-    TRANSFORM = union.Unnest
+    TRANSFORM = union.Flatten
 
     def test_untouched(self) -> None:
         self.assertCodemod(
@@ -28,6 +28,18 @@ class Test_Unnested(codemod.CodemodTest):
         self.assertCodemod(
             before="a: Union[Union[int, str], Union[float, bytes]] = ...",
             after="a: Union[int, str, float, bytes] = ...",
+        )
+
+    def test_deep_nestage(self) -> None:
+        self.assertCodemod(
+            before="a: Union[Union[Union[Union[int, str]]]] = ...",
+            after="a: Union[int, str] = ...",
+        )
+
+    def test_empty_inner_union(self) -> None:
+        self.assertCodemod(
+            before="a: Union[Union, int] = ...",
+            after="a: Union[int] = ..."
         )
 
 

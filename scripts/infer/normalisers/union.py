@@ -1,4 +1,3 @@
-import itertools
 import typing
 
 import libcst
@@ -8,7 +7,7 @@ from libcst import codemod, matchers as m
 UNION_ = m.Name("Union") | m.Attribute(m.Name("typing"), m.Name("Union"))
 
 
-class Unnest(codemod.ContextAwareTransformer):
+class Flatten(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
     def leave_Subscript(
         self,
@@ -18,10 +17,16 @@ class Unnest(codemod.ContextAwareTransformer):
 
         flattened = list[libcst.SubscriptElement]()
         for subscript_element in updated_node.slice:
+            # Union element with further inner types
             if self.matches(subscript_element, m.SubscriptElement(m.Index(m.Subscript(UNION_)))):
                 index = typing.cast(libcst.Index, subscript_element.slice)
                 subscript = typing.cast(libcst.Subscript, index.value)
                 flattened.extend(subscript.slice)
+
+            # Union element without further types
+            elif self.matches(subscript_element, m.SubscriptElement(m.Index(UNION_))):
+                # no inner types to read from
+                continue
 
             else:
                 flattened.append(subscript_element)
@@ -50,4 +55,4 @@ class Pep604(codemod.ContextAwareTransformer):
         original_node: libcst.Module,
         updated_node: libcst.Module,
     ) -> libcst.Module:
-        return updated_node.visit(Unnest(context=self.context))
+        return updated_node.visit(Flatten(context=self.context))
