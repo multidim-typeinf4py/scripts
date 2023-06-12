@@ -303,7 +303,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def libsa4py_hint(
         self,
-        original_node: typing.Union[libcst.Name, libcst.AnnAssign],
+        original_node: libcst.Assign | libcst.AnnAssign,
         target: libcst.Name,
     ) -> T:
         """
@@ -402,7 +402,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def global_target(
         self,
-        original_node: typing.Union[libcst.Name, libcst.AnnAssign] | libcst.AugAssign,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
         target: libcst.Name,
     ) -> T:
         ...
@@ -410,7 +410,7 @@ class Traverser(typing.Generic[T], abc.ABC):
     @abc.abstractmethod
     def nonlocal_target(
         self,
-        original_node: typing.Union[libcst.Name, libcst.AnnAssign] | libcst.AugAssign,
+        original_node: libcst.Assign | libcst.AnnAssign | libcst.AugAssign,
         target: libcst.Name,
     ) -> T:
         ...
