@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-
 import abc
+import contextlib
 import dataclasses
+import functools
 import pathlib
 import typing
 
 import libcst
 import pandas as pd
 from libcst import codemod
-
 from pandera import typing as pt
 
 from scripts import utils
 from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import Inference
 from scripts.symbols.collector import build_type_collection
-
 from ..normalisers import bracket as b, typing_aliases as t, union as u
 
 T = typing.TypeVar("T")
@@ -25,22 +24,66 @@ U = typing.TypeVar("U")
 
 @dataclasses.dataclass
 class Normalisation:
+    # [] -> List
     bad_list_generics: bool = False
+
+    # (str, int) -> Tuple[str, int]
     bad_tuple_generics: bool = False
+
+    # {} -> dict
     bad_dict_generics: bool = False
 
+    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}\
     lowercase_aliases: bool = False
 
+    # Union[Union[int]] -> Union[int]
     unnest_union_t: bool = False
+
+    # int | str -> Union[int, str]
     union_or_to_union_t: bool = False
 
+    # typing.Text -> str
     typing_text_to_str: bool = False
 
+    # Optional[T] -> T
     outer_optional_to_t: bool = False
+
+    # Final[T] -> T
     outer_final_to_t: bool = False
 
+    def transformers(self, context: codemod.CodemodContext) -> list[codemod.ContextAwareTransformer]:
+        ts = list[codemod.ContextAwareTransformer]()
+        if self.bad_list_generics:
+            ts.append(b.SquareBracketsToList(context=context))
 
-class ParallelTopNAnnotator(codemod.ContextAwareTransformer, abc.ABC, typing.Generic[T, U]):
+        if self.bad_tuple_generics:
+            ts.append(b.RoundBracketsToTuple(context=context))
+
+        if self.bad_dict_generics:
+            ts.append(b.CurlyBracesToDict(context=context))
+
+        if self.lowercase_aliases:
+            ts.append(t.LowercaseTypingAliases(context=context))
+
+        if self.typing_text_to_str:
+            ts.append(t.TextToStr(context=context))
+
+        if self.outer_optional_to_t:
+            ts.append(t.RemoveOuterOptional(context=context))
+
+        if self.outer_final_to_t:
+            ts.append(t.RemoveOuterFinal(context=context))
+
+        if self.unnest_union_t:
+            ts.append(u.Flatten(context=context))
+
+        if self.union_or_to_union_t:
+            ts.append(u.Pep604(context=context))
+
+        return ts
+
+
+class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
     def __init__(
         self,
         context: codemod.CodemodContext,
@@ -63,7 +106,7 @@ class ParallelTopNAnnotator(codemod.ContextAwareTransformer, abc.ABC, typing.Gen
     def normalisation(self) -> Normalisation:
         ...
 
-    def transform_module(self, tree: libcst.Module) -> libcst.Module:
+    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         assert self.context.filename is not None
         assert self.context.metadata_manager is not None
 
@@ -77,34 +120,12 @@ class ParallelTopNAnnotator(codemod.ContextAwareTransformer, abc.ABC, typing.Gen
         annotated = annotator.transform_module(tree)
 
         normalisation = self.normalisation()
-        if normalisation.bad_list_generics:
-            annotated = b.SquareBracketsToList(context=self.context).transform_module(annotated)
 
-        if normalisation.bad_tuple_generics:
-            annotated = b.RoundBracketsToTuple(context=self.context).transform_module(annotated)
-
-        if normalisation.bad_dict_generics:
-            annotated = b.CurlyBracesToDict(context=self.context).transform_module(annotated)
-
-        if normalisation.lowercase_aliases:
-            annotated = t.LowercaseTypingAliases(context=self.context).transform_module(annotated)
-
-        if normalisation.typing_text_to_str:
-            annotated = t.TextToStr(context=self.context).transform_module(annotated)
-
-        if normalisation.outer_optional_to_t:
-            annotated = t.RemoveOuterOptional(context=self.context).transform_module(annotated)
-
-        if normalisation.outer_final_to_t:
-            annotated = t.RemoveOuterFinal(context=self.context).transform_module(annotated)
-
-        if normalisation.unnest_union_t:
-            annotated = u.Flatten(context=self.context).transform_module(annotated)
-
-        if normalisation.union_or_to_union_t:
-            annotated = u.Pep604(context=self.context).transform_module(annotated)
-
-        return annotated
+        return functools.reduce(
+            lambda mod, transformer: transformer.transform_module(mod),
+            normalisation.transformers(self.context),
+            annotated,
+        )
 
     @classmethod
     def collect_topn(
