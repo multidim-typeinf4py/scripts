@@ -3,7 +3,7 @@ from scripts.infer.normalisers import union
 from libcst import codemod
 
 
-class Test_Unnested(codemod.CodemodTest):
+class Test_Flatten(codemod.CodemodTest):
     TRANSFORM = union.Flatten
 
     def test_untouched(self) -> None:
