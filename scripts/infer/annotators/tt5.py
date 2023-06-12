@@ -7,20 +7,33 @@ from typet5.static_analysis import SignatureMap, SignatureMapTopN
 from typet5.experiments import utils as typet5_utils
 
 
-from scripts.infer.normalisers import bracket
-from .tool_annotator import ParallelTopNAnnotator
+from .tool_annotator import Normalisation, ParallelTopNAnnotator
 
 
 class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
     def extract_predictions_for_file(
         self, path2topn: SignatureMapTopN, path: pathlib.Path, topn: int
     ) -> SignatureMap:
+        assert self.context.full_module_name is not None
         return SignatureMap(
-            (project_path, signatures[topn]) for project_path, signatures in path2topn.items()
+            (project_path, signatures[topn])
+            for project_path, signatures in path2topn.items()
+            if project_path.module == self.context.full_module_name
         )
 
     def annotator(self, annotations: SignatureMap) -> codemod.Codemod:
         return TT5FileApplier(context=self.context, sigmap=annotations)
+
+    def normalisation(self) -> Normalisation:
+        return Normalisation(
+            bad_list_generics=True,
+            bad_tuple_generics=True,
+            bad_dict_generics=True,
+            lowercase_aliases=True,
+            unnest_union_t=True,
+            outer_optional_to_t=True,
+            outer_final_to_t=True,
+        )
 
 
 class TT5FileApplier(codemod.Codemod):
@@ -35,8 +48,4 @@ class TT5FileApplier(codemod.Codemod):
             module_name=self.context.full_module_name,
         )
 
-        return (
-            typet5_annotated \
-            .visit(bracket.RoundBracketsToTuple(context=self.context)) \
-            .visit(bracket.SquareBracketsToList(context=self.context))
-        )
+        return typet5_annotated

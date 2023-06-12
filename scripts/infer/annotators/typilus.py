@@ -7,6 +7,7 @@ from dpu_utils.utils import RichPath
 from libcst import codemod
 
 from scripts.infer.annotators import ParallelTopNAnnotator
+from scripts.infer.annotators.tool_annotator import Normalisation
 
 
 class TypilusPrediction(typing.TypedDict):
@@ -41,6 +42,12 @@ class TypilusProjectApplier(ParallelTopNAnnotator[RichPath, RichPath]):
             ppath=annotations.path,
             typing_rules=self.typing_rules,
             topn=self.topn,
+        )
+
+    def normalisation(self) -> Normalisation:
+        return Normalisation(
+            typing_text_to_str=True,
+            lowercase_aliases=True,
         )
 
 

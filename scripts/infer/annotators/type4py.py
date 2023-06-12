@@ -6,6 +6,7 @@ from libcst import codemod, metadata
 from libsa4py.cst_transformers import TypeApplier
 
 from scripts.infer.annotators import ParallelTopNAnnotator
+from scripts.infer.annotators.tool_annotator import Normalisation
 
 
 class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, list[dict]], dict]):
@@ -24,6 +25,15 @@ class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, l
 
     def annotator(self, annotations: dict) -> codemod.Codemod:
         return Type4PyFileApplier(context=self.context, predictions=annotations)
+
+    def normalisation(self) -> Normalisation:
+        return Normalisation(
+            bad_list_generics=True,
+            bad_tuple_generics=True,
+            bad_dict_generics=True,
+            typing_text_to_str=True,
+            lowercase_aliases=True,
+        )
 
 
 class Type4PyFileApplier(codemod.Codemod):

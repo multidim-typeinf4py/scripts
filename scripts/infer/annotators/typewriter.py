@@ -8,6 +8,7 @@ from libcst import codemod
 from typewriter.dltpy.preprocessing.pipeline import preprocessor
 
 from scripts.infer.annotators import ParallelTopNAnnotator
+from scripts.infer.annotators.tool_annotator import Normalisation
 
 
 @dataclasses.dataclass
@@ -59,6 +60,12 @@ class TWProjectApplier(
             context=self.context,
             parameters=parameters,
             returns=returns,
+        )
+
+    def normalisation(self) -> Normalisation:
+        return Normalisation(
+            typing_text_to_str=True,
+            lowercase_aliases=True,
         )
 
 

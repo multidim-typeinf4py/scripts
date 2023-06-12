@@ -7,6 +7,7 @@ from libcst.codemod.visitors._apply_type_annotations import Annotations
 
 from scripts.common import ApplyTypeAnnotationsVisitor
 from scripts.infer.annotators import ParallelTopNAnnotator
+from scripts.infer.annotators.tool_annotator import Normalisation
 
 
 class HiTyperProjectApplier(
@@ -25,6 +26,16 @@ class HiTyperProjectApplier(
 
     def annotator(self, annotations: Annotations) -> codemod.Codemod:
         return HiTyperFileApplier(context=self.context, annotations=annotations)
+
+    def normalisation(self) -> Normalisation:
+        return Normalisation(
+            bad_list_generics=True,
+            bad_tuple_generics=True,
+            bad_dict_generics=True,
+            lowercase_aliases=True,
+            unnest_union_t=True,
+            typing_text_to_str=True,
+        )
 
 
 class HiTyperFileApplier(codemod.Codemod):
