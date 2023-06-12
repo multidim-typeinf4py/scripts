@@ -1,4 +1,3 @@
-
 from libcst import codemod
 
 
@@ -34,4 +33,20 @@ class Test_SquareBrackets(codemod.CodemodTest):
         self.assertCodemod(
             before="a: typing.Callable[[int], int] = ...",
             after="a: typing.Callable[[int], int] = ...",
+        )
+
+
+class Test_CurlyBraces(codemod.CodemodTest):
+    TRANSFORM = bracket.CurlyBracesToDict
+
+    def test_outer_dict_rewritten(self) -> None:
+        self.assertCodemod(
+            before=r"d: {}",
+            after="d: Dict",
+        )
+
+    def test_inner_dict_rewritten(self) -> None:
+        self.assertCodemod(
+            before=r"d: dict[{}, str]",
+            after="d: dict[Dict, str]",
         )

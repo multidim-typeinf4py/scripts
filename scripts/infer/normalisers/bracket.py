@@ -11,12 +11,12 @@ class RoundBracketsToTuple(codemod.ContextAwareTransformer):
         original_node: libcst.Tuple,
         updated_node: libcst.Tuple,
     ) -> libcst.BaseExpression:
-        if len(original_node.elements) == 0:
+        if len(updated_node.elements) == 0:
             return libcst.Name("Tuple")
 
         return libcst.Subscript(
             value=libcst.Name("Tuple"),
-            slice=_replace_elements(original_node.elements),
+            slice=_replace_elements(updated_node.elements),
         )
 
 
@@ -52,6 +52,17 @@ class SquareBracketsToList(codemod.ContextAwareTransformer):
                 slice=list_typing,
             )
         )
+
+
+class CurlyBracesToDict(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation())
+    @m.leave(m.Dict(elements=[]))
+    def leave_outer_dict_anno(
+        self,
+        original_node: libcst.Dict,
+        updated_node: libcst.Dict,
+    ) -> libcst.BaseExpression:
+        return libcst.Name("Dict")
 
 
 def _replace_elements(
