@@ -64,6 +64,7 @@ plugins = ["pandera.mypy"]
 
 [tool.pytest.ini_options]
 log_cli = true
+log_level = "DEBUG"
 
 [tool.black]
 line-length = 100
