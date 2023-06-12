@@ -1,3 +1,4 @@
+import typing
 import libcst
 from libcst import codemod, matchers as m
 
@@ -48,3 +49,69 @@ class LowercaseTypingAliases(codemod.ContextAwareTransformer):
 
         else:
             return updated_node
+
+
+TEXT_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Text"))
+TEXT_NAME_ = m.Name("Text")
+
+
+class TextToStr(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation())
+    def leave_Attribute(
+        self,
+        original_node: libcst.Attribute,
+        updated_node: libcst.Attribute,
+    ) -> libcst.BaseExpression:
+        if self.matches(updated_node, TEXT_ATTR_):
+            return libcst.Name("str")
+        return updated_node
+
+    @m.call_if_inside(m.Annotation())
+    @m.call_if_not_inside(m.Attribute())
+    def leave_Name(
+        self,
+        original_node: libcst.Name,
+        updated_node: libcst.Name,
+    ) -> libcst.BaseExpression:
+        if self.matches(updated_node, TEXT_NAME_):
+            return libcst.Name("str")
+        return updated_node
+
+
+OPTIONAL_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Optional"))
+OPTIONAL_NAME_ = m.Name("Optional")
+
+
+class RemoveOuterOptional(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation(m.Subscript(
+        value=OPTIONAL_ATTR_ | OPTIONAL_NAME_, 
+        slice=[m.SubscriptElement(m.Index())]
+    )))
+    def leave_Annotation(
+        self,
+        original_node: libcst.Annotation,
+        updated_node: libcst.Annotation,
+    ) -> libcst.Annotation:
+        subscript = typing.cast(libcst.Subscript, updated_node.annotation)
+        index = typing.cast(libcst.Index, subscript.slice[0].slice)
+        return updated_node.with_changes(annotation=index.value)
+
+
+
+
+FINAL_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Final"))
+FINAL_NAME_ = m.Name("Final")
+
+class RemoveOuterFinal(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation(m.Subscript(
+        value=FINAL_ATTR_ | FINAL_NAME_, 
+        slice=[m.SubscriptElement(m.Index())]
+    )))
+    def leave_Annotation(
+        self,
+        original_node: libcst.Annotation,
+        updated_node: libcst.Annotation,
+    ) -> libcst.Annotation:
+        subscript = typing.cast(libcst.Subscript, updated_node.annotation)
+        index = typing.cast(libcst.Index, subscript.slice[0].slice)
+        return updated_node.with_changes(annotation=index.value)

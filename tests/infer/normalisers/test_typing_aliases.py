@@ -59,3 +59,81 @@ class Test_LowercaseTypingAliases(codemod.CodemodTest):
             before="a: Dict[typing.Dict[int, str], None] = ...",
             after="a: dict[dict[int, str], None] = ...",
         )
+
+
+class Test_TextToStr(codemod.CodemodTest):
+    TRANSFORM = typing_aliases.TextToStr
+
+    def test_outer(self) -> None:
+        self.assertCodemod(
+            before="a: typing.Text = ...",
+            after="a: str = ...",
+        )
+
+        self.assertCodemod(
+            before="a: Text = ...",
+            after="a: str = ...",
+        )
+
+    def test_inner(self) -> None:
+        self.assertCodemod(
+            before="a: dict[typing.Text, typing.Text] = ...",
+            after="a: dict[str, str] = ...",
+        )
+
+        self.assertCodemod(
+            before="a: dict[Text, Text] = ...",
+            after="a: dict[str, str] = ...",
+        )
+
+
+class Test_RemoveOuterOptional(codemod.CodemodTest):
+    TRANSFORM = typing_aliases.RemoveOuterOptional
+
+    def test_outer(self) -> None:
+        self.assertCodemod(
+            before="a: Optional[int] = ...",
+            after="a: int = ...",
+        )
+
+        self.assertCodemod(
+            before="a: typing.Optional[int] = ...",
+            after="a: int = ...",
+        )
+
+    def test_inner(self) -> None:
+        self.assertCodemod(
+            before="a: dict[Optional[int], str] = ...",
+            after="a: dict[Optional[int], str] = ...",
+        )
+
+        self.assertCodemod(
+            before="a: dict[typing.Optional[int], str] = ...",
+            after="a: dict[typing.Optional[int], str] = ...",
+        )
+
+
+class Test_RemoveOuterFinal(codemod.CodemodTest):
+    TRANSFORM = typing_aliases.RemoveOuterFinal
+
+    def test_outer(self) -> None:
+        self.assertCodemod(
+            before="a: Final[int] = ...",
+            after="a: int = ...",
+        )
+
+        self.assertCodemod(
+            before="a: typing.Final[int] = ...",
+            after="a: int = ...",
+        )
+
+    def test_inner(self) -> None:
+        self.assertCodemod(
+            before="a: dict[Final[int], str] = ...",
+            after="a: dict[Final[int], str] = ...",
+        )
+
+        self.assertCodemod(
+            before="a: dict[typing.Final[int], str] = ...",
+            after="a: dict[typing.Final[int], str] = ...",
+        )
