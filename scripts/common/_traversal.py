@@ -192,8 +192,13 @@ class Recognition(libcst.MetadataDependent):
     ## Misc
 
     def fallthru(self, original_node: libcst.CSTNode) -> Targets:
+        if context := getattr(self, "context", None):
+            prefix = f"WARNING: In file {context.filename}"
+        else:
+            prefix = "WARNING: "
+        
         print(
-            f"WARNING: Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
+            f"{prefix} Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
         )
         return Targets(list(), list(), list())
 
