@@ -5412,7 +5412,7 @@ develop = false
 type = "git"
 url = "https://github.com/multidim-typeinf4py/TypeT5.git"
 reference = "HEAD"
-resolved_reference = "bf6df30954caa05b1098d53781d41953e2c93421"
+resolved_reference = "6b2866f79a2ee19d697f806f7576c792d65bfc96"
 
 [[package]]
 name = "typewriter"
