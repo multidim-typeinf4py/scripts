@@ -2,10 +2,9 @@ import logging
 import click
 
 # import context
-# import dataset
 # import logregr
 # import harness
-from scripts import infer, srcdiff, utils
+from scripts import dataset, infer, srcdiff, utils
 
 # import hintdiff
 # import symbols
@@ -31,7 +30,7 @@ if __name__ == "__main__":
             # context.cli_entrypoint,
             infer.cli_entrypoint,
             # harness.cli_entrypoint,
-            # dataset.cli_entrypoint,
+            dataset.cli_entrypoint,
             # symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
             # logregr.cli_entrypoint,
