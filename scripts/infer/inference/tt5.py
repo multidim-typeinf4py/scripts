@@ -65,7 +65,7 @@ class TypeT5TopN(ProjectWideInference):
             sampling_max_tokens=TypeT5Configs.Default.ctx_size,
             ctx_args=TypeT5Configs.Default.dec_ctx_args(),
             do_sample=False,
-            top_p=1.0,
+            top_p=0.9,
             num_beams=16,
         )
         self.wrapper.to(torch.device(f"cuda" if torch.cuda.is_available() else "cpu"))
