@@ -36,18 +36,20 @@ def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool
 
     test_set = structure.test_set()
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
-        ar = structure.author_repo(project)
-        author_repo = f"{ar['author']}__{ar['repo']}"
-        dataset_args = outpath, structure, author_repo
+        dataset_io = output.DatasetIO(
+            artifact_root=outpath,
+            dataset=structure,
+            repository=project
+        )
 
-        if not overwrite and output.dataset_output_path(*dataset_args).exists():
+        if not overwrite and dataset_io.full_location().exists():
             print(f"Skipping {project}; dataset already exists and overwrite flag was not provided!")
             continue
 
         pbar.set_description(desc=f"Collecting from {project}")
         collection = build_type_collection(root=project, allow_stubs=False, subset=subset).df
 
-        output.write_dataset(*dataset_args, df=collection)
+        dataset_io.write(collection)
 
 if __name__ == "__main__":
     cli_entrypoint()
