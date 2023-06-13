@@ -75,7 +75,6 @@ from libcst._exceptions import ParserSyntaxError
         ],
     ),
     help="Remove and infer annotations in the codebase",
-    multiple=True,
     required=True,
 )
 # @click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
@@ -84,62 +83,59 @@ def cli_entrypoint(
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
-    task: list[str],
+    task: str,
 ) -> None:
-    annotate = False
-    tasked = list(map(TypeCollectionCategory.__getitem__, task))
-
     structure = DatasetFolderStructure(dataset)
-    print("Inferred dataset kind:", structure)
+    print("Dataset Kind:", structure)
+
+    task = TypeCollectionCategory.__getitem__(task)
 
     inference_tool = tool()
     test_set = structure.test_set()
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
-        pbar.set_description(desc=f"Inferring over {project}")
+        pbar.set_description(desc=f"{project}")
 
-        ar = structure.author_repo(project)
-        author_repo = f"{ar['author']}.{ar['repo']}"
-        outdir = output.inference_output_path(
-            outpath / author_repo,
-            tool=inference_tool.method(),
-            removed=tasked,
+        inference_io = output.InferredIO(
+            artifact_root=outpath,
+            dataset=structure,
+            repository=project,
+            tool_name=inference_tool.method(),
+            task=task,
         )
+        inference_output = inference_io.full_location()
+
+        print(f"Selecting {inference_output} as the output folder")
 
         # Skip if we are not overwriting results
-        if outdir.is_dir() and not overwrite:
+        if not overwrite and inference_output.exists():
             print(
-                f"Skipping {project}, results are already at {outdir}, and --overwrite was not given!"
+                f"Skipping {project}, results are already at {inference_output}, and --overwrite was not given!"
             )
             continue
 
-        inpath = project
         with (
-            scratchpad(inpath) as sc,
+            scratchpad(project) as sc,
             inference_tool.activate_logging(sc),
         ):
-            print(f"Using {sc} as a scratchpad for inference!")
-            if tasked:
-                print(f"annotation removal flag provided, removing annotations on '{sc}'")
-                result = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=TypeAnnotationRemover(
-                        context=codemod.CodemodContext(),
-                        variables=TypeCollectionCategory.VARIABLE in tasked,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
-                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
-                    ),
-                    jobs=worker_count(),
-                    files=[sc / s for s in subset],
-                    repo_root=str(sc),
-                )
-                print(format_parallel_exec_result(action="Annotation Removal", result=result))
+            print(f"Annotation removal flag provided, removing {task} annotations on '{sc}'")
+            result = codemod.parallel_exec_transform_with_prettyprint(
+                transform=TypeAnnotationRemover(
+                    context=codemod.CodemodContext(),
+                    variables=TypeCollectionCategory.VARIABLE == task,
+                    parameters=TypeCollectionCategory.CALLABLE_PARAMETER == task,
+                    rets=TypeCollectionCategory.CALLABLE_RETURN == task,
+                ),
+                jobs=worker_count(),
+                files=[sc / s for s in subset],
+                repo_root=str(sc),
+            )
+            print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             # Run inference task for hour before aborting
             # print("Starting inference task with 1h timeout")
             try:
-                inferred = inference_tool.infer(sc, inpath, subset)
-            #    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
-            #        inferred = task.result()
+                inferred = inference_tool.infer(sc, project, subset)
 
             except concurrent.futures.TimeoutError:
                 inference_tool.logger.error(
@@ -158,10 +154,6 @@ def cli_entrypoint(
                 continue
 
             else:
-                if outdir.is_dir() and overwrite:
-                    shutil.rmtree(outdir)
-
-                outdir.mkdir(parents=True, exist_ok=True)
                 with pandas.option_context(
                     "display.max_rows",
                     None,
@@ -170,24 +162,22 @@ def cli_entrypoint(
                     "display.expand_frame_repr",
                     False,
                 ):
-                    inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
+                    inferred = inferred[inferred[TypeCollectionSchema.category] == task]
                     print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
-                output.write_inferred(inferred, outdir)
-                print(f"Inferred types have been stored at {outdir}")
+                inference_io.write(artifact=inferred)
 
             finally:
                 # Copy generated log files
-                outdir.mkdir(parents=True, exist_ok=True)
                 for log_path in (
-                    output.info_log_path,
-                    output.debug_log_path,
-                    output.error_log_path,
+                    output.InferredLoggingIO.info_log_path,
+                    output.InferredLoggingIO.debug_log_path,
+                    output.InferredLoggingIO.error_log_path,
                 ):
-                    shutil.copy(log_path(sc), log_path(outdir))
-                print(f"Logs have been stored at {outdir}")
+                    shutil.copy(log_path(sc), log_path(inference_output.parent))
+                print(f"Logs have been stored at {inference_output.parent}")
 
-            if annotate:
+            """ if annotate:
                 # Copy original project
                 shutil.copytree(
                     inpath,
@@ -226,7 +216,7 @@ def cli_entrypoint(
                     jobs=worker_count(),
                     repo_root=str(outdir),
                 )
-                print(format_parallel_exec_result(action="Annotation Application", result=result))
+                print(format_parallel_exec_result(action="Annotation Application", result=result)) """
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import pandas as pd
 import pandera.typing as pt
 from libcst import codemod
 
-from scripts.common import output
+from scripts.common.output import InferredLoggingIO
 from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import _utils
 
@@ -48,20 +48,20 @@ class Inference(abc.ABC):
         generic_sout_handler.setFormatter(fmt=formatter)
 
         generic_filehandler = logging.FileHandler(
-            filename=output.info_log_path(project), mode="w"
+            filename=InferredLoggingIO.info_log_path(project), mode="w"
         )
         generic_filehandler.setLevel(logging.INFO)
         generic_filehandler.setFormatter(fmt=formatter)
 
         debug_handler = logging.FileHandler(
-            filename=output.debug_log_path(project), mode="w"
+            filename=InferredLoggingIO.debug_log_path(project), mode="w"
         )
         debug_handler.setLevel(logging.DEBUG)
         debug_handler.addFilter(filter=lambda record: record.levelno == logging.DEBUG)
         debug_handler.setFormatter(fmt=formatter)
 
         error_handler = logging.FileHandler(
-            filename=output.error_log_path(project), mode="w"
+            filename=InferredLoggingIO.error_log_path(project), mode="w"
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(fmt=formatter)

@@ -1,6 +1,6 @@
+import abc
 import typing
 
-import operator
 import pathlib
 
 import pandas as pd
@@ -11,103 +11,130 @@ from scripts.common.schemas import (
     TypeCollectionSchema,
     InferredSchema,
 )
-
 from scripts.infer.structure import DatasetFolderStructure
 
 
-def context_vector_path(project: pathlib.Path) -> pathlib.Path:
-    return project / "context-vectors.csv"
+A = typing.TypeVar("A")
 
 
-def write_context_vectors(df: pt.DataFrame[ContextSymbolSchema], project: pathlib.Path) -> None:
-    cpath = context_vector_path(project)
-    cpath.parent.mkdir(parents=True, exist_ok=True)
+class ArtifactIO(abc.ABC, typing.Generic[A]):
+    def __init__(self, artifact_root: pathlib.Path) -> None:
+        super().__init__()
+        self.artifact_root = artifact_root
 
-    df.to_csv(cpath, index=False, na_rep="", header=list(ContextSymbolSchema.to_schema().columns))
+    def read(self) -> A:
+        return self._read(self.full_location())
 
+    @abc.abstractmethod
+    def _read(self, input_location: pathlib.Path) -> A:
+        ...
 
-def read_context_vectors(project: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
-    cpath = context_vector_path(project)
-    df = pd.read_csv(
-        cpath,
-        converters={"category": lambda c: TypeCollectionCategory[c]},
-        keep_default_na=False,
-        na_values=[""],
-    )
+    def write(self, artifact: A) -> A:
+        outpath_path = self.full_location()
+        outpath_path.parent.mkdir(parents=True, exist_ok=True)
+        return self._write(artifact, outpath_path)
 
-    return df.pipe(pt.DataFrame[ContextSymbolSchema])
+    @abc.abstractmethod
+    def _write(self, artifact: A, output_location: pathlib.Path) -> None:
+        ...
 
+    def full_location(self) -> pathlib.Path:
+        return self.artifact_root / self.relative_location()
 
-def inferred_path(project: pathlib.Path) -> pathlib.Path:
-    return project / "inferred.csv"
-
-
-def write_inferred(df: pt.DataFrame[InferredSchema], project: pathlib.Path) -> None:
-    ipath = inferred_path(project)
-    df.to_csv(ipath, index=False, na_rep="")
-
-
-def read_inferred(
-    inpath: pathlib.Path, tool: str, task: list[TypeCollectionCategory]
-) -> pt.DataFrame[InferredSchema]:
-    outpath = inference_output_path(inpath, tool, task)
-    ipath = inferred_path(outpath)
-    df = pd.read_csv(
-        ipath,
-        converters={"category": lambda c: TypeCollectionCategory[c]},
-        keep_default_na=False,
-        na_values=[""],
-    )
-
-    return df.pipe(pt.DataFrame[InferredSchema])
+    @abc.abstractmethod
+    def relative_location(self) -> pathlib.Path:
+        ...
 
 
-def inference_output_path(
-    outpath: pathlib.Path,
-    tool: str,
-    removed: list[TypeCollectionCategory],
-) -> pathlib.Path:
-    task_names = ",".join(map(str, removed))
-    return outpath.parent / f"{tool}@[{task_names}]" / f"{outpath.name}"
+class DatasetDependentIO(ArtifactIO[A]):
+    def __init__(
+        self,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure,
+        repository: pathlib.Path,
+    ) -> None:
+        super().__init__(artifact_root)
+        self.dataset = dataset
+        self.repository = repository
+
+    def relative_location(self) -> pathlib.Path:
+        ar = self.dataset.author_repo(self.repository)
+        return pathlib.Path(type(self.dataset).__name__) / f'{ar["author"]}__{ar["repo"]}'
 
 
-def dataset_output_path(
-    inpath: pathlib.Path, structure: DatasetFolderStructure, author_repo: str
-) -> pathlib.Path:
-    o = inpath / type(structure).__name__.lower() / f"{author_repo}.csv"
-    return o
+class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
+        return pd.read_csv(
+            input_location,
+            converters={"category": lambda c: TypeCollectionCategory[c]},
+            keep_default_na=False,
+            na_values=[""],
+        ).pipe(pt.DataFrame[ContextSymbolSchema])
+
+    def _write(
+        self, artifact: pt.DataFrame[ContextSymbolSchema], output_location: pathlib.Path
+    ) -> None:
+        return artifact.to_csv(output_location, index=False, na_rep="")
+
+    def relative_location(self) -> pathlib.Path:
+        return super().relative_location() / "context.csv"
 
 
-def write_dataset(
-    inpath: pathlib.Path,
-    structure: DatasetFolderStructure,
-    author_repo: str,
-    df: pt.DataFrame[TypeCollectionSchema],
-) -> None:
-    opath = dataset_output_path(inpath, structure, author_repo)
-    opath.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(opath, index=False, na_rep="")
+class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
+    def __init__(
+        self,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure,
+        repository: pathlib.Path,
+        tool_name: str,
+        task: TypeCollectionCategory,
+    ) -> None:
+        super().__init__(artifact_root, dataset, repository)
+        self.tool_name = tool_name
+        self.task = task
+
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+        return pd.read_csv(
+            input_location,
+            converters={"category": lambda c: TypeCollectionCategory[c]},
+            keep_default_na=False,
+            na_values=[""],
+        ).pipe(pt.DataFrame[InferredSchema])
+
+    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
+        return artifact.to_csv(output_location, index=False, na_rep="")
+
+    def relative_location(self) -> pathlib.Path:
+        return super().relative_location() / f"{self.tool_name}" / f"{str(self.task)}" / "inferred.csv"
 
 
-def read_dataset(
-    inpath: pathlib.Path, structure: DatasetFolderStructure, author_repo: str
-) -> pt.DataFrame[TypeCollectionSchema]:
-    rpath = dataset_output_path(inpath, structure, author_repo)
-    return pd.read_csv(
-        rpath,
-        converters={"category": lambda c: TypeCollectionCategory[c]},
-        keep_default_na=False,
-        na_values=[""],
-    ).pipe(pt.DataFrame[TypeCollectionSchema])
+class DatasetIO(DatasetDependentIO[pt.DataFrame[TypeCollectionSchema]]):
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
+        return pd.read_csv(
+            input_location,
+            converters={"category": lambda c: TypeCollectionCategory[c]},
+            keep_default_na=False,
+            na_values=[""],
+        ).pipe(pt.DataFrame[TypeCollectionSchema])
+
+    def _write(
+        self, artifact: pt.DataFrame[TypeCollectionSchema], output_location: pathlib.Path
+    ) -> None:
+        return artifact.to_csv(output_location, index=False, na_rep="")
+
+    def relative_location(self) -> pathlib.Path:
+        return super().relative_location() / "ground_truth.csv"
 
 
-def error_log_path(outpath: pathlib.Path) -> pathlib.Path:
-    return outpath / "log.err"
+class InferredLoggingIO:
+    @staticmethod
+    def error_log_path(outpath: pathlib.Path) -> pathlib.Path:
+        return outpath / "log.err"
 
+    @staticmethod
+    def debug_log_path(outpath: pathlib.Path) -> pathlib.Path:
+        return outpath / "log.dbg"
 
-def debug_log_path(outpath: pathlib.Path) -> pathlib.Path:
-    return outpath / "log.dbg"
-
-
-def info_log_path(outpath: pathlib.Path) -> pathlib.Path:
-    return outpath / "log.inf"
+    @staticmethod
+    def info_log_path(outpath: pathlib.Path) -> pathlib.Path:
+        return outpath / "log.inf"
