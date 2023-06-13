@@ -25,6 +25,7 @@ from .inference import Inference, factory, SUPPORTED_TOOLS
 
 import torch.multiprocessing as mp
 from libcst import codemod
+from libcst._exceptions import ParserSyntaxError
 
 
 @click.command(
@@ -45,18 +46,14 @@ from libcst import codemod
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(
-        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(
-        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -96,7 +93,7 @@ def cli_entrypoint(
     print("Inferred dataset kind:", structure)
 
     inference_tool = tool()
-    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
+    test_set = structure.test_set()
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Inferring over {project}")
@@ -123,26 +120,19 @@ def cli_entrypoint(
         ):
             print(f"Using {sc} as a scratchpad for inference!")
             if tasked:
-                print(
-                    f"annotation removal flag provided, removing annotations on '{sc}'"
-                )
+                print(f"annotation removal flag provided, removing annotations on '{sc}'")
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
                         variables=TypeCollectionCategory.VARIABLE in tasked,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER
-                        in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                     ),
                     jobs=worker_count(),
                     files=[sc / s for s in subset],
                     repo_root=str(sc),
                 )
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Removal", result=result
-                    )
-                )
+                print(format_parallel_exec_result(action="Annotation Removal", result=result))
 
             # Run inference task for hour before aborting
             # print("Starting inference task with 1h timeout")
@@ -151,7 +141,7 @@ def cli_entrypoint(
             #    for task in concurrent.futures.as_completed(tasks, timeout=60**2):
             #        inferred = task.result()
 
-            except concurrent.futures.TimeoutError as e:
+            except concurrent.futures.TimeoutError:
                 inference_tool.logger.error(
                     "Took over an hour to infer types, killing inference subprocess. "
                     "Results will NOT be written to disk",
@@ -159,10 +149,12 @@ def cli_entrypoint(
                 )
                 continue
 
-            except Exception as e:
-                inference_tool.logger.error(
-                    f"Unhandled error occurred", exc_info=True
-                )
+            except ParserSyntaxError:
+                inference_tool.logger.error("Failed to parse project", exc_info=True)
+                continue
+
+            except Exception:
+                inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
                 continue
 
             else:
@@ -178,9 +170,7 @@ def cli_entrypoint(
                     "display.expand_frame_repr",
                     False,
                 ):
-                    inferred = inferred[
-                        inferred[TypeCollectionSchema.category].isin(tasked)
-                    ]
+                    inferred = inferred[inferred[TypeCollectionSchema.category].isin(tasked)]
                     print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
                 output.write_inferred(inferred, outdir)
@@ -212,8 +202,7 @@ def cli_entrypoint(
                     transform=TypeAnnotationRemover(
                         context=codemod.CodemodContext(),
                         variables=TypeCollectionCategory.VARIABLE in tasked,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER
-                        in tasked,
+                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
                         rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
                     ),
                     jobs=worker_count(),
@@ -237,11 +226,7 @@ def cli_entrypoint(
                     jobs=worker_count(),
                     repo_root=str(outdir),
                 )
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Application", result=result
-                    )
-                )
+                print(format_parallel_exec_result(action="Annotation Application", result=result))
 
 
 if __name__ == "__main__":
