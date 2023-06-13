@@ -29,10 +29,10 @@ class ArtifactIO(abc.ABC, typing.Generic[A]):
     def _read(self, input_location: pathlib.Path) -> A:
         ...
 
-    def write(self, artifact: A) -> A:
+    def write(self, artifact: A) -> None:
         outpath_path = self.full_location()
         outpath_path.parent.mkdir(parents=True, exist_ok=True)
-        return self._write(artifact, outpath_path)
+        self._write(artifact, outpath_path)
 
     @abc.abstractmethod
     def _write(self, artifact: A, output_location: pathlib.Path) -> None:
