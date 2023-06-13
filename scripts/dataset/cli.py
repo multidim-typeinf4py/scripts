@@ -4,7 +4,7 @@ import tqdm
 
 from scripts.symbols.collector import build_type_collection
 
-from scripts.infer.inference._base import DatasetFolderStructure
+from scripts.infer.structure import DatasetFolderStructure
 
 from scripts.common import output
 
@@ -23,10 +23,10 @@ from scripts.common import output
     help="Folder for annotation dataframe to be written into",
 )
 def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path) -> None:
-    structure = DatasetFolderStructure.from_folderpath(dataset)
+    structure = DatasetFolderStructure(dataset_root=dataset)
     print(dataset, structure)
 
-    test_set = {p: s for p, s in structure.test_set(dataset).items() if p.is_dir()}
+    test_set = structure.test_set()
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"Collecting from {project}")
         collection = build_type_collection(root=project, allow_stubs=False, subset=subset).df

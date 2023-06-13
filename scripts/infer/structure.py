@@ -35,7 +35,7 @@ class DatasetFolderStructure(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         ...
 
 
@@ -54,9 +54,9 @@ class ManyTypes4Py(DatasetFolderStructure):
     def author_repo(self, repo: pathlib.Path) -> dict:
         return {"author": repo.parent.name, "repo": repo.name}
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         splits = pd.read_csv(
-            dataset_root / "data" / "dataset_split.csv",
+            self.dataset_root / "data" / "dataset_split.csv",
             header=None,
             names=["split", "filepath"],
         )
@@ -71,7 +71,7 @@ class ManyTypes4Py(DatasetFolderStructure):
             .groupby(by=["author", "project"])
         ):
             author, project = key
-            test_set[dataset_root / "repos" / author / project] = set(
+            test_set[self.dataset_root / "repos" / author / project] = set(
                 map(pathlib.Path, g["file"].tolist())
             )
         return test_set
@@ -92,10 +92,10 @@ class BetterTypes4Py(DatasetFolderStructure):
             )
         )
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         mapping = dict[pathlib.Path, set[pathlib.Path]]()
 
-        repo_suffix = dataset_root / "repos" / "test"
+        repo_suffix = self.dataset_root / "repos" / "test"
 
         for repo in repo_suffix.iterdir():
             if repo.is_dir() and (fs := codemod.gather_files([str(repo)])):
@@ -115,11 +115,11 @@ class Project(DatasetFolderStructure):
     def author_repo(self, repo: pathlib.Path) -> dict:
         return {"author": repo.name, "repo": repo.name}
 
-    def test_set(self, dataset_root: pathlib.Path) -> dict[pathlib.Path, set[pathlib.Path]]:
+    def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         subfiles = set(
             map(
-                lambda p: pathlib.Path(p).relative_to(dataset_root),
-                codemod.gather_files([str(dataset_root)]),
+                lambda p: pathlib.Path(p).relative_to(self.dataset_root),
+                codemod.gather_files([str(self.dataset_root)]),
             )
         )
-        return {dataset_root: subfiles}
+        return {self.dataset_root: subfiles}
