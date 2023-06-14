@@ -101,18 +101,11 @@ class _Annotation4InstanceVisitor(v.HintableDeclarationVisitor, v.ScopeAwareVisi
     def instance_attribute_hint(
         self, original_node: libcst.AnnAssign, target: libcst.Name
     ) -> None:
-        meta = TrackedAnnotation(
-            labelled=original_node.annotation,
-            inferred=original_node.annotation,
-            lowered=Lowered.UNALTERED,
-        )
-        self.provider.set_metadata(target, meta)
-
-    def libsa4py_hint(self, node: Union[libcst.AnnAssign, libcst.Assign], target: libcst.Name) -> None:
-        annotation = node.annotation if isinstance(node, libcst.AnnAssign) else None
-        self.provider.set_metadata(
-            target,
-            TrackedAnnotation(labelled=annotation, inferred=None, lowered=Lowered.UNALTERED),
+        self._track_annotation(
+            qname=self.qualified_name(target),
+            consumption=_Consumption.UNUSED,
+            lowerage=Lowered.UNALTERED,
+            annotation=original_node.annotation,
         )
 
     def annotated_assignment(
