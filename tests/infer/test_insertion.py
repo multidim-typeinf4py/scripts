@@ -89,27 +89,13 @@ class Test_Unannotated(AnnotationTesting):
         self.assertBuildCodemod(
             before="""
             class C:
-                a = ...
+                a = 10
             """,
             after="""
             from __future__ import annotations
             
             class C:
-                a: int = ...
-            """,
-        )
-
-    def test_class_attribute_target(self):
-        self.assertBuildCodemod(
-            before="""
-            class C:
-                a = 5
-            """,
-            after="""
-            from __future__ import annotations
-            
-            class C:
-                a: int = 5
+                a: int = 10
             """,
         )
 
@@ -251,17 +237,31 @@ class Test_Unannotated(AnnotationTesting):
             """,
         )
 
-    def test_libsa4py(self):
+    def test_annotate_single_class_members(self):
         self.assertBuildCodemod(
             before="""
             class C:
-                a = ...
+                a = 10
             """,
             after="""
             from __future__ import annotations
 
             class C:
-                a: int = ...
+                a: int = 10
+            """,
+        )
+
+    def test_annotate_multiple_class_members(self):
+        self.assertBuildCodemod(
+            before="""
+            class C:
+                a = b = 10
+            """,
+            after="""
+            from __future__ import annotations
+
+            class C:
+                a: int; b: int; a = b = 10
             """,
         )
 
