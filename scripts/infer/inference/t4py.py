@@ -1,5 +1,4 @@
 import dataclasses
-import functools
 import itertools
 import json
 import pathlib
@@ -19,12 +18,15 @@ from type4py.deploy.infer import (
     get_type_preds_single_file,
 )
 
-from scripts.common.schemas import InferredSchema
-from . import _utils
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from ._base import ParallelisableInference
 from ._utils import wrapped_partial
+
+from scripts.infer.preprocessers import t4py
 from ..annotators.type4py import Type4PyProjectApplier
 
+from libcst import codemod
+from libsa4py import cst_transformers
 
 @dataclasses.dataclass
 class FileDatapoints:
@@ -144,6 +146,9 @@ class _Type4Py(ParallelisableInference):
 
     def method(self) -> str:
         return f"type4pyN{self.topn}"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return t4py.Type4PyPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]

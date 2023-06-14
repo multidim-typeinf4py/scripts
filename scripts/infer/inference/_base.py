@@ -14,7 +14,7 @@ import pandera.typing as pt
 from libcst import codemod
 
 from scripts.common.output import InferredLoggingIO
-from scripts.common.schemas import InferredSchema
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.infer.inference import _utils
 
 
@@ -24,6 +24,10 @@ class Inference(abc.ABC):
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.INFO)
+
+    @abc.abstractmethod
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        ...
 
     @abc.abstractmethod
     def infer(
