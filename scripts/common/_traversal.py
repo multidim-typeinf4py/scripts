@@ -37,35 +37,11 @@ class Recognition(libcst.MetadataDependent):
 
         return None
 
-    def extract_libsa4py_hint(
-        self,
-        original_node: typing.Union[libcst.AnnAssign, libcst.Assign],
-    ) -> Targets | None:
-        """
-        class Clazz:
-            a = ...
-            a: int = ...
-        """
-        if m.matches(
-            original_node, m.Assign(targets=[m.AssignTarget(NAME)], value=m.Ellipsis())
-        ) and self._is_class_scope(original_node.targets[0].target):
-            return Targets.from_accesses(self.metadata, original_node.targets[0].target)
-
-        elif m.matches(
-            original_node, m.AnnAssign(value=m.Ellipsis())
-        ) and self._is_class_scope(original_node.target):
-            return Targets.from_accesses(self.metadata, original_node.target)
-
-        return None
-
     def extract_annotated_hint(
         self,
         original_node: libcst.AnnAssign,
     ) -> Targets | None:
-        if (
-            original_node.value is None
-            or m.matches(original_node.value, m.Name("λ__LOWERED_HINT_MARKER__λ"))
-        ) and not self._is_class_scope(original_node.target):
+        if original_node.value is None and not self._is_class_scope(original_node.target):
             return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
@@ -77,22 +53,11 @@ class Recognition(libcst.MetadataDependent):
         """
         class Clazz:
             a: int = 5
+            b: int # not this one
 
         a: int = 5
-
-        r: requests.models.Response = ...
         """
-        if (
-            original_node.value is not None
-            and not m.matches(original_node.value, m.Ellipsis())
-            # and _is_class_scope(self.metadata, original_node.target)
-        ):
-            return Targets.from_accesses(self.metadata, original_node.target)
-
-        # Support for stub files here
-        elif m.matches(original_node.value, m.Ellipsis()) and not self._is_class_scope(
-            original_node.target
-        ):
+        if original_node.value is not None:
             return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
@@ -104,13 +69,8 @@ class Recognition(libcst.MetadataDependent):
         """
         a = 10
         """
-        if (
-            len(original_node.targets) == 1
-            and not m.matches(
-                asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
-            )
-            and not m.matches(original_node.value, m.Ellipsis())
-            # and not _is_class_scope(self.metadata, asstarget.target)
+        if len(original_node.targets) == 1 and not m.matches(
+            asstarget := original_node.targets[0], m.AssignTarget(LIST | TUPLE)
         ):
             return Targets.from_accesses(self.metadata, asstarget.target)
         return None
@@ -298,23 +258,6 @@ class Traverser(typing.Generic[T], abc.ABC):
         """
         class C:
             a: int      # triggers
-            a = ...     # ignored (libsa4py's instance attributes)
-            a = 5       # ignored
-
-        a: int          # ignored
-        """
-        ...
-
-    @abc.abstractmethod
-    def libsa4py_hint(
-        self,
-        original_node: libcst.Assign | libcst.AnnAssign,
-        target: libcst.Name,
-    ) -> T:
-        """
-        class C:
-            a: int      # ignored
-            a = ...     # triggers (libsa4py's instance attributes)
             a = 5       # ignored
 
         a: int          # ignored
