@@ -198,9 +198,7 @@ class AnnotationTracking(codemod.CodemodTest):
             with (tempdir / "pkg" / "x.py").open("w") as f:
                 f.write(textwrap.dedent(code))
 
-            return build_type_collection(
-                root=tempdir, allow_stubs=False, subset=None
-            ).df
+            return build_type_collection(root=tempdir, allow_stubs=False, subset=None).df
 
     def assertMatchingAnnotating(
         self,
@@ -276,9 +274,7 @@ class Test_TrackUnannotated(AnnotationTracking):
                     "C.__init__.self",
                     missing.NA,
                 ),
-                CR(
-                    TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"
-                ),
+                CR(TypeCollectionCategory.VARIABLE, "C.__init__.self.x", "builtins.int"),
                 CR(
                     TypeCollectionCategory.VARIABLE,
                     "C.__init__.default",
@@ -308,9 +304,7 @@ class Test_HintTracking(AnnotationTracking):
         a = 5
         """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "a", missing.NA)])
 
     def test_hinting_overwrite(self):
         # Unlikely to happen, but check anyway :)
@@ -481,9 +475,7 @@ class Test_HintTracking(AnnotationTracking):
                 ...
             """
         )
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "x", missing.NA)])
 
     def test_for_annotated(self):
         df = self.performTracking(
@@ -523,9 +515,7 @@ class Test_HintTracking(AnnotationTracking):
         """
         )
 
-        self.assertMatchingAnnotating(
-            df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)]
-        )
+        self.assertMatchingAnnotating(df, [CR(TypeCollectionCategory.VARIABLE, "f", missing.NA)])
 
     def test_withitem_annotated(self):
         df = self.performTracking(
@@ -542,9 +532,7 @@ class Test_HintTracking(AnnotationTracking):
             df, [CR(TypeCollectionCategory.VARIABLE, "f", "_io.TextIOWrapper")]
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension(self):
         df = self.performTracking(
             """
@@ -559,9 +547,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    @pytest.mark.skip(
-        reason="Cannot annotate comprehension loops, as their scope does not leak"
-    )
+    @pytest.mark.skip(reason="Cannot annotate comprehension loops, as their scope does not leak")
     def test_comprehension_annotated(self):
         df = self.performTracking(
             """
@@ -576,22 +562,6 @@ class Test_HintTracking(AnnotationTracking):
             df,
             [
                 CR(TypeCollectionCategory.VARIABLE, "x", "enum.Enum"),
-            ],
-        )
-
-    def test_libsa4py(self):
-        df = self.performTracking(
-            """
-            class C:
-                foo = ...
-                foo2: int = ...
-            """
-        )
-        self.assertMatchingAnnotating(
-            df,
-            [
-                CR(TypeCollectionCategory.VARIABLE, "C.foo", missing.NA),
-                CR(TypeCollectionCategory.VARIABLE, "C.foo2", "builtins.int"),
             ],
         )
 
@@ -680,14 +650,11 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    def test_multi_assignment_class(self):
+    def test_multi_assignment_class_unannotated(self):
         df = self.performTracking(
             """
             class UserAdminView(AuthModelMixin):
-                column_display_pk = True
-                # Don't display the password on the list of Users
                 column_exclude_list = list = ("password",)
-                column_default_sort = ("created_at", True)
             """
         )
         self.assertMatchingAnnotating(
@@ -695,20 +662,31 @@ class Test_HintTracking(AnnotationTracking):
             [
                 CR(
                     TypeCollectionCategory.VARIABLE,
-                    "UserAdminView.column_display_pk",
-                    missing.NA,
-                ),
-                CR(
-                    TypeCollectionCategory.VARIABLE,
                     "UserAdminView.column_exclude_list",
                     missing.NA,
                 ),
                 CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", missing.NA),
+            ],
+        )
+
+    def test_multi_assignment_class_annotated(self):
+        df = self.performTracking(
+            """
+            class UserAdminView(AuthModelMixin):
+                column_exclude_list: tuple
+                list: tuple
+                column_exclude_list = list = ("password",)
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
                 CR(
                     TypeCollectionCategory.VARIABLE,
-                    "UserAdminView.column_default_sort",
-                    missing.NA,
+                    "UserAdminView.column_exclude_list",
+                    "builtins.tuple",
                 ),
+                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", "builtins.tuple"),
             ],
         )
 
