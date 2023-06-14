@@ -61,7 +61,8 @@ class Test_Removal(codemod.CodemodTest):
                 x = 10
 
             class C:
-                a: int
+                a: int = 10
+                b: str
                 def g(self: typing.Self, d: lmao, e: more) -> int:
                     return e + 20
             """,
@@ -70,7 +71,7 @@ class Test_Removal(codemod.CodemodTest):
                 x = 10
 
             class C:
-                a = ...
+                a = 10
                 def g(self: typing.Self, d: lmao, e: more) -> int:
                     return e + 20
             """,

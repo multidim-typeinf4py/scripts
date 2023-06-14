@@ -449,7 +449,7 @@ class MultiVarTypeCollector(
         else:
             code = libcst.Module([]).code_for_node(node)
             msg = f"{self.context.filename}: Unhandled annotation {code}"
-            
+
             self.logger.error(msg)
             raise ValueError(msg)
 
@@ -1214,10 +1214,7 @@ class ApplyTypeAnnotationsVisitor(
 class TypeAnnotationRemover(c.ContextAwareTransformer):
     """
     Configurable type annotation removal.
-    Based on LibSA4Py implementation
     """
-
-    METADATA_DEPENDENCIES = (ScopeProvider,)
 
     def __init__(
         self,
@@ -1260,29 +1257,13 @@ class TypeAnnotationRemover(c.ContextAwareTransformer):
         if not self.variables:
             return updated_node
 
-        # Remove hinting like 'a: int' and 'self.foo: str' if outside a class' body;
-        # If it is a hint in a class, i.e. an INSTANCE_ATTR, ; replace it by 'a = ...'
-        if m.matches(
-            original_node,
-            m.AnnAssign(
-                target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()),
-                annotation=m.Annotation(),
-                value=None,
-            ),
-        ):
-            if isinstance(
-                self.get_metadata(ScopeProvider, original_node),
-                ClassScope,
-            ):
-                updated_node = libcst.Assign(
-                    targets=[libcst.AssignTarget(target=original_node.target)],
-                    value=libcst.Ellipsis(),
-                )
-            else:
-                updated_node = libcst.RemoveFromParent()
-        else:
+        if original_node.value:
             updated_node = libcst.Assign(
                 targets=[libcst.AssignTarget(target=original_node.target)],
                 value=original_node.value,
             )
+
+        else:
+            updated_node = libcst.RemoveFromParent()
+
         return updated_node
