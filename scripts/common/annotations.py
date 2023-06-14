@@ -193,19 +193,7 @@ class MultiVarTypeCollector(
     def instance_attribute_hint(
         self, original_node: libcst.AnnAssign, target: libcst.Name
     ) -> None:
-        self._track_attribute_target(target)
-
-    def libsa4py_hint(
-        self, original_node: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
-    ) -> None:
-        self._track_attribute_target(target)
-
-    def annotated_assignment(
-        self,
-        original_node: libcst.AnnAssign,
-        target: Union[libcst.Name, libcst.Attribute],
-    ) -> None:
-        self._track_attribute_target(target)
+        ...
 
     def annotated_hint(
         self,
@@ -213,6 +201,13 @@ class MultiVarTypeCollector(
         target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         ...
+
+    def annotated_assignment(
+        self,
+        original_node: libcst.AnnAssign,
+        target: Union[libcst.Name, libcst.Attribute],
+    ) -> None:
+        self._track_attribute_target(target)
 
     def assign_single_target(
         self,
@@ -1043,14 +1038,6 @@ class ApplyTypeAnnotationsVisitor(
         self, updated_node: libcst.AnnAssign, target: libcst.Name
     ) -> t.Actions:
         return self._handle_annotated_target(updated_node, target)
-
-    def libsa4py_hint(
-        self, updated_node: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
-    ) -> t.Actions:
-        if isinstance(updated_node, libcst.AnnAssign):
-            return self._handle_annotated_target(updated_node, target)
-        else:
-            return self.assign_single_target(updated_node, target)
 
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
