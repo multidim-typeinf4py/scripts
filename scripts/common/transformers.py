@@ -168,9 +168,6 @@ class HintableDeclarationTransformer(
         if targets := self.extract_instance_attribute_hint(original_node):
             transformer = self.instance_attribute_hint
 
-        elif targets := self.extract_libsa4py_hint(original_node):
-            transformer = self.libsa4py_hint
-
         elif targets := self.extract_annotated_hint(original_node):
             transformer = self.annotated_hint
 
@@ -191,10 +188,7 @@ class HintableDeclarationTransformer(
         libcst.RemovalSentinel,
         libcst.BaseSmallStatement,
     ]:
-        if targets := self.extract_libsa4py_hint(original_node):
-            transformer = self.libsa4py_hint
-
-        elif targets := self.extract_unannotated_assign_single_target(original_node):
+        if targets := self.extract_unannotated_assign_single_target(original_node):
             transformer = self.assign_single_target
 
         elif targets := self.extract_unannotated_assign_multiple_targets(original_node):
