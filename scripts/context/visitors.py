@@ -176,14 +176,6 @@ class ContextVectorVisitor(
             category=TypeCollectionCategory.VARIABLE,
         )
 
-    def libsa4py_hint(self, original_node: libcst.Assign, target: libcst.Name) -> None:
-        self._handle_annotatable(
-            annotatable=target,
-            identifier=target.value,
-            annotation=None,
-            category=TypeCollectionCategory.VARIABLE,
-        )
-
     def annotated_hint(
         self, original_node: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
     ) -> T:
