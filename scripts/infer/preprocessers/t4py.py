@@ -2,7 +2,7 @@ import libcst
 from libcst import matchers as m, codemod
 from typing import Union
 
-from .base import TaskPreprocessor
+from .base import TaskPreprocessor, AnnotationRemover
 from scripts.common.schemas import TypeCollectionCategory
 
 from typet5.experiments import type4py
@@ -18,32 +18,11 @@ class Type4PyPreprocessor(TaskPreprocessor):
         ).transform_module(simpler_syntax)
 
 
-class Type4PyAnnotationRemover(codemod.ContextAwareTransformer):
+class Type4PyAnnotationRemover(AnnotationRemover):
+    # Adapted from libsa4PY
     def __init__(self, context: codemod.CodemodContext, task: TypeCollectionCategory) -> None:
         self.context = context
         self.task = task
-
-    def leave_FunctionDef(
-        self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
-    ) -> Union[libcst.BaseStatement, libcst.RemovalSentinel]:
-        if self.task is not TypeCollectionCategory.CALLABLE_RETURN:
-            return updated_node
-        return (
-            updated_node.with_changes(returns=None)
-            if original_node.returns is not None
-            else updated_node
-        )
-
-    def leave_Param(
-        self, original_node: libcst.Param, updated_node: libcst.Param
-    ) -> Union[libcst.Param, libcst.MaybeSentinel, libcst.RemovalSentinel]:
-        if self.task is not TypeCollectionCategory.CALLABLE_PARAMETER:
-            return updated_node
-        return (
-            updated_node.with_changes(annotation=None)
-            if original_node.annotation is not None
-            else updated_node
-        )
 
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign

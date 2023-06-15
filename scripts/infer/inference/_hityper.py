@@ -27,7 +27,7 @@ from libcst.codemod.visitors._apply_type_annotations import (
 from ..annotators.hityper import HiTyperProjectApplier
 from ... import utils
 from scripts.common.annotations import ApplyTypeAnnotationsVisitor
-from scripts.common.schemas import InferredSchema
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.symbols.collector import build_type_collection
 from ._base import ProjectWideInference
 
@@ -122,6 +122,10 @@ class ModelAdaptor(abc.ABC):
     ) -> ModelAdaptor.ProjectPredictions:
         ...
 
+    @abc.abstractmethod
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        ...
+
 
 ModelAdaptor.FuncPrediction.update_forward_refs()
 ModelAdaptor.ClassPrediction.update_forward_refs()
@@ -134,6 +138,9 @@ class HiTyper(ProjectWideInference, ABC):
         super().__init__()
         self.adaptor = adaptor
         logging.getLogger(hityper.__name__).setLevel(logging.WARNING)
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.adaptor.preprocessor(task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]

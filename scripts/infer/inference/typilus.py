@@ -9,10 +9,13 @@ from dpu_utils.utils import RichPath
 from typilus.model import model_restore_helper
 from typilus.utils.predict import ignore_annotation
 
-from scripts.common.schemas import InferredSchema
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.infer.annotators.typilus import TypilusProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
 from scripts.infer.inference._utils import wrapped_partial
+from scripts.infer.preprocessers import typilus
+
+from libcst import codemod
 
 
 class Typilus(ProjectWideInference):
@@ -41,6 +44,9 @@ class Typilus(ProjectWideInference):
 
     def method(self) -> str:
         return f"typilusN{self.topn}"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return typilus.TypilusPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
