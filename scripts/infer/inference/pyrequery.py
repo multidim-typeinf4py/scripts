@@ -21,6 +21,9 @@ from scripts.infer.annotators.tool_annotator import Normalisation
 from scripts.symbols.collector import build_type_collection
 from ._base import ProjectWideInference
 
+from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.preprocessers import static
+
 
 class NormalisedPyreQuery(codemod.Codemod):
     NORMALISER = Normalisation(
@@ -80,6 +83,9 @@ def pyre_server(project_location: pathlib.Path) -> None:
 class PyreQuery(ProjectWideInference):
     def method(self) -> str:
         return "pyrequery"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return static.StaticPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]

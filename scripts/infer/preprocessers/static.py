@@ -11,17 +11,17 @@ from typet5.experiments import utils
 
 class StaticPreprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        rewritten = StaticAnnotationRemover(
+        rewritten = _StaticAnnotationRemover(
             context=self.context,
             task=self.task,
         ).transform_module(tree)
         return rewritten
 
 
-class StaticAnnotationRemover(AnnotationRemover):
+class _StaticAnnotationRemover(AnnotationRemover):
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
-    ) -> libcst.Assign | libcst.AnnAssign | libcst.RemovalSentinel():
+    ) -> libcst.Assign | libcst.AnnAssign | libcst.RemovalSentinel:
         if self.task is not TypeCollectionCategory.VARIABLE:
             return updated_node
 

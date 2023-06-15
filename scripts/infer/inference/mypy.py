@@ -11,12 +11,18 @@ from . import _adaptors
 from ._base import ProjectWideInference
 from scripts.common.schemas import InferredSchema
 
+from libcst import codemod
+from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.preprocessers import static
 
 class MyPy(ProjectWideInference):
     def method(self) -> str:
         return "mypy"
 
     _OUTPUT_DIR = ".mypy-stubs"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return static.StaticPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: Optional[set[pathlib.Path]]

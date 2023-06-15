@@ -9,12 +9,19 @@ from scripts.utils import working_dir
 from . import _adaptors
 from ._base import ProjectWideInference
 
+from libcst import codemod
+from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.preprocessers import static
+
 
 class PyreInfer(ProjectWideInference):
     def method(self) -> str:
         return "pyreinfer"
 
     _OUTPUT_DIR = ".pyre-stubs"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return static.StaticPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -49,14 +56,10 @@ class PyreInfer(ProjectWideInference):
             )
 
             try:
-                exitcode = commands.infer.run(
-                    configuration=config, infer_arguments=infargs
-                )
+                exitcode = commands.infer.run(configuration=config, infer_arguments=infargs)
 
             except commands.ClientException:
-                self.logger.error(
-                    "pyre-infer encountered an internal failure, cannot infer types"
-                )
+                self.logger.error("pyre-infer encountered an internal failure, cannot infer types")
                 return InferredSchema.example(size=0)
 
         if exitcode != commands.ExitCode.SUCCESS:
