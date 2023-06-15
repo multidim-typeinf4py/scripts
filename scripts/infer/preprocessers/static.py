@@ -26,7 +26,7 @@ class _StaticAnnotationRemover(AnnotationRemover):
             return updated_node
 
         is_class_scope = self.is_class_scope(original_node.target)
-        if is_class_scope and original_node.target is None:
+        if is_class_scope and original_node.value is None:
             # This is similar to TypeT5's published implementation, which makes a = int
             # a: int -> a = int()
             return libcst.Assign(
@@ -34,7 +34,7 @@ class _StaticAnnotationRemover(AnnotationRemover):
                 value=libcst.Call(updated_node.annotation.annotation),
             )
 
-        elif not is_class_scope and original_node.target is None:
+        elif not is_class_scope and original_node.value is None:
             # a: int -> removed
             return libcst.RemoveFromParent()
 
