@@ -23,7 +23,7 @@ from ._base import ParallelisableInference
 from ._utils import wrapped_partial
 
 from scripts.infer.preprocessers import t4py
-from ..annotators.type4py import Type4PyProjectApplier
+from ..annotators.t4py import Type4PyProjectApplier
 
 from libcst import codemod
 from libsa4py import cst_transformers
