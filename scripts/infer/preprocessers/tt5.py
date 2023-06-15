@@ -9,7 +9,7 @@ from typet5.static_analysis import mask_assign_type
 class TT5Preprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         rewritten = _ConditionalTT5AnnoRemover(
-            context=self.context, taks=self.task
+            context=self.context, task=self.task
         ).transform_module(tree)
         return rewritten
 

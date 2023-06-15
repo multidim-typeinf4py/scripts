@@ -20,10 +20,6 @@ class Type4PyPreprocessor(TaskPreprocessor):
 
 class Type4PyAnnotationRemover(AnnotationRemover):
     # Adapted from libsa4PY
-    def __init__(self, context: codemod.CodemodContext, task: TypeCollectionCategory) -> None:
-        self.context = context
-        self.task = task
-
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
     ) -> Union[libcst.BaseSmallStatement, libcst.RemovalSentinel]:

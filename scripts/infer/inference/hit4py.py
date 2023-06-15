@@ -43,7 +43,7 @@ class Type4PyAdaptor(ModelAdaptor):
         return ModelAdaptor.ProjectPredictions(__root__=root)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
-        return self.type4py.preprocessor()
+        return self.type4py.preprocessor(task=task)
 
 
 class HiType4PyTopN(HiTyper):

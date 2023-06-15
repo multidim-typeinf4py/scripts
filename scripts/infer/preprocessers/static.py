@@ -31,7 +31,7 @@ class _StaticAnnotationRemover(AnnotationRemover):
             # a: int -> a = int()
             return libcst.Assign(
                 targets=[libcst.AssignTarget(updated_node.target)],
-                value=libcst.Call(updated_node.annotation),
+                value=libcst.Call(updated_node.annotation.annotation),
             )
 
         elif not is_class_scope and original_node.target is None:
@@ -41,4 +41,7 @@ class _StaticAnnotationRemover(AnnotationRemover):
         else:
             # a: int = 5 -> a = 5
             # both inside of and outside of classes
-            return updated_node.with_changes(annotation=None)
+            return libcst.Assign(
+                targets=[libcst.AssignTarget(updated_node.target)],
+                value=updated_node.value
+            )
