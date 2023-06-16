@@ -34,8 +34,9 @@ class Recognition(libcst.MetadataDependent):
         """
         class Clazz:
             a: int
+            a: int = 5
         """
-        if original_node.value is None and self._is_class_scope(original_node.target):
+        if self._is_class_scope(original_node.target):
             return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
@@ -55,11 +56,11 @@ class Recognition(libcst.MetadataDependent):
     ) -> Targets | None:
         """
         class Clazz:
-            a: int = 5
+            a: int = 5      # IGNORED!
 
         a: int = 5
         """
-        if original_node.value is not None:
+        if original_node.value is not None and not self._is_class_scope(original_node.target):
             return Targets.from_accesses(self.metadata, original_node.target)
 
         return None
@@ -69,6 +70,8 @@ class Recognition(libcst.MetadataDependent):
         original_node: libcst.Assign,
     ) -> Targets | None:
         """
+        class C:
+            a = 10
         a = 10
         """
         if len(original_node.targets) == 1 and not m.matches(
@@ -265,7 +268,7 @@ class Traverser(typing.Generic[T], abc.ABC):
         """
         class C:
             a: int      # triggers
-            a = 5       # ignored
+            a: int = 5       # ignored
 
         a: int          # ignored
         """
