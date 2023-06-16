@@ -18,6 +18,7 @@ class Test_Type4PyArtifacts(codemod.CodemodTest):
             """
         class Interface:
             x: int
+        x: int
         """
         )
         annotated = libcst.parse_module(code)
@@ -92,8 +93,13 @@ class Test_Type4PyArtifacts(codemod.CodemodTest):
   "type_annot_cove": 1,
   "typed_seq": "",
   "untyped_seq": "",
-  "variables": {},
-  "variables_p": {}
+  "variables": {"x": "builtins.int"},
+  "variables_p": {"x": [
+          [
+            "int",
+            0.4
+          ]
+        ]}
 } """
             )
         )
@@ -104,6 +110,7 @@ class Test_Type4PyArtifacts(codemod.CodemodTest):
             import builtins
             class Interface:
                 x: builtins.int
+            x: builtins.int
             """,
             predictions=predictions,
         )
