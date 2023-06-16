@@ -176,7 +176,7 @@ class HintableDeclarationTransformer(
 
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -196,7 +196,7 @@ class HintableDeclarationTransformer(
 
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -212,7 +212,7 @@ class HintableDeclarationTransformer(
             transformer = self.assign_multiple_targets_or_augassign
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -228,7 +228,7 @@ class HintableDeclarationTransformer(
             transformer = self.for_target
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -244,7 +244,7 @@ class HintableDeclarationTransformer(
             transformer = self.withitem_target
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
