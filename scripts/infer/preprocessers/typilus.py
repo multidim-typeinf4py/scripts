@@ -1,11 +1,8 @@
 import libcst
-from libcst import codemod, metadata
-
-from .base import TaskPreprocessor, AnnotationRemover
-from .tt5 import _ConditionalTT5AnnoRemover
-from scripts.common.schemas import TypeCollectionCategory
-
 from typet5.experiments import typilus, utils
+
+from .base import TaskPreprocessor
+from .tt5 import _ConditionalTT5AnnoRemover
 
 
 class TypilusPreprocessor(TaskPreprocessor):
