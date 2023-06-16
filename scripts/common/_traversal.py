@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import itertools
 import typing
 
 import libcst
-from libcst import matchers as m, metadata as meta
+from libcst import matchers as m, metadata as meta, metadata
 
 from scripts.common.metadata.keyword_scopage import (
     KeywordContext,
@@ -22,6 +23,8 @@ UNPACKABLE_ELEMENT = (m.StarredElement | m.Element)(NAME | INSTANCE_ATTR)
 
 
 class Recognition(libcst.MetadataDependent):
+    METADATA_DEPENDENCIES = (metadata.PositionProvider,)
+
     ## AnnAssign
 
     def extract_instance_attribute_hint(
@@ -53,7 +56,6 @@ class Recognition(libcst.MetadataDependent):
         """
         class Clazz:
             a: int = 5
-            b: int # not this one
 
         a: int = 5
         """
@@ -81,12 +83,15 @@ class Recognition(libcst.MetadataDependent):
     ) -> Targets | None:
         """
         class Clazz:
-            a = b = ("Hello World",)
+            a = b = ("Hello World",)    # NOT THESE
 
         a = b = 10
         a, b = 2, 10
         [a, (b, c)] = 10, (20, 30)
-        """
+        """ 
+        if any(self._is_class_scope(target.target) for target in original_node.targets):
+            return None
+
         if len(original_node.targets) > 1 or m.matches(
             original_node.targets[0], m.AssignTarget(LIST | TUPLE)
         ):
@@ -156,9 +161,11 @@ class Recognition(libcst.MetadataDependent):
             prefix = f"WARNING: In file {context.filename}"
         else:
             prefix = "WARNING: "
-        
+
+        position = self.get_metadata(metadata.PositionProvider, original_node)
+
         print(
-            f"{prefix} Cannot recognise {libcst.Module([]).code_for_node(original_node)}"
+            f"{prefix} Cannot recognise {libcst.Module([]).code_for_node(original_node)} @ {position}"
         )
         return Targets(list(), list(), list())
 
