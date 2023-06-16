@@ -126,7 +126,7 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
-    def test_class_attribute(self):
+    def test_default_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
@@ -145,23 +145,57 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file)
         )
 
-    def test_instance_attribute(self):
+    def test_hinted_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
                 a: int
-                a, = 10,
             """,
             """
             class Clazz:
                 aλ1: int
-                aλ1, = 10,
             """,
             annotations=pd.DataFrame(
                 {
                     "file": ["x.py"],
                     "category": [TypeCollectionCategory.VARIABLE],
                     "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint(self):
+        self.assertCodemod(
+            """
+            a: int
+            """,
+            """
+            aλ1: int
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint_does_not_consume_ssa(self):
+        self.assertCodemod(
+            """
+            a: int
+            a, = 5,
+            """,
+            """
+            aλ1: int
+            aλ1, = 5,
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file)
         )
@@ -279,23 +313,38 @@ class Test_SSA2QName(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file)
         )
 
-    def test_instance_attribute(self):
+    def test_hinted_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
                 aλ1: int
-                aλ1, = 10,
             """,
             """
             class Clazz:
                 a: int
-                a, = 10,
             """,
             annotations=pd.DataFrame(
                 {
                     "file": ["x.py"],
                     "category": [TypeCollectionCategory.VARIABLE],
                     "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint(self):
+        self.assertCodemod(
+            """
+            aλ1: int
+            """,
+            """
+            a: int
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file)
         )

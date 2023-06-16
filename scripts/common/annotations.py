@@ -193,7 +193,7 @@ class MultiVarTypeCollector(
     def instance_attribute_hint(
         self, original_node: libcst.AnnAssign, target: libcst.Name
     ) -> None:
-        ...
+        self._track_attribute_target(target)
 
     def annotated_hint(
         self,

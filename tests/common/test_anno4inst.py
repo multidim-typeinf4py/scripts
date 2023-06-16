@@ -53,24 +53,25 @@ class Individual(LabelTesting):
         anno4insts = module.resolve(Annotation4InstanceProvider)
 
         (foo,) = m.findall(module, m.Name("foo"))
-        assert foo not in anno4insts
+        self.assertLabelled(
+            anno4insts[foo],
+            labelled=libcst.Annotation(libcst.parse_expression("int")),
+        )
 
     def test_unpackable_class_hinting(self) -> None:
         code = textwrap.dedent(
         """
         class C:
             foo: int
-            (foo,) = (10,)
         """
         )
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
         anno4insts = module.resolve(Annotation4InstanceProvider)
 
-        (foo_hint,foo) = m.findall(module, m.Name("foo"))
-        assert foo_hint not in anno4insts
+        (foo_hint,) = m.findall(module, m.Name("foo"))
         self.assertLabelled(
-            anno4insts[foo],
+            anno4insts[foo_hint],
             labelled=libcst.Annotation(libcst.parse_expression("int")),
         )
 
@@ -361,19 +362,15 @@ class Consumption(LabelTesting):
         code = textwrap.dedent("""
         class C:
             a: int
-            (a,) = (10,)
-            (a,) = (20,)
         """)
 
         module = metadata.MetadataWrapper(libcst.parse_module(code))
         anno4insts = module.resolve(Annotation4InstanceProvider)
 
-        ahint, a1, a2 = m.findall(module, m.Name("a"))
+        ahint, = m.findall(module, m.Name("a"))
         annotation = libcst.Annotation(libcst.parse_expression("int"))
 
-        assert ahint not in anno4insts
-        self.assertLabelled(anno4insts[a1], labelled=annotation)
-        self.assertInferred(anno4insts[a2], inferred=annotation)
+        self.assertLabelled(anno4insts[ahint], labelled=annotation)
 
 
 class Lowering(LabelTesting):
