@@ -113,11 +113,11 @@ def cli_entrypoint(
             scratchpad(project) as sc,
             inference_tool.activate_logging(sc),
         ):
-            print(f"Preprocessing repo by removing {task} annotations and other tool-specificities")
+            print(f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files")
             result = codemod.parallel_exec_transform_with_prettyprint(
                 transform=inference_tool.preprocessor(task=task),
                 jobs=worker_count(),
-                files=[sc / s for s in subset],
+                files=codemod.gather_files([str(sc)]),
                 repo_root=str(sc),
             )
             print(format_parallel_exec_result(action="Preprocessing", result=result))
