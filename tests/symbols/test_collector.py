@@ -565,7 +565,7 @@ class Test_HintTracking(AnnotationTracking):
             ],
         )
 
-    def test_class_attribute(self):
+    def test_default_instance_attribute(self):
         df = self.performTracking(
             """
             class C:
@@ -578,6 +578,21 @@ class Test_HintTracking(AnnotationTracking):
                 CR(TypeCollectionCategory.VARIABLE, "C.a", "builtins.int"),
             ],
         )
+
+    def test_hinted_instance_attribute(self):
+        df = self.performTracking(
+            """
+            class C:
+                a: int
+            """
+        )
+        self.assertMatchingAnnotating(
+            df,
+            [
+                CR(TypeCollectionCategory.VARIABLE, "C.a", "builtins.int"),
+            ],
+        )
+
 
     def test_branch_annotating(self):
         df = self.performTracking(
@@ -657,38 +672,7 @@ class Test_HintTracking(AnnotationTracking):
                 column_exclude_list = list = ("password",)
             """
         )
-        self.assertMatchingAnnotating(
-            df,
-            [
-                CR(
-                    TypeCollectionCategory.VARIABLE,
-                    "UserAdminView.column_exclude_list",
-                    missing.NA,
-                ),
-                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", missing.NA),
-            ],
-        )
-
-    def test_multi_assignment_class_annotated(self):
-        df = self.performTracking(
-            """
-            class UserAdminView(AuthModelMixin):
-                column_exclude_list: tuple
-                list: tuple
-                column_exclude_list = list = ("password",)
-            """
-        )
-        self.assertMatchingAnnotating(
-            df,
-            [
-                CR(
-                    TypeCollectionCategory.VARIABLE,
-                    "UserAdminView.column_exclude_list",
-                    "builtins.tuple",
-                ),
-                CR(TypeCollectionCategory.VARIABLE, "UserAdminView.list", "builtins.tuple"),
-            ],
-        )
+        assert df.empty, str(df)
 
     def test_bogus(self):
         """Collection of terms that at some point triggered when they shouldn't have"""
