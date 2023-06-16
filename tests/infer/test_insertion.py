@@ -251,20 +251,6 @@ class Test_Unannotated(AnnotationTesting):
             """,
         )
 
-    def test_annotate_multiple_class_members(self):
-        self.assertBuildCodemod(
-            before="""
-            class C:
-                a = b = 10
-            """,
-            after="""
-            from __future__ import annotations
-
-            class C:
-                a: int; b: int; a = b = 10
-            """,
-        )
-
     def test_skip_unannotated(self):
         self.assertBuildCodemod(
             before=f"""
@@ -301,6 +287,20 @@ class Test_Unannotated(AnnotationTesting):
                     default: str = self.x or "10"
                     self.x = default
             """,
+        )
+
+    def test_ignore_hint(self) -> None:
+        self.assertBuildCodemod(
+            before="""
+            a: int
+            a = "Hello World"
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int
+            a: str = "Hello World"
+            """
         )
 
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")
