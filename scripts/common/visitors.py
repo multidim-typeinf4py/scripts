@@ -92,8 +92,6 @@ class HintableDeclarationVisitor(
     def visit_AnnAssign_target(self, assignment: libcst.AnnAssign) -> None:
         if targets := self.extract_instance_attribute_hint(assignment):
             visitor = self.instance_attribute_hint
-        elif targets := self.extract_libsa4py_hint(assignment):
-            visitor = self.libsa4py_hint
         elif targets := self.extract_annotated_hint(assignment):
             visitor = self.annotated_hint
         elif targets := self.extract_annotated_assignment(assignment):
@@ -110,10 +108,7 @@ class HintableDeclarationVisitor(
 
     @m.call_if_inside(_traversal.Matchers.assign)
     def visit_Assign_targets(self, node: libcst.Assign) -> None:
-        if targets := self.extract_libsa4py_hint(node):
-            visitor = self.libsa4py_hint
-
-        elif targets := self.extract_unannotated_assign_single_target(node):
+        if targets := self.extract_unannotated_assign_single_target(node):
             visitor = self.assign_single_target
 
         elif targets := self.extract_unannotated_assign_multiple_targets(node):

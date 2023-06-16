@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import traceback
+
 import logging
 import os
 import pathlib
@@ -17,8 +19,6 @@ from scripts.common import TypeCollection
 from scripts.common.schemas import TypeCollectionSchema
 from scripts.utils import worker_count
 
-
-# from infer.inference._base import DatasetFolderStructure
 
 
 class _ParallelTypeCollector:
@@ -50,7 +50,8 @@ class _ParallelTypeCollector:
             module = cst.parse_module(code)
             module.visit(visitor)
         except Exception as e:
-            print(f"WARNING: {e}")
+            print(f"WARNING in {file}: {e}")
+            # traceback.print_exception(e, file=open("/tmp/collection.log", "a+"))
             return TypeCollectionSchema.example(size=0)
 
         return visitor.collection.df

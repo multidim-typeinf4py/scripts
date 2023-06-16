@@ -38,9 +38,6 @@ class LoweringTransformer(t.HintableDeclarationTransformer):
     def instance_attribute_hint(self, _1: libcst.AnnAssign, _2: libcst.Name) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
-    def libsa4py_hint(self, _1: libcst.Assign, _2: libcst.Name) -> t.Actions:
-        return t.Actions((t.Untouched(),))
-
     def global_target(
         self,
         _1: Union[libcst.Assign, libcst.AnnAssign, libcst.AugAssign],

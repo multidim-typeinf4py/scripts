@@ -195,10 +195,12 @@ class MultiVarTypeCollector(
     ) -> None:
         self._track_attribute_target(target)
 
-    def libsa4py_hint(
-        self, original_node: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
+    def annotated_hint(
+        self,
+        original_node: libcst.AnnAssign,
+        target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
-        self._track_attribute_target(target)
+        ...
 
     def annotated_assignment(
         self,
@@ -206,13 +208,6 @@ class MultiVarTypeCollector(
         target: Union[libcst.Name, libcst.Attribute],
     ) -> None:
         self._track_attribute_target(target)
-
-    def annotated_hint(
-        self,
-        original_node: libcst.AnnAssign,
-        target: Union[libcst.Name, libcst.Attribute],
-    ) -> None:
-        ...
 
     def assign_single_target(
         self,
@@ -449,7 +444,7 @@ class MultiVarTypeCollector(
         else:
             code = libcst.Module([]).code_for_node(node)
             msg = f"{self.context.filename}: Unhandled annotation {code}"
-            
+
             self.logger.error(msg)
             raise ValueError(msg)
 
@@ -1044,14 +1039,6 @@ class ApplyTypeAnnotationsVisitor(
     ) -> t.Actions:
         return self._handle_annotated_target(updated_node, target)
 
-    def libsa4py_hint(
-        self, updated_node: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name
-    ) -> t.Actions:
-        if isinstance(updated_node, libcst.AnnAssign):
-            return self._handle_annotated_target(updated_node, target)
-        else:
-            return self.assign_single_target(updated_node, target)
-
     @m.call_if_inside(m.Assign())
     @m.visit(m.Assign())
     def _visit_Assign(
@@ -1209,80 +1196,3 @@ class ApplyTypeAnnotationsVisitor(
                 *statements_after_imports,
             ]
         )
-
-
-class TypeAnnotationRemover(c.ContextAwareTransformer):
-    """
-    Configurable type annotation removal.
-    Based on LibSA4Py implementation
-    """
-
-    METADATA_DEPENDENCIES = (ScopeProvider,)
-
-    def __init__(
-        self,
-        context: c.CodemodContext,
-        variables: bool = True,
-        parameters: bool = True,
-        rets: bool = True,
-    ) -> None:
-        super().__init__(context)
-
-        self.variables = variables
-        self.parameters = parameters
-        self.rets = rets
-
-    def leave_FunctionDef(
-        self, original_node: libcst.FunctionDef, updated_node: libcst.FunctionDef
-    ) -> Union[libcst.BaseStatement, libcst.RemovalSentinel]:
-        if not self.rets:
-            return updated_node
-        return (
-            updated_node.with_changes(returns=None)
-            if original_node.returns is not None
-            else updated_node
-        )
-
-    def leave_Param(
-        self, original_node: libcst.Param, updated_node: libcst.Param
-    ) -> Union[libcst.Param, libcst.MaybeSentinel, libcst.RemovalSentinel]:
-        if not self.parameters:
-            return updated_node
-        return (
-            updated_node.with_changes(annotation=None)
-            if original_node.annotation is not None
-            else updated_node
-        )
-
-    def leave_AnnAssign(
-        self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
-    ) -> Union[libcst.BaseSmallStatement, libcst.RemovalSentinel]:
-        if not self.variables:
-            return updated_node
-
-        # Remove hinting like 'a: int' and 'self.foo: str' if outside a class' body;
-        # If it is a hint in a class, i.e. an INSTANCE_ATTR, ; replace it by 'a = ...'
-        if m.matches(
-            original_node,
-            m.AnnAssign(
-                target=m.Name() | m.Attribute(value=m.Name("self"), attr=m.Name()),
-                annotation=m.Annotation(),
-                value=None,
-            ),
-        ):
-            if isinstance(
-                self.get_metadata(ScopeProvider, original_node),
-                ClassScope,
-            ):
-                updated_node = libcst.Assign(
-                    targets=[libcst.AssignTarget(target=original_node.target)],
-                    value=libcst.Ellipsis(),
-                )
-            else:
-                updated_node = libcst.RemoveFromParent()
-        else:
-            updated_node = libcst.Assign(
-                targets=[libcst.AssignTarget(target=original_node.target)],
-                value=original_node.value,
-            )
-        return updated_node

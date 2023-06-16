@@ -116,17 +116,6 @@ class PyreQueryFileApplier(
     ) -> t.Actions:
         return self._annotate_annassign(original_node, target)
 
-    def libsa4py_hint(
-        self,
-        original_node: libcst.Assign | libcst.AnnAssign,
-        target: libcst.Name,
-    ) -> t.Actions:
-        if self.matches(original_node, m.AnnAssign()):
-            return self._annotate_annassign(original_node, target)
-
-        elif self.matches(original_node, m.Assign()):
-            return self._annotate_single_assign(original_node, target)
-
     def annotated_assignment(
         self,
         original_node: libcst.AnnAssign,

@@ -6,24 +6,19 @@ import click
 import pandas
 import tqdm
 
-from scripts.common.annotations import TypeAnnotationRemover
 from scripts.common import output
 from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema
-from scripts.infer.inference._base import ParallelisableInference
 from scripts.infer.structure import DatasetFolderStructure
 
-from scripts.infer.insertion import TypeAnnotationApplierTransformer
 
 from scripts.utils import (
     format_parallel_exec_result,
     scratchpad,
-    top_preds_only,
     worker_count,
 )
 
 from .inference import Inference, factory, SUPPORTED_TOOLS
 
-import torch.multiprocessing as mp
 from libcst import codemod
 from libcst._exceptions import ParserSyntaxError
 
@@ -118,19 +113,14 @@ def cli_entrypoint(
             scratchpad(project) as sc,
             inference_tool.activate_logging(sc),
         ):
-            print(f"Annotation removal flag provided, removing {task} annotations on '{sc}'")
+            print(f"Preprocessing repo by removing {task} annotations and other tool-specificities")
             result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=TypeAnnotationRemover(
-                    context=codemod.CodemodContext(),
-                    variables=TypeCollectionCategory.VARIABLE == task,
-                    parameters=TypeCollectionCategory.CALLABLE_PARAMETER == task,
-                    rets=TypeCollectionCategory.CALLABLE_RETURN == task,
-                ),
+                transform=inference_tool.preprocessor(task=task),
                 jobs=worker_count(),
                 files=[sc / s for s in subset],
                 repo_root=str(sc),
             )
-            print(format_parallel_exec_result(action="Annotation Removal", result=result))
+            print(format_parallel_exec_result(action="Preprocessing", result=result))
 
             # Run inference task for hour before aborting
             # print("Starting inference task with 1h timeout")

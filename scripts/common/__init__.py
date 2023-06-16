@@ -1,5 +1,5 @@
 from .storage import TypeCollection
-from .annotations import TypeAnnotationRemover, ApplyTypeAnnotationsVisitor
+from .annotations import ApplyTypeAnnotationsVisitor
 
 from .ast_helper import (
     _stringify,

@@ -43,10 +43,11 @@ from typewriter.prepocessing import (
 
 from . import _utils
 from ._utils import wrapped_partial
-from ..annotators.typewriter import Parameter, Return, TWProjectApplier
-from scripts.common.schemas import InferredSchema
+from scripts.infer.annotators.typewriter import Parameter, Return, TWProjectApplier
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.symbols.collector import build_type_collection
 from ._base import ProjectWideInference, ParallelisableInference
+from scripts.infer.preprocessers import typewriter
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -208,23 +209,20 @@ class _TypeWriter(ParallelisableInference):
         self.topn = topn
         self.model_path = model_path
 
-        self.w2v_token_model = Word2Vec.load(
-            str(self.model_path / "w2v_token_model.bin")
-        )
-        self.w2v_comments_model = Word2Vec.load(
-            str(self.model_path / "w2v_comments_model.bin")
-        )
+        self.w2v_token_model = Word2Vec.load(str(self.model_path / "w2v_token_model.bin"))
+        self.w2v_comments_model = Word2Vec.load(str(self.model_path / "w2v_comments_model.bin"))
 
         self.tw_model = torch.load(
             self.model_path / "tw_pretrained_model_combined.pt",
             map_location=device,
         )
-        self.label_encoder = pickle.load(
-            open(join(self.model_path, "label_encoder.pkl"), "rb")
-        )
+        self.label_encoder = pickle.load(open(join(self.model_path, "label_encoder.pkl"), "rb"))
 
         if not torch.cuda.is_available():
             self.tw_model = self.tw_model.module
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return typewriter.TypewriterPreprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -257,18 +255,14 @@ class _TypeWriter(ParallelisableInference):
             subset,
             itertools.repeat(top999_types),
         )
-        paths2datapoints = dict(
-            tqdm.tqdm(tasks, total=len(subset), desc="Predictable Extraction")
-        )
+        paths2datapoints = dict(tqdm.tqdm(tasks, total=len(subset), desc="Predictable Extraction"))
 
         return paths2datapoints
 
     def make_predictions(
         self,
         td: str,
-        paths2predictables: dict[
-            pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None
-        ],
+        paths2predictables: dict[pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None],
         subset: set[pathlib.Path],
     ) -> dict[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]]:
         tasks = self.model_executor.map(
@@ -277,18 +271,14 @@ class _TypeWriter(ParallelisableInference):
             itertools.repeat(paths2predictables),
             subset,
         )
-        paths2datapoints = dict(
-            tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
-        )
+        paths2datapoints = dict(tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction"))
 
         return paths2datapoints
 
     def _predictables2predictions(
         self,
         temp_dir: str,
-        paths2predictables: dict[
-            pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None
-        ],
+        paths2predictables: dict[pathlib.Path, tuple[pd.DataFrame, pd.DataFrame] | None],
         file: pathlib.Path,
     ) -> tuple[pathlib.Path, tuple[list[list[Parameter]], list[list[Return]]]]:
         if (predictables := paths2predictables.get(file, None)) is None:
@@ -375,17 +365,13 @@ class _TypeWriter(ParallelisableInference):
             temp_dir,
         )
 
-        self.logger.debug(
-            "--------------------Argument Types Prediction--------------------"
-        )
+        self.logger.debug("--------------------Argument Types Prediction--------------------")
         id_params, tok_params, com_params, aval_params = load_param_data(temp_dir)
         params_data_loader = DataLoader(
             TensorDataset(id_params, tok_params, com_params, aval_params)
         )
 
-        params_pred = [
-            p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)
-        ]
+        params_pred = [p for p in evaluate_TW(self.tw_model, params_data_loader, self.topn)]
 
         # (function, parameter, [type]s)
         param_inf: list[tuple[str, str, list[str]]] = []
@@ -394,16 +380,12 @@ class _TypeWriter(ParallelisableInference):
             param = ext_funcs_df_params["arg_name"].iloc[i]
             predictables = list(self.label_encoder.inverse_transform(p))
 
-            p = " ".join(
-                ["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)]
-            )
+            p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)])
             self.logger.debug(f"{file} -> {fname}: {param} -> {p}")
 
             param_inf.append((fname, param, predictables))
 
-        self.logger.debug(
-            "--------------------Return Types Prediction--------------------"
-        )
+        self.logger.debug("--------------------Return Types Prediction--------------------")
         id_ret, tok_ret, com_ret, aval_ret = load_ret_data(temp_dir)
         ret_data_loader = DataLoader(TensorDataset(id_ret, tok_ret, com_ret, aval_ret))
 
@@ -414,9 +396,7 @@ class _TypeWriter(ParallelisableInference):
             fname = ext_funcs_df_ret["name"].iloc[i]
             predictables = list(self.label_encoder.inverse_transform(p))
 
-            p = " ".join(
-                ["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)]
-            )
+            p = " ".join(["%d. %s" % (j, t) for j, t in enumerate(predictables, start=1)])
             self.logger.debug(f"{file} -> {fname} -> {p}")
 
             ret_inf.append((fname, predictables))
@@ -456,18 +436,13 @@ def _file2predictables(
         return file, None
 
     write_ext_funcs(ext_funcs, filename, temp_dir)
-    ext_funcs_df = pd.read_csv(
-        os.path.join(temp_dir, f"ext_funcs_{file.with_suffix('').name}.csv")
-    )
+    ext_funcs_df = pd.read_csv(os.path.join(temp_dir, f"ext_funcs_{file.with_suffix('').name}.csv"))
     ext_funcs_df = filter_functions(ext_funcs_df)
     ext_funcs_df_params = gen_argument_df_TW(ext_funcs_df)
 
     ext_funcs_df_params = ext_funcs_df_params[
         (ext_funcs_df_params["arg_name"] != "self")
-        & (
-            (ext_funcs_df_params["arg_type"] != "Any")
-            & (ext_funcs_df_params["arg_type"] != "None")
-        )
+        & ((ext_funcs_df_params["arg_type"] != "Any") & (ext_funcs_df_params["arg_type"] != "None"))
     ]
 
     ext_funcs_df_ret = filter_ret_funcs(ext_funcs_df)
@@ -494,9 +469,7 @@ def _file2predictables(
         ext_funcs_df_params, ext_funcs_df_ret, df_avl_types
     )
 
-    ext_funcs_df_params.to_csv(
-        os.path.join(temp_dir, "ext_funcs_params.csv"), index=False
-    )
+    ext_funcs_df_params.to_csv(os.path.join(temp_dir, "ext_funcs_params.csv"), index=False)
     ext_funcs_df_ret.to_csv(os.path.join(temp_dir, "ext_funcs_ret.csv"), index=False)
 
     return file, (ext_funcs_df_params, ext_funcs_df_ret)

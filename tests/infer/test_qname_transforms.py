@@ -126,32 +126,7 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
-    def test_branch_lowering(self):
-        self.assertCodemod(
-            """
-            a: int | None
-            if cond:
-                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = 5
-            else:
-                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = None
-            """,
-            """
-            aλ1: int | None
-            if cond:
-                aλ1: int | None = λ__LOWERED_HINT_MARKER__λ; aλ1 = 5
-            else:
-                aλ2: int | None = λ__LOWERED_HINT_MARKER__λ; aλ2 = None
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "file": ["x.py"] * 2,
-                    "category": [TypeCollectionCategory.VARIABLE] * 2,
-                    "qname": ["a"] * 2,
-                }
-            ).pipe(generate_qname_ssas_for_file)
-        )
-
-    def test_class_attribute(self):
+    def test_default_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
@@ -170,7 +145,7 @@ class Test_QName2SSA(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file)
         )
 
-    def test_instance_attribute(self):
+    def test_hinted_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
@@ -185,6 +160,42 @@ class Test_QName2SSA(codemod.CodemodTest):
                     "file": ["x.py"],
                     "category": [TypeCollectionCategory.VARIABLE],
                     "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint(self):
+        self.assertCodemod(
+            """
+            a: int
+            """,
+            """
+            aλ1: int
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint_does_not_consume_ssa(self):
+        self.assertCodemod(
+            """
+            a: int
+            a, = 5,
+            """,
+            """
+            aλ1: int
+            aλ1, = 5,
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file)
         )
@@ -283,29 +294,6 @@ class Test_SSA2QName(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file),
         )
 
-    def test_branch_lowering(self):
-        self.assertCodemod(
-            """
-            if cond:
-                aλ1: int | None = λ__LOWERED_HINT_MARKER__λ; aλ1 = 5
-            else:
-                aλ2: int | None = λ__LOWERED_HINT_MARKER__λ; aλ2 = None
-            """,
-            """
-            if cond:
-                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = 5
-            else:
-                a: int | None = λ__LOWERED_HINT_MARKER__λ; a = None
-            """,
-            annotations=pd.DataFrame(
-                {
-                    "file": ["x.py"] * 2,
-                    "category": [TypeCollectionCategory.VARIABLE] * 2,
-                    "qname": ["a"] * 2,
-                }
-            ).pipe(generate_qname_ssas_for_file)
-        )
-
     def test_class_attribute(self):
         self.assertCodemod(
             """
@@ -325,7 +313,7 @@ class Test_SSA2QName(codemod.CodemodTest):
             ).pipe(generate_qname_ssas_for_file)
         )
 
-    def test_instance_attribute(self):
+    def test_hinted_instance_attribute(self):
         self.assertCodemod(
             """
             class Clazz:
@@ -340,6 +328,23 @@ class Test_SSA2QName(codemod.CodemodTest):
                     "file": ["x.py"],
                     "category": [TypeCollectionCategory.VARIABLE],
                     "qname": ["Clazz.a"],
+                }
+            ).pipe(generate_qname_ssas_for_file)
+        )
+
+    def test_annotated_hint(self):
+        self.assertCodemod(
+            """
+            aλ1: int
+            """,
+            """
+            a: int
+            """,
+            annotations=pd.DataFrame(
+                {
+                    "file": ["x.py"],
+                    "category": [TypeCollectionCategory.VARIABLE],
+                    "qname": ["a"],
                 }
             ).pipe(generate_qname_ssas_for_file)
         )

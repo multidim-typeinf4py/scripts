@@ -66,7 +66,7 @@ class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
         return pd.read_csv(
             input_location,
-            converters={"category": lambda c: TypeCollectionCategory[c]},
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[ContextSymbolSchema])
@@ -96,7 +96,7 @@ class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
             input_location,
-            converters={"category": lambda c: TypeCollectionCategory[c]},
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[InferredSchema])
@@ -112,7 +112,7 @@ class DatasetIO(DatasetDependentIO[pt.DataFrame[TypeCollectionSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         return pd.read_csv(
             input_location,
-            converters={"category": lambda c: TypeCollectionCategory[c]},
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[TypeCollectionSchema])

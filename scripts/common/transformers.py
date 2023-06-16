@@ -168,9 +168,6 @@ class HintableDeclarationTransformer(
         if targets := self.extract_instance_attribute_hint(original_node):
             transformer = self.instance_attribute_hint
 
-        elif targets := self.extract_libsa4py_hint(original_node):
-            transformer = self.libsa4py_hint
-
         elif targets := self.extract_annotated_hint(original_node):
             transformer = self.annotated_hint
 
@@ -179,7 +176,7 @@ class HintableDeclarationTransformer(
 
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -191,10 +188,7 @@ class HintableDeclarationTransformer(
         libcst.RemovalSentinel,
         libcst.BaseSmallStatement,
     ]:
-        if targets := self.extract_libsa4py_hint(original_node):
-            transformer = self.libsa4py_hint
-
-        elif targets := self.extract_unannotated_assign_single_target(original_node):
+        if targets := self.extract_unannotated_assign_single_target(original_node):
             transformer = self.assign_single_target
 
         elif targets := self.extract_unannotated_assign_multiple_targets(original_node):
@@ -202,7 +196,7 @@ class HintableDeclarationTransformer(
 
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -218,7 +212,7 @@ class HintableDeclarationTransformer(
             transformer = self.assign_multiple_targets_or_augassign
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -234,7 +228,7 @@ class HintableDeclarationTransformer(
             transformer = self.for_target
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 
@@ -250,7 +244,7 @@ class HintableDeclarationTransformer(
             transformer = self.withitem_target
         else:
             self.fallthru(original_node)
-            return original_node
+            return updated_node
 
         return self._apply_actions(targets, transformer, original_node, updated_node)
 

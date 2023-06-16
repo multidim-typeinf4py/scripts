@@ -89,27 +89,13 @@ class Test_Unannotated(AnnotationTesting):
         self.assertBuildCodemod(
             before="""
             class C:
-                a = ...
+                a = 10
             """,
             after="""
             from __future__ import annotations
             
             class C:
-                a: int = ...
-            """,
-        )
-
-    def test_class_attribute_target(self):
-        self.assertBuildCodemod(
-            before="""
-            class C:
-                a = 5
-            """,
-            after="""
-            from __future__ import annotations
-            
-            class C:
-                a: int = 5
+                a: int = 10
             """,
         )
 
@@ -251,17 +237,17 @@ class Test_Unannotated(AnnotationTesting):
             """,
         )
 
-    def test_libsa4py(self):
+    def test_annotate_single_class_members(self):
         self.assertBuildCodemod(
             before="""
             class C:
-                a = ...
+                a = 10
             """,
             after="""
             from __future__ import annotations
 
             class C:
-                a: int = ...
+                a: int = 10
             """,
         )
 
@@ -301,6 +287,20 @@ class Test_Unannotated(AnnotationTesting):
                     default: str = self.x or "10"
                     self.x = default
             """,
+        )
+
+    def test_ignore_hint(self) -> None:
+        self.assertBuildCodemod(
+            before="""
+            a: int
+            a = "Hello World"
+            """,
+            after="""
+            from __future__ import annotations
+
+            a: int
+            a: str = "Hello World"
+            """
         )
 
     @pytest.mark.skip(reason="Annotating NamedExprs is complicated!")

@@ -33,6 +33,9 @@ from scripts.infer.inference._utils import wrapped_partial
 from scripts.infer.inference.typilus import Typilus, TypilusTopN
 from scripts.infer.annotators.typilus import TypilusPrediction
 
+from scripts.common.schemas import TypeCollectionCategory
+from libcst import codemod
+
 
 @dataclasses.dataclass
 class FuncPred:
@@ -87,31 +90,24 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 assert hasattr(self.insertion_point, "variables_p")
                 if symbol not in self.insertion_point.variables_p:
                     self.insertion_point.variables_p[symbol] = []
-                self.insertion_point.variables_p[symbol].append(
-                    (prediction, probability)
-                )
+                self.insertion_point.variables_p[symbol].append((prediction, probability))
 
             case AnnotationKind.PARA:
                 assert hasattr(self.insertion_point, "funcs")
                 if symbol not in self.insertion_point.funcs[-1].params_p:
                     self.insertion_point.funcs[-1].params_p[symbol] = []
-                self.insertion_point.funcs[-1].params_p[symbol].append(
-                    (prediction, probability)
-                )
+                self.insertion_point.funcs[-1].params_p[symbol].append((prediction, probability))
 
             case AnnotationKind.FUNC:
                 assert hasattr(self.insertion_point, "funcs")
                 assert symbol == self.insertion_point.funcs[-1].q_name
-                self.insertion_point.funcs[-1].ret_type_p.append(
-                    (prediction, probability)
-                )
+                self.insertion_point.funcs[-1].ret_type_p.append((prediction, probability))
 
     # ! arg exists in only Python 3; Python 2 uses Name.
     # ! See https://greentreesnakes.readthedocs.io/en/latest/nodes.html#arg
     def visit_arg(self, node: arg):
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(node.arg, node.lineno, AnnotationKind.PARA)
-            or []
+            self.__extract_types_and_probs(node.arg, node.lineno, AnnotationKind.PARA) or []
         ):
             self.add_inferred(
                 symbol=node.arg,
@@ -146,8 +142,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self.insertion_point.funcs.append(FuncPred(q_name=fqname))
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(node.name, node.lineno, AnnotationKind.FUNC)
-            or []
+            self.__extract_types_and_probs(node.name, node.lineno, AnnotationKind.FUNC) or []
         ):
             self.add_inferred(
                 symbol=fqname,
@@ -181,8 +176,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 return
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR)
-            or []
+            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR) or []
         ):
             self.add_inferred(
                 symbol=symbol,
@@ -210,8 +204,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 return
 
         for pred_type, pred_prob in (
-            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR)
-            or []
+            self.__extract_types_and_probs(varname, node.lineno, AnnotationKind.VAR) or []
         ):
             self.add_inferred(
                 symbol=symbol,
@@ -260,20 +253,14 @@ class Typilus2HiTyper(ModelAdaptor):
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
         dataset = self.typilus.repo_to_dataset(project)
-        predictions = self.typilus.predict(
-            dataset, project / "typilus-predictions.json.gz"
-        )
+        predictions = self.typilus.predict(dataset, project / "typilus-predictions.json.gz")
 
         # Load predictions from disk and perform same sifting
         # that annotator from typilus does, i.e. select using fpath
         sifted = list[TypilusPrediction](
             filter(
                 lambda p: any(f"/{s}" == p["provenance"] for s in subset),
-                (
-                    prediction
-                    for batch in _load_json_gz(predictions.path)
-                    for prediction in batch
-                ),
+                (prediction for batch in _load_json_gz(predictions.path) for prediction in batch),
             )
         )
 
@@ -293,11 +280,14 @@ class Typilus2HiTyper(ModelAdaptor):
             visitor.visit(typilus_ast)
 
             hity_json = dataclasses.asdict(visitor.hityper_json)
-            project_predictions[
-                str(fullpath.resolve())
-            ] = ModelAdaptor.FilePredictions.parse_obj(hity_json)
+            project_predictions[str(fullpath.resolve())] = ModelAdaptor.FilePredictions.parse_obj(
+                hity_json
+            )
 
         return ModelAdaptor.ProjectPredictions(__root__=project_predictions)
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.typilus.preprocessor(task)
 
 
 def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
@@ -317,6 +307,9 @@ class HiTypilusTopN(HiTyper):
                 topn=topn,
             )
         )
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.adaptor.preprocessor(task)
 
     def method(self) -> str:
         return f"HiTypilusN{self.adaptor.topn()}"

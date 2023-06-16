@@ -29,6 +29,7 @@ from scripts.common import output
     required=False,
     default=False,
     help="Overwrite existing results in output folder",
+    is_flag=True,
 )
 def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool) -> None:
     structure = DatasetFolderStructure(dataset_root=dataset)

@@ -7,6 +7,10 @@ from . import _utils
 from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
 
+from libcst import codemod
+from scripts.common.schemas import TypeCollectionCategory
+
+
 
 class Type4PyAdaptor(ModelAdaptor):
     def __init__(
@@ -37,6 +41,9 @@ class Type4PyAdaptor(ModelAdaptor):
             if p
         }
         return ModelAdaptor.ProjectPredictions(__root__=root)
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.type4py.preprocessor(task=task)
 
 
 class HiType4PyTopN(HiTyper):

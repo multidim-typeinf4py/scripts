@@ -15,11 +15,11 @@ class _SSATransformer(
     def __init__(self, context: c.CodemodContext) -> None:
         super().__init__(context)
 
-    def transform_target(self, target: Union[libcst.Name, libcst.Attribute]) -> t.Actions:
+    def transform_target(self, target: Union[libcst.Name, libcst.Attribute], consume: bool) -> t.Actions:
         scope = self.qualified_scope()
         qname = self.qualified_name(target)
 
-        if (new_target := self.lookup(target, scope, qname)) is not None:
+        if (new_target := self.lookup(target, scope, qname, consume)) is not None:
             assert isinstance(
                 replacement := libcst.parse_expression(new_target),
                 (libcst.Name, libcst.Attribute),
@@ -44,6 +44,7 @@ class _SSATransformer(
         target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
+        consume: bool
     ) -> Optional[str]:
         ...
 
@@ -58,15 +59,21 @@ class _SSATransformer(
     ) -> t.Actions:
         return t.Actions((t.Untouched(),))
 
+    # transform but do not consume
     def instance_attribute_hint(
         self,
         _1: libcst.AnnAssign,
         target: libcst.Name,
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=False)
 
-    def libsa4py_hint(self, _1: Union[libcst.Assign, libcst.AnnAssign], target: libcst.Name) -> t.Actions:
-        return self.transform_target(target)
+    #
+    def annotated_hint(
+        self,
+        original_node: libcst.AnnAssign,
+        target: Union[libcst.Name, libcst.Attribute],
+    ) -> t.Actions:
+        return self.transform_target(target, consume=False)
 
     # actual assignments; simply rename targets
     def annotated_assignment(
@@ -74,26 +81,26 @@ class _SSATransformer(
         annassign: libcst.AnnAssign,
         target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=True)
 
     def assign_single_target(
         self,
         assign: libcst.Assign,
         target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=True)
 
     def assign_multiple_targets_or_augassign(
         self,
         assign: Union[libcst.Assign, libcst.AugAssign],
         target: Union[libcst.Name, libcst.Attribute],
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=True)
 
     def for_target(
         self, forloop: libcst.For, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=True)
 
     # def compfor_target(
     #    self, _1: libcst.CompFor, target: libcst.Name | libcst.Attribute
@@ -103,7 +110,7 @@ class _SSATransformer(
     def withitem_target(
         self, withstmt: libcst.With, target: Union[libcst.Name, libcst.Attribute]
     ) -> t.Actions:
-        return self.transform_target(target)
+        return self.transform_target(target, consume=True)
 
 
 class QName2SSATransformer(_SSATransformer):
@@ -115,39 +122,14 @@ class QName2SSATransformer(_SSATransformer):
         super().__init__(context)
         self.annotations = annotations.assign(consumed=0)
 
-    def annotated_hint(
-        self, annassign: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
-    ) -> t.Actions:
-        new_target = self._lookup(
-            target,
-            scope=self.qualified_scope(),
-            qname=self.qualified_name(target),
-            consume=False,
-        )
-        assert isinstance(
-            replacement_target := libcst.parse_expression(new_target),
-            (libcst.Name, libcst.Attribute),
-        )
-
-        matcher = m.AnnAssign(
-            target=target, annotation=annassign.annotation, value=annassign.value
-        )
-        replacement = libcst.AnnAssign(
-            target=replacement_target,
-            annotation=annassign.annotation,
-            value=annassign.value,
-        )
-
-        action = t.Replace(matcher, replacement)
-        return t.Actions((action,))
-
     def lookup(
         self,
         target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
+        consume: bool
     ) -> str:
-        return self._lookup(target, scope, qname, consume=True)
+        return self._lookup(target, scope, qname, consume=consume)
 
     def _lookup(
         self,
@@ -186,16 +168,12 @@ class SSA2QNameTransformer(_SSATransformer):
         super().__init__(context)
         self.annotations = annotations
 
-    def annotated_hint(
-        self, annassign: libcst.AnnAssign, target: Union[libcst.Name, libcst.Attribute]
-    ) -> t.Actions:
-        return self.transform_target(target)
-
     def lookup(
         self,
         target: Union[libcst.Name, libcst.Attribute],
         scope: tuple[str],
         qname: str,
+        consume: bool,
     ) -> str:
         cand_mask = self.annotations[TypeCollectionSchema.qname_ssa] == qname
         candidates = self.annotations.loc[cand_mask]

@@ -23,10 +23,11 @@ from typet5.train import (
 from typet5.utils import *
 
 from scripts import utils
-from scripts.common.schemas import InferredSchema
+from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.infer.annotators import TT5ProjectApplier
 from scripts.infer.inference._base import ProjectWideInference
 from scripts.infer.inference._utils import wrapped_partial
+from scripts.infer.preprocessers import tt5
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
@@ -74,6 +75,9 @@ class TypeT5TopN(ProjectWideInference):
 
     def method(self) -> str:
         return f"TypeT5TopN{self.topn}"
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return tt5.TT5Preprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]

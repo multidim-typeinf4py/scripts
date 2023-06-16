@@ -2,7 +2,7 @@ import pathlib
 import typing
 
 import libcst
-from libcst import codemod, metadata
+from libcst import codemod, metadata, matchers as m, MaybeSentinel
 from libsa4py.cst_transformers import TypeApplier
 
 from scripts.infer.annotators import ParallelTopNAnnotator
@@ -48,11 +48,29 @@ class Type4PyFileApplier(codemod.Codemod):
         wrapper = metadata.MetadataWrapper(
             module=tree,
             unsafe_skip_copy=True,
-            cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
         )
 
         try:
-            return wrapper.visit(TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False))
+            annotated = wrapper.visit(
+                TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False)
+            )
+            without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(
+                context=self.context
+            ).transform_module(annotated)
+
+            return without_libsa4py_artifacts
         except TypeError:
             # Catch libsa4py bug, return untransformed
             return tree
+
+
+class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.AnnAssign(value=m.Ellipsis()))
+    def leave_AnnAssign(
+        self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
+    ) -> libcst.AnnAssign:
+        return updated_node.with_changes(value=None, equal=MaybeSentinel.DEFAULT)
+
+    # NOTE: libcst.Assigns with m.matches(updated_node.value, m.Ellipsis())
+    # NOTE: should not occur, but if they do, they are a libsa4py bug
+    # NOTE: Check datapoints in dataset and collected from libsa4py are identical

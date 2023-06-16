@@ -18,6 +18,9 @@ from scripts.infer.inference.typewriter import (
     TypeWriterTopN,
 )
 
+from libcst import codemod
+from scripts.common.schemas import TypeCollectionCategory
+
 
 @dataclasses.dataclass
 class FuncPred:
@@ -214,6 +217,9 @@ class TypeWriterAdaptor(ModelAdaptor):
 
         return param_types, ret_types
 
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.typewriter.preprocessor(task)
+
 
 class HiTypeWriterTopN(HiTyper):
     def __init__(
@@ -229,6 +235,9 @@ class HiTypeWriterTopN(HiTyper):
                 model_executor=model_executor,
             )
         )
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return self.adaptor.preprocessor(task)
 
     def method(self) -> str:
         return f"HiTypewriterN{self.adaptor.topn()}"
