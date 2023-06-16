@@ -2,7 +2,7 @@ import pathlib
 import typing
 
 import libcst
-from libcst import codemod, metadata, matchers as m
+from libcst import codemod, metadata, matchers as m, MaybeSentinel
 from libsa4py.cst_transformers import TypeApplier
 
 from scripts.infer.annotators import ParallelTopNAnnotator
@@ -48,7 +48,6 @@ class Type4PyFileApplier(codemod.Codemod):
         wrapper = metadata.MetadataWrapper(
             module=tree,
             unsafe_skip_copy=True,
-            cache=self.context.metadata_manager.get_cache_for_path(path=self.context.filename),
         )
 
         try:
@@ -70,7 +69,7 @@ class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
     def leave_AnnAssign(
         self, original_node: libcst.AnnAssign, updated_node: libcst.AnnAssign
     ) -> libcst.AnnAssign:
-        return updated_node.with_changes(value=None)
+        return updated_node.with_changes(value=None, equal=MaybeSentinel.DEFAULT)
 
     # NOTE: libcst.Assigns with m.matches(updated_node.value, m.Ellipsis())
     # NOTE: should not occur, but if they do, they are a libsa4py bug
