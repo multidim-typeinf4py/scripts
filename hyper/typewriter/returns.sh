@@ -3,4 +3,4 @@
 set -o nounset
 
 source ./hyper/_common.sh
-return_inference "typewritertopn5" "$1"
+return_inference "typewritertopn1" "$1"
