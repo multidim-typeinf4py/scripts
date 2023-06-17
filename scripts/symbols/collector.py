@@ -150,7 +150,6 @@ class TypeCollectorVisitor(codemod.ContextAwareVisitor):
 
         metadata.MetadataWrapper(
             tree,
-            unsafe_skip_copy=True,
             cache=self.context.metadata_manager.get_cache_for_path(
                 self.context.filename
             ),
