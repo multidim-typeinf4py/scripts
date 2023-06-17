@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import contextlib
 import dataclasses
 import functools
 import pathlib
@@ -16,7 +15,7 @@ from scripts import utils
 from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import Inference
 from scripts.symbols.collector import build_type_collection
-from ..normalisers import bracket as b, typing_aliases as t, union as u
+from scripts.infer.normalisers import bracket as b, typing_aliases as t, union as u, literal_to_base as l
 
 T = typing.TypeVar("T")
 U = typing.TypeVar("U")
@@ -33,7 +32,10 @@ class Normalisation:
     # {} -> dict
     bad_dict_generics: bool = False
 
-    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}\
+    # (builtins?).{False, True} -> bool
+    bad_literals: bool = False
+
+    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
     lowercase_aliases: bool = False
 
     # Union[Union[int]] -> Union[int]
@@ -61,6 +63,9 @@ class Normalisation:
 
         if self.bad_dict_generics:
             ts.append(b.CurlyBracesToDict(context=context))
+
+        if self.bad_literals:
+            ts.append(l.LiteralToBaseClass())
 
         if self.lowercase_aliases:
             ts.append(t.LowercaseTypingAliases(context=context))
