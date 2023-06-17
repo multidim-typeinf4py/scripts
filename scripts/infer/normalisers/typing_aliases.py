@@ -11,6 +11,9 @@ TUPLE_NAME_ = m.Name("Tuple")
 LIST_ATTR_ = m.Attribute(m.Name("typing"), m.Name("List"))
 LIST_NAME_ = m.Name("List")
 
+SET_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Set"))
+SET_NAME_ = m.Name("Set")
+
 
 class LowercaseTypingAliases(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation())
@@ -27,6 +30,9 @@ class LowercaseTypingAliases(codemod.ContextAwareTransformer):
 
         elif self.matches(updated_node, LIST_ATTR_):
             return libcst.Name("list")
+
+        elif self.matches(updated_node, SET_ATTR_):
+            return libcst.Name("set")
 
         else:
             return updated_node
@@ -46,6 +52,9 @@ class LowercaseTypingAliases(codemod.ContextAwareTransformer):
 
         elif self.matches(updated_node, LIST_NAME_):
             return libcst.Name("list")
+
+        elif self.matches(updated_node, SET_NAME_):
+            return libcst.Name("set")
 
         else:
             return updated_node

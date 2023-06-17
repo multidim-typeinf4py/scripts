@@ -60,6 +60,24 @@ class Test_LowercaseTypingAliases(codemod.CodemodTest):
             after="a: dict[dict[int, str], None] = ...",
         )
 
+    def test_set_plain(self) -> None:
+        self.assertCodemod(
+            before="a: Set = ...",
+            after="a: set = ...",
+        )
+
+    def test_set_subscript(self) -> None:
+        self.assertCodemod(
+            before="a: typing.Set[int, str] = ...",
+            after="a: set[int, str] = ...",
+        )
+
+    def test_set_nestage(self) -> None:
+        self.assertCodemod(
+            before="a: Set[typing.Set[int, str], None] = ...",
+            after="a: set[set[int, str], None] = ...",
+        )
+
 
 class Test_TextToStr(codemod.CodemodTest):
     TRANSFORM = typing_aliases.TextToStr
