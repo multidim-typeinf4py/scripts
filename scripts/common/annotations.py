@@ -349,11 +349,8 @@ class MultiVarTypeCollector(
         # _ = self._handle_qualification_and_should_qualify(qualified_name, node)
         self.annotations.names.add(qualified_name)
 
-        qualified_node = (
-            libcst.parse_module(qualified_name)
-            if isinstance(node, libcst.Name)
-            else node
-        )
+        qualified_node = libcst.parse_expression(qualified_name)
+        assert isinstance(qualified_node, libcst.Name | libcst.Attribute)
         return qualified_node  # pyre-ignore[7]
         # else:
         #    dequalified_node = node.attr if isinstance(node, libcst.Attribute) else node
