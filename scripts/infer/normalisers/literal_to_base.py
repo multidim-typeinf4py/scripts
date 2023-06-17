@@ -16,7 +16,6 @@ class LiteralToBaseClass(codemod.ContextAwareTransformer):
 
     @m.call_if_inside(m.Annotation())
     @m.call_if_not_inside(m.Attribute())
-    @m.leave(m.Name("False") | m.Name("True"))
     def leave_Name(
         self, original_node: libcst.Name, updated_node: libcst.Name
     ) -> libcst.Name:
