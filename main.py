@@ -4,7 +4,11 @@ import click
 # import context
 # import logregr
 # import harness
-from scripts import dataset, infer, srcdiff, utils
+#from scripts import dataset, infer, srcdiff, utils
+
+from scripts.dataset.cli import cli_entrypoint as dce
+from scripts.infer.cli import click as ice
+from scripts import utils
 
 # import hintdiff
 # import symbols
@@ -28,11 +32,11 @@ if __name__ == "__main__":
     main = click.Group(
         commands=[
             # context.cli_entrypoint,
-            infer.cli_entrypoint,
+            ice,
             # harness.cli_entrypoint,
-            dataset.cli_entrypoint,
+            dce,
             # symbols.cli_entrypoint,
-            srcdiff.cli_entrypoint,
+            # srcdiff.cli_entrypoint,
             # logregr.cli_entrypoint,
         ]
     )

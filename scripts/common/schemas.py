@@ -25,15 +25,16 @@ class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
-# TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
+class DatasetSchema(TypeCollectionSchema):
+    rewritten: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    parametric: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    type_neutral: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    is_type_alias: pt.Series[bool] = pa.Field()
 
 
 class InferredSchema(TypeCollectionSchema):
     method: pt.Series[str] = pa.Field()
     topn: pt.Series[int] = pa.Field(ge=1)
-
-
-# InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
 
 
 class ContextCategory(enum.IntEnum):
@@ -46,13 +47,32 @@ class ContextCategory(enum.IntEnum):
         return self.name
 
 
+class ScopePossibility(enum.IntFlag):
+    IMPORTED = enum.auto()
+    LOCAL = enum.auto()
+    BUILTIN = enum.auto()
+
+    BUILTIN_LOCAL = BUILTIN | LOCAL
+    BUILTIN_IMPORTED = BUILTIN | IMPORTED
+    LOCAL_IMPORTED = LOCAL | IMPORTED
+
+    BUILTIN_LOCAL_IMPORTED = BUILTIN | LOCAL | IMPORTED
+
+    def __str__(self) -> str:
+        return self.name()
+
+    @staticmethod
+    def from_analysis(builtin: bool, local: bool, imported: bool) -> ScopePossibility:
+        return ScopePossibility((int(builtin) << 2) | (int(local) << 1) | (int(imported) << 0))
+
+
 class ContextSymbolSchema(TypeCollectionSchema):
     simple_name: pt.Series[str] = pa.Field()
     loop: pt.Series[int] = pa.Field()
     reassigned: pt.Series[int] = pa.Field()
     nested: pt.Series[int] = pa.Field()
-    builtin: pt.Series[int] = pa.Field()
     branching: pt.Series[int] = pa.Field()
+    scope_analysis: pt.Series[int] = pa.Field(isin=ScopePossibility)
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 
 
@@ -69,6 +89,3 @@ class ContextDatasetSchema(pa.SchemaModel):
     nested: pt.Series[int] = pa.Field()
     user_defined: pt.Series[int] = pa.Field()
     ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
-
-
-# ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())
