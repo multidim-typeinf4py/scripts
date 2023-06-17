@@ -46,13 +46,9 @@ class _ParallelTypeCollector:
         )
         visitor = TypeCollectorVisitor.strict(context=context)
 
-        try:
-            module = cst.parse_module(code)
-            module.visit(visitor)
-        except Exception as e:
-            print(f"WARNING in {file}: {e}")
-            # traceback.print_exception(e, file=open("/tmp/collection.log", "a+"))
-            return TypeCollectionSchema.example(size=0)
+        # Do not try to catch exceptions here; let them propagate
+        module = cst.parse_module(code)
+        module.visit(visitor)
 
         return visitor.collection.df
 
