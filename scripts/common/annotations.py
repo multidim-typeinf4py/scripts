@@ -31,7 +31,7 @@ from libcst.metadata import (
     PositionProvider,
     ScopeProvider,
     FullyQualifiedNameProvider,
-    ClassScope,
+    ClassScope, QualifiedNameProvider,
 )
 
 from scripts.common import transformers as t
@@ -117,6 +117,7 @@ class MultiVarTypeCollector(
         ScopeProvider,
         PositionProvider,
         FullyQualifiedNameProvider,
+        QualifiedNameProvider,
         Annotation4InstanceProvider,
     )
 
@@ -466,17 +467,23 @@ class MultiVarTypeCollector(
 
     def _get_unique_qualified_name(self, node: libcst.CSTNode) -> str:
         name = None
-        names = [q for q in self.get_metadata(FullyQualifiedNameProvider, node)]
+        names = [q.name for q in self.get_metadata(FullyQualifiedNameProvider, node)]
         if len(names) == 0:
             # we hit this branch if the stub is directly using a fully
             # qualified name, which is not technically valid python but is
             # convenient to allow.
             name = h.get_full_name_for_node_or_raise(node).replace(".<locals>.", ".")
         elif len(names) >= 1:
-            n = next(
-                filter(lambda qname: not qname.name.startswith("."), names), names[0]
-            )
-            name = n.name.replace(".<locals>.", ".")
+            without_relative_or_illegal = filter(
+                lambda qname: not qname.startswith(".") and "-" not in qname, names)
+            name = next(without_relative_or_illegal, None)
+
+        # Fallback to QualifiedNameProvider
+        if name is None:
+            names = [q.name for q in self.get_metadata(QualifiedNameProvider, node)]
+            without_relative_or_illegal = filter(
+                lambda qname: not qname.startswith(".") and "-" not in qname, names)
+            name = next(without_relative_or_illegal, None)
 
         if name is None:
             start = self.get_metadata(PositionProvider, node).start
@@ -485,6 +492,8 @@ class MultiVarTypeCollector(
                 + f"{get_full_name_for_node(node)} at {start.line}:{start.column}. "
                 + f"Candidate names were: {names!r}"
             )
+
+        name = name.replace(".<locals>.", ".")
         return name
 
 
