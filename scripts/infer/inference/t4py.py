@@ -241,7 +241,7 @@ class _Type4Py(ParallelisableInference):
                 datapoints.rets_type_hints,
             ),
             self.pretrained,
-            filter_pred_types=False,
+            filter_pred_types=True,
         )
 
 
