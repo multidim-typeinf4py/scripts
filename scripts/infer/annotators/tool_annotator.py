@@ -65,7 +65,7 @@ class Normalisation:
             ts.append(b.CurlyBracesToDict(context=context))
 
         if self.bad_literals:
-            ts.append(l.LiteralToBaseClass())
+            ts.append(l.LiteralToBaseClass(context=context))
 
         if self.lowercase_aliases:
             ts.append(t.LowercaseTypingAliases(context=context))
