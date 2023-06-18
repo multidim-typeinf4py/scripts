@@ -83,6 +83,12 @@ class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
     ) -> libcst.AnnAssign:
         return updated_node.with_changes(value=None, equal=MaybeSentinel.DEFAULT)
 
+    @m.call_if_inside(m.Assign(value=m.Ellipsis()))
+    def leave_AnnAssign(
+        self, original_node: libcst.Assign, updated_node: libcst.Assign
+    ) -> libcst.RemovalSentinel:
+        return libcst.RemoveFromParent()
+
     # NOTE: libcst.Assigns with m.matches(updated_node.value, m.Ellipsis())
     # NOTE: should not occur, but if they do, they are a libsa4py bug
     # NOTE: Check datapoints in dataset and collected from libsa4py are identical
