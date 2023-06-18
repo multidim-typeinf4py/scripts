@@ -83,6 +83,11 @@ class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
     ) -> libcst.AnnAssign:
         return updated_node.with_changes(value=None, equal=MaybeSentinel.DEFAULT)
 
+    # This will not nuke old assignments in the original source code matching
+    # $NAME = ...
+    # as we transform them into
+    # $NAME = None
+    # in the preprocessor
     @m.call_if_inside(m.Assign(value=m.Ellipsis()))
     def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign

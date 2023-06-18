@@ -51,8 +51,26 @@ class Type4PyAnnotationRemover(AnnotationRemover):
                 targets=[libcst.AssignTarget(target=original_node.target)], value=libcst.Ellipsis()
             )
         else:
+            # Standard conversion from libcst.AnnAssign to libcst.Assign
+            # Also remove ... here to not lose datapoints during "postprocessing"
+            new_value = (
+                original_node.value
+                if not m.matches(original_node.value, m.Ellipsis())
+                else libcst.parse_expression("None")
+            )
             updated_node = libcst.Assign(
                 targets=[libcst.AssignTarget(target=original_node.target)],
-                value=original_node.value,
+                value=new_value,
             )
+        return updated_node
+
+    def leave_Assign(
+        self, original_node: libcst.Assign, updated_node: libcst.Assign
+    ) -> libcst.Assign:
+        if self.task is not TypeCollectionCategory.VARIABLE:
+            return updated_node
+
+        if m.matches(original_node.value, m.Ellipsis()):
+            return updated_node.with_changes(value=libcst.parse_expression("None"))
+
         return updated_node
