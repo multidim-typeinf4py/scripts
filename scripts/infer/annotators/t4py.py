@@ -84,7 +84,7 @@ class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
         return updated_node.with_changes(value=None, equal=MaybeSentinel.DEFAULT)
 
     @m.call_if_inside(m.Assign(value=m.Ellipsis()))
-    def leave_AnnAssign(
+    def leave_Assign(
         self, original_node: libcst.Assign, updated_node: libcst.Assign
     ) -> libcst.RemovalSentinel:
         return libcst.RemoveFromParent()
