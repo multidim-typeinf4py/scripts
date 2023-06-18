@@ -59,7 +59,7 @@ class DatasetDependentIO(ArtifactIO[A]):
 
     def relative_location(self) -> pathlib.Path:
         ar = self.dataset.author_repo(self.repository)
-        return pathlib.Path(type(self.dataset).__name__) / f'{ar["author"]}__{ar["repo"]}'
+        return pathlib.Path(type(self.dataset).__name__) / f'{ar!s}'
 
 
 class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
