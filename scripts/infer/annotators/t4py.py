@@ -60,18 +60,20 @@ class Type4PyFileApplier(codemod.Codemod):
         )
 
         try:
-            annotated = wrapper.visit(
+            tree = wrapper.visit(
                 TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False)
             )
-            without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(
-                context=self.context
-            ).transform_module(annotated)
-
-            return without_libsa4py_artifacts
         except Exception:
             print(f"Failed to annotate {self.context.filename}! Predictions were:")
             pprint.pprint(self.predictions)
-            return tree
+
+        finally:
+            # Always remove artifacts, even if annotation process was unsuccessful
+            without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(
+                context=self.context
+            ).transform_module(tree)
+
+        return without_libsa4py_artifacts        
 
 
 class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):
