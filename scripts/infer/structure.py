@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import abc
+import dataclasses
 import enum
 import pathlib
 import typing
 
 import pandas as pd
 from libcst import codemod
+
+
+@dataclasses.dataclass(frozen=True)
+class AuthorRepo:
+    author: str
+    repo: str
+
+    def __str__(self) -> str:
+        return f"{self.author}__{self.repo}"
 
 
 class DatasetFolderStructure(abc.ABC):
@@ -31,7 +41,7 @@ class DatasetFolderStructure(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def author_repo(self, repo: pathlib.Path) -> dict:
+    def author_repo(self, repo: pathlib.Path) -> AuthorRepo:
         ...
 
     @abc.abstractmethod
@@ -52,7 +62,7 @@ class ManyTypes4Py(DatasetFolderStructure):
             yield from repos
 
     def author_repo(self, repo: pathlib.Path) -> dict:
-        return {"author": repo.parent.name, "repo": repo.name}
+        return AuthorRepo(repo.parent.name, repo.name)
 
     def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         splits = pd.read_csv(
@@ -83,14 +93,8 @@ class BetterTypes4Py(DatasetFolderStructure):
         repos = (repo for repo in repo_suffix.iterdir() if repo.is_dir())
         yield from repos
 
-    def author_repo(self, repo: pathlib.Path) -> dict:
-        return dict(
-            zip(
-                ("author", "repo"),
-                repo.name.split("__"),
-                strict=True,
-            )
-        )
+    def author_repo(self, repo: pathlib.Path) -> AuthorRepo:
+        return AuthorRepo(*repo.name.split("__"))
 
     def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         mapping = dict[pathlib.Path, set[pathlib.Path]]()
@@ -99,10 +103,12 @@ class BetterTypes4Py(DatasetFolderStructure):
 
         for repo in repo_suffix.iterdir():
             if repo.is_dir() and (fs := codemod.gather_files([str(repo)])):
-                mapping[repo] = set(map(
-                    lambda p: pathlib.Path(p).relative_to(repo),
-                    fs,
-                ))
+                mapping[repo] = set(
+                    map(
+                        lambda p: pathlib.Path(p).relative_to(repo),
+                        fs,
+                    )
+                )
 
         assert mapping, f"No repos found!"
         return mapping
@@ -112,8 +118,8 @@ class Project(DatasetFolderStructure):
     def project_iter(self) -> typing.Generator[pathlib.Path, None, None]:
         yield self.dataset_root
 
-    def author_repo(self, repo: pathlib.Path) -> dict:
-        return {"author": repo.name, "repo": repo.name}
+    def author_repo(self, repo: pathlib.Path) -> AuthorRepo:
+        return AuthorRepo(author=repo.name, repo=repo.name)
 
     def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         subfiles = set(

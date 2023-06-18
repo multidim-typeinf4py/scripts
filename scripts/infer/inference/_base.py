@@ -13,7 +13,6 @@ import pandas as pd
 import pandera.typing as pt
 from libcst import codemod
 
-from scripts.common.output import InferredLoggingIO
 from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.infer.inference import _utils
 
@@ -39,13 +38,13 @@ class Inference(abc.ABC):
         pass
 
     @contextlib.contextmanager
-    def activate_logging(
-        self, project: pathlib.Path
-    ) -> typing.Generator[None, None, None]:
+    def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:
         formatter = logging.Formatter(
             fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+
+        from scripts.common.output import InferredLoggingIO
 
         generic_sout_handler = logging.StreamHandler(stream=sys.stdout)
         generic_sout_handler.setLevel(logging.INFO)
@@ -129,9 +128,7 @@ class PerFileInference(Inference):
 
         for subfile in paths:
             relative = subfile.relative_to(mutable)
-            self.logger.info(
-                f"Inferring per-file on {relative} @ {mutable} ({readonly})"
-            )
+            self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
             reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
             updates.append(reldf)
 
