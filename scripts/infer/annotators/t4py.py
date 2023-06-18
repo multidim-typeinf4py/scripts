@@ -1,4 +1,5 @@
 import pathlib
+import pprint
 import typing
 
 import libcst
@@ -46,6 +47,13 @@ class Type4PyFileApplier(codemod.Codemod):
         if not self.predictions:
             return tree
 
+        if not (
+            self.predictions.get("classes")
+            or self.predictions.get("funcs")
+            or self.predictions.get("variables")
+        ):
+            return tree
+
         wrapper = metadata.MetadataWrapper(
             module=tree,
             unsafe_skip_copy=True,
@@ -60,8 +68,9 @@ class Type4PyFileApplier(codemod.Codemod):
             ).transform_module(annotated)
 
             return without_libsa4py_artifacts
-        except TypeError:
-            # Catch libsa4py bug, return untransformed
+        except Exception:
+            print(f"Failed to annotate {self.context.filename}! Predictions were:")
+            pprint.pprint(self.predictions)
             return tree
 
 
