@@ -11,11 +11,11 @@ from typet5.experiments import utils
 
 class Type4PyPreprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        # simpler_syntax = utils.remove_newer_syntax(tree, supported=type4py.Type4PySupportedSyntax)
+        simpler_syntax = utils.remove_newer_syntax(tree, supported=type4py.Type4PySupportedSyntax)
         return Type4PyAnnotationRemover(
             context=self.context,
             task=self.task,
-        ).transform_module(tree)
+        ).transform_module(simpler_syntax)
 
 
 class Type4PyAnnotationRemover(AnnotationRemover):
