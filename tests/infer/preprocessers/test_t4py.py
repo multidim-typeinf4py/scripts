@@ -62,3 +62,19 @@ class Test_Type4PyPreprocessing(codemod.CodemodTest):
             """,
             task=TypeCollectionCategory.CALLABLE_RETURN,
         )
+
+
+    def test_ellipsis_masked(self) -> None:
+        self.assertCodemodWithPreamble(
+            before="""
+            a: int
+            a: int = ...
+            b = ...
+            """,
+            after="""
+            a = ...
+            a = None
+            b = None
+            """,
+            task=TypeCollectionCategory.VARIABLE,
+        )

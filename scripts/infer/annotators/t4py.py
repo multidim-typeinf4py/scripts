@@ -44,36 +44,26 @@ class Type4PyFileApplier(codemod.Codemod):
         self.predictions = predictions
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        if not self.predictions:
-            return tree
-
-        if not (
+        if self.predictions and (
             self.predictions.get("classes")
             or self.predictions.get("funcs")
             or self.predictions.get("variables")
         ):
-            return tree
+            try:
+                tree = metadata.MetadataWrapper(
+                    module=tree,
+                    unsafe_skip_copy=True,
+                ).visit(TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False))
+            except Exception:
+                print(f"Failed to annotate {self.context.filename}! Predictions were:")
+                pprint.pprint(self.predictions)
 
-        wrapper = metadata.MetadataWrapper(
-            module=tree,
-            unsafe_skip_copy=True,
+        # Always remove artifacts, even if annotation process was unsuccessful
+        without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(context=self.context).transform_module(
+            tree
         )
 
-        try:
-            tree = wrapper.visit(
-                TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False)
-            )
-        except Exception:
-            print(f"Failed to annotate {self.context.filename}! Predictions were:")
-            pprint.pprint(self.predictions)
-
-        finally:
-            # Always remove artifacts, even if annotation process was unsuccessful
-            without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(
-                context=self.context
-            ).transform_module(tree)
-
-        return without_libsa4py_artifacts        
+        return without_libsa4py_artifacts
 
 
 class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):

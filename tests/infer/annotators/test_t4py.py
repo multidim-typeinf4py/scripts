@@ -114,3 +114,13 @@ class Test_Type4PyArtifacts(codemod.CodemodTest):
             """,
             predictions=predictions,
         )
+
+
+    def test_unannotated_hints_removed(self) -> None:
+      self.assertCodemod(
+        before="""
+        a = ...
+        """,
+        after="""""",
+        predictions=dict()
+      )
