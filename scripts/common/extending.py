@@ -9,6 +9,7 @@ def make_parametric(annotation: str | None) -> str | None:
             self, original_node: libcst.Subscript, updated_node: libcst.Subscript
         ) -> libcst.BaseExpression:
             return updated_node.value
+
     if pd.isna(annotation) or annotation == "":
         return None
 
@@ -23,7 +24,9 @@ def is_simple_or_complex(annotation: str | None) -> str | None:
         def __init__(self) -> None:
             super().__init__()
 
-        def leave_Attribute(self, original_node: libcst.Attribute, updated_node: libcst.Attribute) -> libcst.Name:
+        def leave_Attribute(
+            self, original_node: libcst.Attribute, updated_node: libcst.Attribute
+        ) -> libcst.Name:
             return updated_node.attr
 
     class ComplexityCounter(m.MatcherDecoratableVisitor):
@@ -32,9 +35,6 @@ def is_simple_or_complex(annotation: str | None) -> str | None:
             self.counter = 0
 
         def visit_Name(self, node: libcst.Name) -> None:
-            self.counter += 1
-
-        def visit_Attribute(self, node: libcst.Attribute) -> None:
             self.counter += 1
 
     visitor = ComplexityCounter()
