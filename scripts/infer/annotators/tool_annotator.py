@@ -15,7 +15,14 @@ from scripts import utils
 from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import Inference
 from scripts.symbols.collector import build_type_collection
-from scripts.infer.normalisers import bracket as b, typing_aliases as t, union as u, literal_to_base as l
+from scripts.infer.normalisers import (
+    bracket as b,
+    typing_aliases as t,
+    union as u,
+    literal_to_base as l,
+    unstringify as us,
+    parametric_depth as p,
+)
 
 T = typing.TypeVar("T")
 U = typing.TypeVar("U")
@@ -23,6 +30,12 @@ U = typing.TypeVar("U")
 
 @dataclasses.dataclass
 class Normalisation:
+    # typing.Type["AbstractExtractors"] -> typing.Type[AbstractExecutors]
+    unquote: bool = True
+
+    # List[List[Tuple[int]]] -> List[List[Any]]
+    limit_parametric_depth: bool = True
+
     # [] -> List
     bad_list_generics: bool = False
 
@@ -53,8 +66,16 @@ class Normalisation:
     # Final[T] -> T
     outer_final_to_t: bool = False
 
-    def transformers(self, context: codemod.CodemodContext) -> list[codemod.ContextAwareTransformer]:
+    def transformers(
+        self, context: codemod.CodemodContext
+    ) -> list[codemod.ContextAwareTransformer]:
         ts = list[codemod.ContextAwareTransformer]()
+        if self.unquote:
+            ts.append(us.Unquote(context=context))
+
+        if self.limit_parametric_depth:
+            ts.append(p.ParametricTypeDepthReducer(context=context))
+
         if self.bad_list_generics:
             ts.append(b.SquareBracketsToList(context=context))
 
@@ -100,7 +121,9 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
         self.topn = topn
 
     @abc.abstractmethod
-    def extract_predictions_for_file(self, path2topn: T, path: pathlib.Path, topn: int) -> U:
+    def extract_predictions_for_file(
+        self, path2topn: T, path: pathlib.Path, topn: int
+    ) -> U:
         ...
 
     @abc.abstractmethod
@@ -119,16 +142,18 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
             self.context.metadata_manager.root_path
         )
 
-        predictions = self.extract_predictions_for_file(self.path2batches, path, self.topn)
+        predictions = self.extract_predictions_for_file(
+            self.path2batches, path, self.topn
+        )
         annotator = self.annotator(predictions)
 
         annotated = annotator.transform_module(tree)
 
-        normalisation = self.normalisation()
+        normalisation_strategy = self.normalisation()
 
         return functools.reduce(
             lambda mod, transformer: transformer.transform_module(mod),
-            normalisation.transformers(self.context),
+            normalisation_strategy.transformers(self.context),
             annotated,
         )
 
