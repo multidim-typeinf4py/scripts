@@ -25,12 +25,27 @@ class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
-# TypeCollectionSchemaColumns = list(TypeCollectionSchema.to_schema().columns.keys())
+class ExtendedTypeCollectionSchema(TypeCollectionSchema):
+    # is_type_alias: pt.Series[bool] = pa.Field()
+    parametric_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    # type_neutral_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
+    simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
+
+
 
 
 class InferredSchema(TypeCollectionSchema):
     method: pt.Series[str] = pa.Field()
     topn: pt.Series[int] = pa.Field(ge=1)
+
+
+class ExtendedInferredSchema(InferredSchema):
+    # is_type_alias: pt.Series[bool] = pa.Field()
+    parametric_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    # type_neutral_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
+    simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
 
 
 # InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())

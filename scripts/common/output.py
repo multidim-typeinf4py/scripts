@@ -9,7 +9,7 @@ from scripts.common.schemas import (
     ContextSymbolSchema,
     TypeCollectionCategory,
     TypeCollectionSchema,
-    InferredSchema,
+    InferredSchema, ExtendedTypeCollectionSchema, ExtendedInferredSchema,
 )
 from scripts.infer.structure import DatasetFolderStructure
 
@@ -138,3 +138,49 @@ class InferredLoggingIO:
     @staticmethod
     def info_log_path(outpath: pathlib.Path) -> pathlib.Path:
         return outpath / "log.inf"
+
+
+class ExtendedDatasetIO(DatasetDependentIO[pt.DataFrame[ExtendedTypeCollectionSchema]]):
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ExtendedTypeCollectionSchema]:
+        return pd.read_csv(
+            input_location,
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            keep_default_na=False,
+            na_values=[""],
+        ).pipe(pt.DataFrame[ExtendedTypeCollectionSchema])
+
+    def _write(
+        self, artifact: pt.DataFrame[ExtendedTypeCollectionSchema], output_location: pathlib.Path
+    ) -> None:
+        return artifact.to_csv(output_location, index=False, na_rep="")
+
+    def relative_location(self) -> pathlib.Path:
+        return super().relative_location() / "extended_ground_truth.csv"
+
+
+class ExtendedInferredIO(DatasetDependentIO[pt.DataFrame[ExtendedInferredSchema]]):
+    def __init__(
+        self,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure,
+        repository: pathlib.Path,
+        tool_name: str,
+        task: TypeCollectionCategory,
+    ) -> None:
+        super().__init__(artifact_root, dataset, repository)
+        self.tool_name = tool_name
+        self.task = task
+
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
+        return pd.read_csv(
+            input_location,
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            keep_default_na=False,
+            na_values=[""],
+        ).pipe(pt.DataFrame[InferredSchema])
+
+    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
+        return artifact.to_csv(output_location, index=False, na_rep="")
+
+    def relative_location(self) -> pathlib.Path:
+        return super().relative_location() / f"{self.tool_name}" / f"{str(self.task)}" / "extended_inferred.csv"
