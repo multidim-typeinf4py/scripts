@@ -18,12 +18,19 @@ def make_parametric(annotation: str | None) -> str | None:
 def is_simple_or_complex(annotation: str | None) -> str | None:
     if pd.isna(annotation) or annotation == "":
         return None
+
+    class Dequalifier(libcst.CSTTransformer):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def leave_Attribute(self, original_node: libcst.Attribute, updated_node: libcst.Attribute) -> libcst.Name:
+            return updated_node.attr
+
     class ComplexityCounter(m.MatcherDecoratableVisitor):
         def __init__(self):
             super().__init__()
             self.counter = 0
 
-        @m.call_if_not_inside(m.Attribute())
         def visit_Name(self, node: libcst.Name) -> None:
             self.counter += 1
 
@@ -31,6 +38,6 @@ def is_simple_or_complex(annotation: str | None) -> str | None:
             self.counter += 1
 
     visitor = ComplexityCounter()
-    libcst.parse_expression(annotation).visit(visitor)
+    libcst.parse_expression(annotation).visit(Dequalifier()).visit(visitor)
 
     return "simple" if visitor.counter <= 1 else "complex"
