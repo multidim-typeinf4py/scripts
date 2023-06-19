@@ -6,10 +6,11 @@ import click
 import pandas
 import tqdm
 
-from scripts.common import output
-from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema
+from scripts.common import output, extending
+from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema, ExtendedInferredSchema
 from scripts.infer.structure import DatasetFolderStructure
 
+from pandera import typing as pt
 
 from scripts.utils import (
     format_parallel_exec_result,
@@ -72,13 +73,21 @@ from libcst._exceptions import ParserSyntaxError
     help="Remove and infer annotations in the codebase",
     required=True,
 )
-# @click.option("-a", "--annotate", is_flag=True, help="Add inferred annotations back into codebase")
+@click.option(
+    "-e",
+    "--extended",
+    required=False,
+    default=False,
+    help="Create ExtendedDatasetSchema",
+    is_flag=True,
+)
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
     task: str,
+    extended: bool,
 ) -> None:
     structure = DatasetFolderStructure(dataset)
     print("Dataset Kind:", structure)
@@ -98,116 +107,110 @@ def cli_entrypoint(
             tool_name=inference_tool.method(),
             task=task,
         )
+        extended_inference_io = output.ExtendedInferredIO(
+            artifact_root=outpath,
+            dataset=structure,
+            repository=project,
+            tool_name=inference_tool.method(),
+            task=task,
+        )
+
         inference_output = inference_io.full_location()
 
         print(f"Selecting {inference_output} as the output folder")
 
         # Skip if we are not overwriting results
-        if not overwrite and inference_output.exists():
+        if not overwrite and not extended and inference_output.exists():
             print(
-                f"Skipping {project}, results are already at {inference_output}, and --overwrite was not given!"
+                f"Skipping {project}, results are already at {inference_output}, extension was not requested and --overwrite was not given!"
             )
             continue
 
-        with (
-            scratchpad(project) as sc,
-            inference_tool.activate_logging(sc),
-        ):
-            print(f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files")
-            result = codemod.parallel_exec_transform_with_prettyprint(
-                transform=inference_tool.preprocessor(task=task),
-                jobs=worker_count(),
-                files=codemod.gather_files([str(sc)]),
-                repo_root=str(sc),
-            )
-            print(format_parallel_exec_result(action="Preprocessing", result=result))
+        elif extended and inference_output.exists() and not extended_inference_io.full_location().exists():
+            print(
+                f"Loading {project}; base dataset already exists, extended dataset does NOT exist and was requested, loading from disk...")
+            inferred = inference_io.read()
 
-            # Run inference task for hour before aborting
-            # print("Starting inference task with 1h timeout")
-            try:
-                inferred = inference_tool.infer(sc, project, subset)
-
-            except concurrent.futures.TimeoutError:
-                inference_tool.logger.error(
-                    "Took over an hour to infer types, killing inference subprocess. "
-                    "Results will NOT be written to disk",
-                    exc_info=True,
-                )
-                continue
-
-            except ParserSyntaxError:
-                inference_tool.logger.error("Failed to parse project", exc_info=True)
-                continue
-
-            except Exception:
-                inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
-                continue
-
-            else:
-                with pandas.option_context(
-                    "display.max_rows",
-                    None,
-                    "display.max_columns",
-                    None,
-                    "display.expand_frame_repr",
-                    False,
-                ):
-                    inferred = inferred[inferred[TypeCollectionSchema.category] == task]
-                    print(inferred.sample(n=min(len(inferred), 20)).sort_index())
-
-                inference_io.write(artifact=inferred)
-
-            finally:
-                # Copy generated log files
-                for log_path in (
-                    output.InferredLoggingIO.info_log_path,
-                    output.InferredLoggingIO.debug_log_path,
-                    output.InferredLoggingIO.error_log_path,
-                ):
-                    shutil.copy(log_path(sc), log_path(inference_output.parent))
-                print(f"Logs have been stored at {inference_output.parent}")
-
-            """ if annotate:
-                # Copy original project
-                shutil.copytree(
-                    inpath,
-                    outdir,
-                    ignore_dangling_symlinks=True,
-                    symlinks=True,
-                    dirs_exist_ok=True,
-                )
-
-                # Reremove annotations
+        else:
+            with (
+                scratchpad(project) as sc,
+                inference_tool.activate_logging(sc),
+            ):
+                print(f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files")
                 result = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=TypeAnnotationRemover(
-                        context=codemod.CodemodContext(),
-                        variables=TypeCollectionCategory.VARIABLE in tasked,
-                        parameters=TypeCollectionCategory.CALLABLE_PARAMETER in tasked,
-                        rets=TypeCollectionCategory.CALLABLE_RETURN in tasked,
-                    ),
+                    transform=inference_tool.preprocessor(task=task),
                     jobs=worker_count(),
-                    files=codemod.gather_files([str(outdir)]),
-                    repo_root=str(outdir),
+                    files=codemod.gather_files([str(sc)]),
+                    repo_root=str(sc),
                 )
+                print(format_parallel_exec_result(action="Preprocessing", result=result))
 
-                print(
-                    format_parallel_exec_result(
-                        action="Annotation Removal Preservation (in case inference mutated codebase)",
-                        result=result,
+                # Run inference task for hour before aborting
+                # print("Starting inference task with 1h timeout")
+                try:
+                    inferred = inference_tool.infer(sc, project, subset)
+
+                except concurrent.futures.TimeoutError:
+                    inference_tool.logger.error(
+                        "Took over an hour to infer types, killing inference subprocess. "
+                        "Results will NOT be written to disk",
+                        exc_info=True,
                     )
-                )
+                    continue
 
-                print(f"Applying Annotations to codebase at {outdir}")
-                result = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=TypeAnnotationApplierTransformer(
-                        codemod.CodemodContext(), top_preds_only(inferred)
-                    ),
-                    files=codemod.gather_files([str(outdir)]),
-                    jobs=worker_count(),
-                    repo_root=str(outdir),
-                )
-                print(format_parallel_exec_result(action="Annotation Application", result=result)) """
+                except ParserSyntaxError:
+                    inference_tool.logger.error("Failed to parse project", exc_info=True)
+                    continue
+
+                except Exception:
+                    inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
+                    continue
+
+                else:
+                    with pandas.option_context(
+                        "display.max_rows",
+                        None,
+                        "display.max_columns",
+                        None,
+                        "display.expand_frame_repr",
+                        False,
+                    ):
+                        inferred = inferred[inferred[TypeCollectionSchema.category] == task]
+                        print(inferred.sample(n=min(len(inferred), 20)).sort_index())
+
+                    inference_io.write(artifact=inferred)
+
+                finally:
+                    # Copy generated log files
+                    for log_path in (
+                        output.InferredLoggingIO.info_log_path,
+                        output.InferredLoggingIO.debug_log_path,
+                        output.InferredLoggingIO.error_log_path,
+                    ):
+                        shutil.copy(log_path(sc), log_path(inference_output.parent))
+                    print(f"Logs have been stored at {inference_output.parent}")
+
+        if not extended:
+            continue
+
+        if not overwrite and extended and extended_inference_io.full_location().exists():
+            print(f"Skipping {project}; extended dataset already exists and no extension was requested!")
+
+        print("Building parametric representation")
+        inferred[ExtendedInferredSchema.parametric_anno] = inferred[ExtendedInferredSchema.anno].progress_apply(
+            lambda anno: extending.make_parametric(anno)
+        )
+
+        print("Simple or complex?")
+        inferred[ExtendedInferredSchema.simple_or_complex] = inferred[ExtendedInferredSchema.anno].progress_apply(
+            lambda anno: extending.is_simple_or_complex(anno)
+        )
+
+        collection = inferred.pipe(pt.DataFrame[ExtendedInferredSchema])
+        extended_inference_io.write(collection)
+
 
 
 if __name__ == "__main__":
+    tqdm.pandas()
     cli_entrypoint()
