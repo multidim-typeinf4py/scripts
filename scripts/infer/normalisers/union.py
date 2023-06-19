@@ -3,11 +3,21 @@ import typing
 import libcst
 from libcst import codemod, matchers as m
 
+from scripts.common import _stringify
 
 UNION_ = m.Name("Union") | m.Attribute(m.Name("typing"), m.Name("Union"))
 
 
-class Flatten(codemod.ContextAwareTransformer):
+class FlattenAndSort(codemod.ContextAwareTransformer):
+
+    def leave_Module(
+        self,
+        original_node: libcst.Module,
+        updated_node: libcst.Module
+    ) -> libcst.Module:
+        # sort after flattening
+        return UnionSorter(context=self.context).transform_module(updated_node)
+
     @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
     def leave_Subscript(
         self,
@@ -31,7 +41,10 @@ class Flatten(codemod.ContextAwareTransformer):
             else:
                 flattened.append(subscript_element)
 
-        return updated_node.with_changes(slice=flattened)
+        return updated_node.with_changes(
+            value=libcst.Attribute(libcst.Name("typing"), libcst.Name("Union")),
+            slice=flattened
+        )
 
 
 class Pep604(codemod.ContextAwareTransformer):
@@ -55,4 +68,22 @@ class Pep604(codemod.ContextAwareTransformer):
         original_node: libcst.Module,
         updated_node: libcst.Module,
     ) -> libcst.Module:
-        return updated_node.visit(Flatten(context=self.context))
+        # flattens and sorts
+        return updated_node.visit(FlattenAndSort(context=self.context))
+
+
+class UnionSorter(codemod.ContextAwareTransformer):
+    @m.call_if_inside(m.Annotation(m.Subscript(
+        value=UNION_
+    )))
+    def leave_Subscript(
+        self,
+        original_node: libcst.Subscript,
+        updated_node: libcst.Subscript,
+    ) -> libcst.Subscript:
+        subscript_elems_as_str = sorted([_stringify(se.slice.value) for se in updated_node.slice])
+        return libcst.parse_expression(f"typing.Union[{', '.join(subscript_elems_as_str)}]")
+
+
+
+

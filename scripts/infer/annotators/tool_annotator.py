@@ -101,7 +101,7 @@ class Normalisation:
             ts.append(t.RemoveOuterFinal(context=context))
 
         if self.unnest_union_t:
-            ts.append(u.Flatten(context=context))
+            ts.append(u.FlattenAndSort(context=context))
 
         if self.union_or_to_union_t:
             ts.append(u.Pep604(context=context))
