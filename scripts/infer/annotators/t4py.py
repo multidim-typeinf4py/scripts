@@ -35,6 +35,8 @@ class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, l
             bad_literals=True,
             typing_text_to_str=True,
             lowercase_aliases=True,
+            unnest_union_t=True,
+            union_or_to_union_t=True,
         )
 
 
