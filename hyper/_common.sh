@@ -8,6 +8,7 @@ parameter_inference() {
         --tool "$1" \
         --task CALLABLE_PARAMETER \
         --outpath "$(dirname "$2")/$1"
+        --extended
 }
 
 variable_inference() {
@@ -16,6 +17,7 @@ variable_inference() {
         --tool "$1" \
         --task VARIABLE \
         --outpath "$(dirname "$2")/$1"
+        --extended
 }
 
 return_inference() {
@@ -24,4 +26,5 @@ return_inference() {
         --tool "$1" \
         --task CALLABLE_RETURN \
         --outpath "$(dirname "$2")/$1"
+        --extended
 }
