@@ -4,6 +4,11 @@ import libcst
 from libcst import codemod, matchers as m
 
 
+TUPLE_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Tuple"))
+LIST_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("List"))
+DICT_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Dict"))
+UNION_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Union"))
+
 class RoundBracketsToTuple(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation())
     def leave_Tuple(
@@ -12,10 +17,10 @@ class RoundBracketsToTuple(codemod.ContextAwareTransformer):
         updated_node: libcst.Tuple,
     ) -> libcst.BaseExpression:
         if len(updated_node.elements) == 0:
-            return libcst.Name("Tuple")
+            return TUPLE_
 
         return libcst.Subscript(
-            value=libcst.Name("Tuple"),
+            value=TUPLE_,
             slice=_replace_elements(updated_node.elements),
         )
 
@@ -29,14 +34,14 @@ class SquareBracketsToList(codemod.ContextAwareTransformer):
     ) -> libcst.Annotation:
         list_ = typing.cast(libcst.List, updated_node.annotation)
         if len(list_.elements) == 0:
-            return libcst.Annotation(libcst.Name("List"))
+            return libcst.Annotation(LIST_)
 
         elif len(list_.elements) > 1:
             list_typing = [
                 libcst.SubscriptElement(
                     libcst.Index(
                         libcst.Subscript(
-                            value=libcst.Name("Union"),
+                            value=UNION_,
                             slice=_replace_elements(list_.elements),
                         )
                     )
@@ -48,7 +53,7 @@ class SquareBracketsToList(codemod.ContextAwareTransformer):
 
         return libcst.Annotation(
             libcst.Subscript(
-                value=libcst.Name("List"),
+                value=LIST_,
                 slice=list_typing,
             )
         )
@@ -62,7 +67,7 @@ class CurlyBracesToDict(codemod.ContextAwareTransformer):
         original_node: libcst.Dict,
         updated_node: libcst.Dict,
     ) -> libcst.BaseExpression:
-        return libcst.Name("Dict")
+        return DICT_
 
 
 def _replace_elements(
