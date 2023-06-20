@@ -7,7 +7,7 @@ from dpu_utils.utils import RichPath
 from libcst import codemod
 
 from scripts.infer.annotators import ParallelTopNAnnotator
-from scripts.infer.annotators.tool_annotator import Normalisation
+from .normalisation import Normalisation
 
 
 class TypilusPrediction(typing.TypedDict):

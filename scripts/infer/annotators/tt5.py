@@ -7,7 +7,8 @@ from typet5.static_analysis import SignatureMap, SignatureMapTopN
 from typet5.experiments import utils as typet5_utils
 
 
-from .tool_annotator import Normalisation, ParallelTopNAnnotator
+from .tool_annotator import ParallelTopNAnnotator
+from .normalisation import Normalisation
 
 
 class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):

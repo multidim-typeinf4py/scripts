@@ -7,7 +7,7 @@ from libcst import codemod, metadata, matchers as m, MaybeSentinel
 from libsa4py.cst_transformers import TypeApplier
 
 from scripts.infer.annotators import ParallelTopNAnnotator
-from scripts.infer.annotators.tool_annotator import Normalisation
+from .normalisation import Normalisation
 
 
 class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, list[dict]], dict]):

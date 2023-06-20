@@ -3,8 +3,8 @@ from scripts.infer.normalisers import union
 from libcst import codemod
 
 
-class Test_Flatten(codemod.CodemodTest):
-    TRANSFORM = union.FlattenAndSort
+class Test_UnionNormaliser(codemod.CodemodTest):
+    TRANSFORM = union.UnionNormaliser
 
     def test_untouched(self) -> None:
         self.assertCodemod(
@@ -42,10 +42,6 @@ class Test_Flatten(codemod.CodemodTest):
             after="a: typing.Union[int] = ..."
         )
 
-
-class Test_Pep604(codemod.CodemodTest):
-    TRANSFORM = union.Pep604
-
     def test_simple_unionage(self) -> None:
         self.assertCodemod(
             before="a: int | str = ...",
@@ -56,4 +52,15 @@ class Test_Pep604(codemod.CodemodTest):
         self.assertCodemod(
             before="a: int | str | bytes = ...",
             after="a: typing.Union[bytes, int, str] = ...",
+        )
+
+    def test_optional_to_union(self) -> None:
+        self.assertCodemod(
+            before="a: Optional[int]",
+            after="a: typing.Union[None, int]"
+        )
+
+        self.assertCodemod(
+            before="a: typing.Optional[int]",
+            after="a: typing.Union[None, int]"
         )

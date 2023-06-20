@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import dataclasses
 import functools
 import pathlib
 import typing
@@ -15,98 +14,11 @@ from scripts import utils
 from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import Inference
 from scripts.symbols.collector import build_type_collection
-from scripts.infer.normalisers import (
-    bracket as b,
-    typing_aliases as t,
-    union as u,
-    literal_to_base as l,
-    unstringify as us,
-    parametric_depth as p,
-)
+
+from .normalisation import Normalisation
 
 T = typing.TypeVar("T")
 U = typing.TypeVar("U")
-
-
-@dataclasses.dataclass
-class Normalisation:
-    # typing.Type["AbstractExtractors"] -> typing.Type[AbstractExecutors]
-    unquote: bool = True
-
-    # List[List[Tuple[int]]] -> List[List[Any]]
-    limit_parametric_depth: bool = True
-
-    # [] -> List
-    bad_list_generics: bool = False
-
-    # (str, int) -> Tuple[str, int]
-    bad_tuple_generics: bool = False
-
-    # {} -> dict
-    bad_dict_generics: bool = False
-
-    # (builtins?).{False, True} -> bool
-    bad_literals: bool = False
-
-    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
-    lowercase_aliases: bool = False
-
-    # Union[Union[int]] -> Union[int]
-    unnest_union_t: bool = False
-
-    # int | str -> Union[int, str]
-    union_or_to_union_t: bool = False
-
-    # typing.Text -> str
-    typing_text_to_str: bool = False
-
-    # Optional[T] -> T
-    outer_optional_to_t: bool = False
-
-    # Final[T] -> T
-    outer_final_to_t: bool = False
-
-    def transformers(
-        self, context: codemod.CodemodContext
-    ) -> list[codemod.ContextAwareTransformer]:
-        ts = list[codemod.ContextAwareTransformer]()
-        if self.unquote:
-            ts.append(us.Unquote(context=context))
-
-        if self.limit_parametric_depth:
-            ts.append(p.ParametricTypeDepthReducer(context=context))
-
-        if self.bad_list_generics:
-            ts.append(b.SquareBracketsToList(context=context))
-
-        if self.bad_tuple_generics:
-            ts.append(b.RoundBracketsToTuple(context=context))
-
-        if self.bad_dict_generics:
-            ts.append(b.CurlyBracesToDict(context=context))
-
-        if self.bad_literals:
-            ts.append(l.LiteralToBaseClass(context=context))
-
-        if self.lowercase_aliases:
-            ts.append(t.LowercaseTypingAliases(context=context))
-
-        if self.typing_text_to_str:
-            ts.append(t.TextToStr(context=context))
-
-        if self.outer_optional_to_t:
-            ts.append(t.RemoveOuterOptional(context=context))
-
-        if self.outer_final_to_t:
-            ts.append(t.RemoveOuterFinal(context=context))
-
-        if self.unnest_union_t:
-            ts.append(u.FlattenAndSort(context=context))
-
-        if self.union_or_to_union_t:
-            ts.append(u.Pep604(context=context))
-
-        return ts
 
 
 class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):

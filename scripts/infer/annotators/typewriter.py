@@ -8,7 +8,7 @@ from libcst import codemod
 from typewriter.dltpy.preprocessing.pipeline import preprocessor
 
 from scripts.infer.annotators import ParallelTopNAnnotator
-from scripts.infer.annotators.tool_annotator import Normalisation
+from .normalisation import Normalisation
 
 
 @dataclasses.dataclass

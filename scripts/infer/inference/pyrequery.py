@@ -27,11 +27,9 @@ from scripts.infer.preprocessers import static
 
 class NormalisedPyreQuery(codemod.Codemod):
     NORMALISER = Normalisation(
-        bad_list_generics=True,
-        bad_tuple_generics=True,
-        bad_dict_generics=True,
+        bad_generics=True,
         lowercase_aliases=True,
-        unnest_union_t=True,
+        normalise_union_ts=True,
         typing_text_to_str=True,
     )
 

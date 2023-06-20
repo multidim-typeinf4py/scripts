@@ -7,7 +7,7 @@ from libcst.codemod.visitors._apply_type_annotations import Annotations
 
 from scripts.common import ApplyTypeAnnotationsVisitor
 from scripts.infer.annotators import ParallelTopNAnnotator
-from scripts.infer.annotators.tool_annotator import Normalisation
+from scripts.infer.annotators.normalisation import Normalisation
 
 
 class HiTyperProjectApplier(
