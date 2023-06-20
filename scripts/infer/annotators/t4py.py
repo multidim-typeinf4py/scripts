@@ -32,6 +32,7 @@ class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, l
             normalise_union_ts=True,
             remove_if_all_any=True,
             lowercase_aliases=True,
+            bad_generics=True,
         )
 
 
