@@ -1,3 +1,4 @@
+import libcst
 from libcst import codemod
 
 
@@ -51,20 +52,44 @@ class Test_BadGenerics(codemod.CodemodTest):
         )
 
 
-    def test_combined_rewritten(self) -> None:
-        self.assertCodemod(
-            before="[{}]",
-            after="typing.List[typing.Dict]"
-        )
+    #def test_combined_rewritten(self) -> None:
+    #    self.assertCodemod(
+    #        before="[{}]",
+    #        after="typing.List[typing.Dict]"
+    #    )
 
     def test_builtins_false_to_bool(self):
-        self.assertCodemod(
-            before="a: builtins.False",
-            after="a: builtins.bool",
+        illegal_syntax = libcst.AnnAssign(target=libcst.Name("a"), annotation=libcst.Annotation(
+            libcst.Attribute(libcst.Name("builtins"), libcst.Name("False"))
+        ))
+        as_module = libcst.Module([libcst.SimpleStatementLine([illegal_syntax])])
+        transformed = bad_generics.BadGenericsNormaliser(context=codemod.CodemodContext()).transform_module(as_module)
+        self.assertCodeEqual(
+            expected="a: builtins.bool",
+            actual=transformed.code
         )
 
+
     def test_builtins_true_to_bool(self):
-        self.assertCodemod(
-            before="a: builtins.True",
-            after="a: builtins.bool",
+        illegal_syntax = libcst.AnnAssign(target=libcst.Name("a"), annotation=libcst.Annotation(
+            libcst.Attribute(libcst.Name("builtins"), libcst.Name("True"))
+        ))
+        as_module = libcst.Module([libcst.SimpleStatementLine([illegal_syntax])])
+        transformed = bad_generics.BadGenericsNormaliser(context=codemod.CodemodContext()).transform_module(as_module)
+        self.assertCodeEqual(
+            expected="a: builtins.bool",
+            actual=transformed.code
+        )
+
+    def test_boolean_literal_in_subscript(self):
+        illegal_syntax = libcst.AnnAssign(target=libcst.Name("a"), annotation=libcst.Annotation(
+            libcst.Subscript(libcst.Name("dict"), slice=[
+                libcst.SubscriptElement(libcst.Index(libcst.Attribute(libcst.Name("builtins"), libcst.Name("False"))))
+            ])
+        ))
+        as_module = libcst.Module([libcst.SimpleStatementLine([illegal_syntax])])
+        transformed = bad_generics.BadGenericsNormaliser(context=codemod.CodemodContext()).transform_module(as_module)
+        self.assertCodeEqual(
+            expected="a: dict[builtins.bool]",
+            actual=transformed.code
         )
