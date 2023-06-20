@@ -176,10 +176,6 @@ def cli_entrypoint(
                         shutil.copy(log_path(sc), log_path(inference_output.parent))
                     print(f"Logs have been stored at {inference_output.parent}")
 
-        if not extended:
-            print("Not computing extended version of inference dataset")
-            continue
-
         extended_inference_io = output.ExtendedInferredIO(
             artifact_root=outpath,
             dataset=structure,
@@ -187,8 +183,11 @@ def cli_entrypoint(
             tool_name=inference_tool.method(),
             task=task,
         )
-        if not overwrite and extended_inference_io.full_location().exists():
-            print(f"Skipping {project}; extended dataset already exists and no extension was requested!")
+        if not extended:
+            print("Not computing extended version of inference dataset; --extended was not given")
+
+        elif not overwrite and extended_inference_io.full_location().exists():
+            print(f"Skipping computing extended verison of {project}; extended dataset already exists, and --overwrite was not given")
 
         else:
             print("Building parametric representation")
