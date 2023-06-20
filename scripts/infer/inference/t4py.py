@@ -28,6 +28,7 @@ from ..annotators.t4py import Type4PyProjectApplier
 from libcst import codemod
 from libsa4py import cst_transformers
 
+
 @dataclasses.dataclass
 class FileDatapoints:
     ext_type_hints: dict
@@ -218,15 +219,15 @@ class _Type4Py(ParallelisableInference):
         datapoints: dict[pathlib.Path, FileDatapoints],
         file: pathlib.Path,
     ) -> tuple[pathlib.Path, dict]:
-        datapoints = datapoints[file]
+        datapoint = datapoints[file]
 
         # Filter out files for which no predictions were made
         has_type_slots = any(
             dp_hint
             for dp_hint in (
-                datapoints.vars_type_hints,
-                datapoints.param_type_hints,
-                datapoints.rets_type_hints,
+                datapoint.vars_type_hints,
+                datapoint.param_type_hints,
+                datapoint.rets_type_hints,
             )
         )
         if not has_type_slots:
@@ -252,28 +253,17 @@ def _file2datapoint(
     filepath = project / file
 
     source_code = filepath.read_text()
-
-    try:
-        type_hints = Extractor.extract(source_code, include_seq2seq=False).to_dict()
-    except AttributeError:
-        # libsa4py bugs causing extraction to fail
-        return file, FileDatapoints(
-            ext_type_hints=dict(),
-            all_type_slots=list(),
-            vars_type_hints=list(),
-            param_type_hints=list(),
-            rets_type_hints=list(),
-        )
+    ext_type_hints = Extractor.extract(source_code, include_seq2seq=False).to_dict()
 
     (
         all_type_slots,
         vars_type_hints,
         params_type_hints,
         rets_type_hints,
-    ) = get_dps_single_file(type_hints)
+    ) = get_dps_single_file(ext_type_hints)
 
     return file, FileDatapoints(
-        ext_type_hints=type_hints,
+        ext_type_hints=ext_type_hints,
         all_type_slots=all_type_slots,
         vars_type_hints=vars_type_hints,
         param_type_hints=params_type_hints,

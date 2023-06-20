@@ -29,14 +29,9 @@ class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, l
 
     def normalisation(self) -> Normalisation:
         return Normalisation(
-            bad_list_generics=True,
-            bad_tuple_generics=True,
-            bad_dict_generics=True,
-            bad_literals=True,
-            typing_text_to_str=True,
+            normalise_union_ts=True,
+            remove_if_all_any=True,
             lowercase_aliases=True,
-            unnest_union_t=True,
-            union_or_to_union_t=True,
         )
 
 
@@ -61,11 +56,11 @@ class Type4PyFileApplier(codemod.Codemod):
                 pprint.pprint(self.predictions)
 
         # Always remove artifacts, even if annotation process was unsuccessful
-        without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(context=self.context).transform_module(
-            tree
-        )
+        #without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(context=self.context).transform_module(
+        #    tree
+        #)
 
-        return without_libsa4py_artifacts
+        return tree
 
 
 class RemoveLibSa4PyArtifacts(codemod.ContextAwareTransformer):

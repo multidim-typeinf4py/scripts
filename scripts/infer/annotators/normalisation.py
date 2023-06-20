@@ -10,6 +10,7 @@ from scripts.infer.normalisers import (
     union as u,
     unstringify as us,
     parametric_depth as p,
+    remove_anys as r
 )
 
 
@@ -27,9 +28,6 @@ class Normalisation:
     # [] -> List, (str, int) -> Tuple[str, int], {} -> dict, # (builtins?).{False, True} -> bool
     bad_generics: bool = False
 
-    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
-    lowercase_aliases: bool = False
-
     # {list, tuple, dict} -> typing.{List, Tuple, Dict}
     # uppercase_aliases: bool = False
 
@@ -38,6 +36,13 @@ class Normalisation:
     # Union[Union[int]] -> Union[int]
     # + sorting
     normalise_union_ts: bool = False
+
+    # If all type arguments are Any, drop them all. e.g., rewrite List[Any] to List
+    remove_if_all_any: bool = False
+
+    # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
+    lowercase_aliases: bool = False
+
 
     # Optional[T] -> T
     # outer_optional_to_t: bool = False
@@ -54,17 +59,14 @@ class Normalisation:
         if self.unquote:
             ts.append(us.Unquote(context=context))
 
+        if self.typing_text_to_str:
+            ts.append(t.TextToStr(context=context))
+
         if self.limit_parametric_depth:
             ts.append(p.ParametricTypeDepthReducer(context=context))
 
         if self.bad_generics:
             ts.append(b.BadGenericsNormaliser(context=context))
-
-        if self.lowercase_aliases:
-            ts.append(t.LowercaseTypingAliases(context=context))
-
-        if self.typing_text_to_str:
-            ts.append(t.TextToStr(context=context))
 
         #if self.outer_optional_to_t:
         #    ts.append(t.RemoveOuterOptional(context=context))
@@ -73,10 +75,13 @@ class Normalisation:
         #    ts.append(t.RemoveOuterFinal(context=context))
 
         if self.normalise_union_ts:
-            ts.append(u._Flatten(context=context))
+            ts.append(u.UnionNormaliser(context=context))
 
-        if self.union_or_to_union_t:
-            ts.append(u._Pep604(context=context))
+        if self.remove_if_all_any:
+            ts.append(r.RemoveAnys(context=context))
+
+        if self.lowercase_aliases:
+            ts.append(t.LowercaseTypingAliases(context=context))
 
         return ts
 

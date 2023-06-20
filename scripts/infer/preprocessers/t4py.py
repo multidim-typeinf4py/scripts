@@ -8,14 +8,13 @@ from scripts.common.schemas import TypeCollectionCategory
 from typet5.experiments import type4py
 from typet5.experiments import utils
 
+from .tt5 import TT5AnnotationRemover
+
 
 class Type4PyPreprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         simpler_syntax = utils.remove_newer_syntax(tree, supported=type4py.Type4PySupportedSyntax)
-        return Type4PyAnnotationRemover(
-            context=self.context,
-            task=self.task,
-        ).transform_module(simpler_syntax)
+        return TT5AnnotationRemover(context=self.context, task=self.task).transform_module(simpler_syntax)
 
 
 class Type4PyAnnotationRemover(AnnotationRemover):
