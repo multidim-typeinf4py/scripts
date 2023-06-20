@@ -417,7 +417,9 @@ class MultiVarTypeCollector(
         annotation: libcst.Annotation,
     ) -> libcst.Annotation:
         node = annotation.annotation
-        if isinstance(node, libcst.SimpleString):
+        if isinstance(node, libcst.Ellipsis):
+            return annotation
+        elif isinstance(node, libcst.SimpleString):
             self.annotations.names.add(_get_string_value(node))
             return annotation
         elif isinstance(node, libcst.Subscript):
