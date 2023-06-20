@@ -185,6 +185,8 @@ class _Type4Py(ParallelisableInference):
 
     def type_annotate_file(self, pre_trained_m: PTType4Py, source_file_path: pathlib.Path,
                        filter_pred_types:bool=True) -> dict:
+        self.logger.info(f"=== {source_file_path} ===")
+
         src_f_read = source_file_path.read_text()
         ext_type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
         self.logger.info(f"Extracted JSON-representation of {source_file_path}")
