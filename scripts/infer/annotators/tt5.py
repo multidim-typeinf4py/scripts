@@ -27,13 +27,10 @@ class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
 
     def normalisation(self) -> Normalisation:
         return Normalisation(
-            bad_list_generics=True,
-            bad_tuple_generics=True,
-            bad_dict_generics=True,
-            lowercase_aliases=True,
-            unnest_union_t=True,
-            outer_optional_to_t=True,
-            outer_final_to_t=True,
+            bad_generics=True,
+            normalise_union_ts=True,
+            remove_if_all_any=True,
+            lowercase_aliases=True
         )
 
 
