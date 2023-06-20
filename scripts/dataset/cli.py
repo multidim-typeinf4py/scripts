@@ -13,7 +13,7 @@ from scripts.common.schemas import InferredSchema, TypeCollectionSchema, Extende
 from scripts.infer.inference import PyreQuery
 from scripts.infer.structure import DatasetFolderStructure
 
-from scripts.infer.annotators.tool_annotator import Normalisation
+from scripts.infer.annotators.normalisation import Normalisation, Normaliser
 
 from scripts.symbols.collector import build_type_collection
 from scripts import utils
@@ -22,18 +22,7 @@ import pandas as pd
 from pandera import typing as pt
 
 
-class Normaliser(codemod.Codemod):
-    def __init__(self, context: codemod.CodemodContext, strategy: Normalisation) -> None:
-        super().__init__(context=context)
-        self.strategy = strategy
 
-    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        transformers = self.strategy.transformers(context=self.context)
-        return functools.reduce(
-            lambda mod, trans: trans.transform_module(mod),
-            transformers,
-            tree
-        )
 
 
 @click.command(name="dataset", help="Consume dataset into inference agnostic DataFrame")
@@ -71,10 +60,9 @@ def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool
     print(structure)
 
     normalisation_strategy = Normalisation(
-        unnest_union_t=True,
+        normalise_union_ts=True,
+        remove_if_all_any=True,
         lowercase_aliases=True,
-        union_or_to_union_t=True,
-        typing_text_to_str=True,
     )
 
     test_set = structure.test_set()
@@ -102,7 +90,7 @@ def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool
                     repo_root=sc,
                     files=[str(sc / f) for f in subset]
                 )
-                utils.format_parallel_exec_result("Normalising codebase", res)
+                print(utils.format_parallel_exec_result("Normalising codebase", res))
 
                 collection = build_type_collection(root=sc, allow_stubs=False, subset=subset).df
                 dataset_io.write(collection)
