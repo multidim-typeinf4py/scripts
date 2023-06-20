@@ -16,6 +16,7 @@ from libsa4py.cst_extractor import Extractor
 from type4py.deploy.infer import (
     get_dps_single_file,
     get_type_preds_single_file,
+    type_annotate_file,
 )
 
 from scripts.common.schemas import InferredSchema, TypeCollectionCategory
@@ -154,13 +155,21 @@ class _Type4Py(ParallelisableInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        self.logger.info("Extracting datapoints...")
-        paths2datapoints = self.extract_datapoints(mutable, subset)
-        self.logger.debug(paths2datapoints)
+        # self.logger.info("Extracting datapoints...")
+        # paths2datapoints = self.extract_datapoints(mutable, subset)
+        # self.logger.debug(paths2datapoints)
 
-        self.logger.info("Executing model...")
-        paths2predictions = self.make_predictions(paths2datapoints, subset)
-        self.logger.debug(paths2predictions)
+        self.logger.info("Extracting Datapoints and Executing model...")
+        paths2predictions = {
+            path: self.type_annotate_file(
+                self.pretrained,
+                source_file_path=mutable / path,
+                filter_pred_types=True,
+            )
+            for path in subset
+        }
+        # paths2predictions = self.make_predictions(paths2datapoints, subset)
+        # self.logger.debug(paths2predictions)
 
         self.logger.info("Converting predictions into Top-N batches")
         paths2batches = self.make_topn_batches(paths2predictions, subset)
@@ -173,6 +182,27 @@ class _Type4Py(ParallelisableInference):
             topn=self.topn,
             tool=self,
         )
+
+    def type_annotate_file(self, pre_trained_m: PTType4Py, source_file_path: pathlib.Path,
+                       filter_pred_types:bool=True) -> dict:
+        src_f_read = source_file_path.read_text()
+        ext_type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
+        self.logger.info(f"Extracted JSON-representation of {source_file_path}")
+
+        all_type_slots, vars_type_hints, params_type_hints, rets_type_hints = get_dps_single_file(ext_type_hints)
+        self.logger.info("Extracted type hints from JSON")
+
+        if not all_type_slots:
+            self.logger.warn(f"No type slots detected in {source_file_path}; no predictions can be made")
+            return dict()
+
+        ext_type_hints = get_type_preds_single_file(ext_type_hints, all_type_slots,
+                                                    (vars_type_hints, params_type_hints, rets_type_hints),
+                                                    pre_trained_m, filter_pred_types)
+        self.logger.info("Predicted type annotations for the given file")
+
+
+        return ext_type_hints
 
     def extract_datapoints(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
@@ -234,12 +264,12 @@ class _Type4Py(ParallelisableInference):
             return file, dict()
 
         return file, get_type_preds_single_file(
-            datapoints.ext_type_hints,
-            datapoints.all_type_slots,
+            datapoint.ext_type_hints,
+            datapoint.all_type_slots,
             (
-                datapoints.vars_type_hints,
-                datapoints.param_type_hints,
-                datapoints.rets_type_hints,
+                datapoint.vars_type_hints,
+                datapoint.param_type_hints,
+                datapoint.rets_type_hints,
             ),
             self.pretrained,
             filter_pred_types=True,
