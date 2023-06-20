@@ -142,15 +142,15 @@ def cli_entrypoint(
                         "Results will NOT be written to disk",
                         exc_info=True,
                     )
-                    continue
+                    break
 
                 except ParserSyntaxError:
                     inference_tool.logger.error("Failed to parse project", exc_info=True)
-                    continue
+                    break
 
                 except Exception:
                     inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
-                    continue
+                    break
 
                 else:
                     with pandas.option_context(
