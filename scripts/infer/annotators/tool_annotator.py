@@ -15,7 +15,7 @@ from scripts.common.schemas import InferredSchema
 from scripts.infer.inference import Inference
 from scripts.symbols.collector import build_type_collection
 
-from .normalisation import Normalisation
+from .normalisation import Normalisation, Normaliser
 
 T = typing.TypeVar("T")
 U = typing.TypeVar("U")
@@ -53,7 +53,6 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
         path = pathlib.Path(self.context.filename).relative_to(
             self.context.metadata_manager.root_path
         )
-
         predictions = self.extract_predictions_for_file(
             self.path2batches, path, self.topn
         )
@@ -61,13 +60,8 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
 
         annotated = annotator.transform_module(tree)
 
-        normalisation_strategy = self.normalisation()
-
-        return functools.reduce(
-            lambda mod, transformer: transformer.transform_module(mod),
-            normalisation_strategy.transformers(self.context),
-            annotated,
-        )
+        normalised =  Normaliser(context=self.context, strategy=self.normalisation()).transform_module(annotated)
+        return normalised
 
     @classmethod
     def collect_topn(
