@@ -168,6 +168,7 @@ def cli_entrypoint(
 
                 finally:
                     # Copy generated log files
+                    inference_output.parent.mkdir(parents=True, exist_ok=True)
                     for log_path in (
                         output.InferredLoggingIO.info_log_path,
                         output.InferredLoggingIO.debug_log_path,
