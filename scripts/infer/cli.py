@@ -107,29 +107,15 @@ def cli_entrypoint(
             tool_name=inference_tool.method(),
             task=task,
         )
-        extended_inference_io = output.ExtendedInferredIO(
-            artifact_root=outpath,
-            dataset=structure,
-            repository=project,
-            tool_name=inference_tool.method(),
-            task=task,
-        )
-
         inference_output = inference_io.full_location()
 
         print(f"Selecting {inference_output} as the output folder")
 
         # Skip if we are not overwriting results
-        if not overwrite and not extended and inference_output.exists():
+        if not overwrite and inference_output.exists():
             print(
-                f"Skipping {project}, results are already at {inference_output}, extension was not requested and --overwrite was not given!"
+                f"Skipping inference for {project}, results are already at {inference_output}, and --overwrite was not given!"
             )
-            continue
-
-        elif extended and inference_output.exists() and not extended_inference_io.full_location().exists():
-            print(
-                f"Loading {project}; base dataset already exists, extended dataset does NOT exist and was requested, loading from disk...")
-            inferred = inference_io.read()
 
         else:
             with (
@@ -191,23 +177,32 @@ def cli_entrypoint(
                     print(f"Logs have been stored at {inference_output.parent}")
 
         if not extended:
+            print("Not computing extended version of inference dataset")
             continue
 
-        if not overwrite and extended and extended_inference_io.full_location().exists():
+        extended_inference_io = output.ExtendedInferredIO(
+            artifact_root=outpath,
+            dataset=structure,
+            repository=project,
+            tool_name=inference_tool.method(),
+            task=task,
+        )
+        if not overwrite and extended_inference_io.full_location().exists():
             print(f"Skipping {project}; extended dataset already exists and no extension was requested!")
 
-        print("Building parametric representation")
-        inferred[ExtendedInferredSchema.parametric_anno] = inferred[ExtendedInferredSchema.anno].progress_apply(
-            lambda anno: extending.make_parametric(anno)
-        )
+        else:
+            print("Building parametric representation")
+            inferred[ExtendedInferredSchema.parametric_anno] = inferred[ExtendedInferredSchema.anno].progress_apply(
+                lambda anno: extending.make_parametric(anno)
+            )
 
-        print("Simple or complex?")
-        inferred[ExtendedInferredSchema.simple_or_complex] = inferred[ExtendedInferredSchema.anno].progress_apply(
-            lambda anno: extending.is_simple_or_complex(anno)
-        )
+            print("Simple or complex?")
+            inferred[ExtendedInferredSchema.simple_or_complex] = inferred[ExtendedInferredSchema.anno].progress_apply(
+                lambda anno: extending.is_simple_or_complex(anno)
+            )
 
-        collection = inferred.pipe(pt.DataFrame[ExtendedInferredSchema])
-        extended_inference_io.write(collection)
+            collection = inferred.pipe(pt.DataFrame[ExtendedInferredSchema])
+            extended_inference_io.write(collection)
 
 
 
