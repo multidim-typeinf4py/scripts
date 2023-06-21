@@ -79,8 +79,8 @@ class TypilusFileApplier(codemod.Codemod):
         ) and new_fpath != self.context.filename:
             try:
                 return libcst.parse_module(pathlib.Path(new_fpath).read_text())
-            except ParserSyntaxError:
+            except ParserSyntaxError as e:
                 print(pathlib.Path(new_fpath).read_text())
-                sys.exit(1)
+                raise e
 
         return tree
