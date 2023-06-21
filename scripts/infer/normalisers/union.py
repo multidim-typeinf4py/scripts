@@ -59,18 +59,15 @@ class _Pep604(codemod.ContextAwareTransformer):
 
 
 class _Flatten(codemod.ContextAwareTransformer):
-    def leave_Module(
-        self, original_node: libcst.Module, updated_node: libcst.Module
-    ) -> libcst.Module:
-        # sort after flattening
-        return _UnionSorter(context=self.context).transform_module(updated_node)
-
     @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
     def leave_Subscript(
         self,
         original_node: libcst.Subscript,
         updated_node: libcst.Subscript,
     ) -> libcst.Subscript:
+        if not m.matches(original_node, m.Subscript(value=UNION_)):
+            return original_node
+
         flattened = list[libcst.SubscriptElement]()
         for subscript_element in updated_node.slice:
             # Union element with further inner types
@@ -102,11 +99,11 @@ class _UnionSorter(codemod.ContextAwareTransformer):
         original_node: libcst.Subscript,
         updated_node: libcst.Subscript,
     ) -> libcst.Subscript:
-        subscript_elems_as_str = sorted(
-            [_stringify(se.slice.value) for se in updated_node.slice]
-        )
+        subscript_elems_as_str = [_stringify(se.slice.value) for se in updated_node.slice]
+        as_sorted = sorted(subscript_elems_as_str)
+
         sorted_union = libcst.parse_expression(
-            f"typing.Union[{', '.join(subscript_elems_as_str)}]"
+            f"typing.Union[{', '.join(as_sorted)}]"
         )
 
         return typing.cast(libcst.Subscript, sorted_union)

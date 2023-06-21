@@ -70,3 +70,13 @@ class Test_UnionNormaliser(codemod.CodemodTest):
             before="a: dict[str, int]",
             after="a: dict[str, int]",
         )
+
+    def test_more_sorting(self) -> None:
+        self.assertCodemod(
+            before="data: typing.Union[builtins.str, builtins.bytes]",
+            after="data: typing.Union[builtins.bytes, builtins.str]",
+        )
+        self.assertCodemod(
+            before="data: typing.Union[builtins.bytes, builtins.str]",
+            after="data: typing.Union[builtins.bytes, builtins.str]",
+        )

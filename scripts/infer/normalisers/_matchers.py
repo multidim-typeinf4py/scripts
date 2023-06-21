@@ -44,5 +44,4 @@ FINAL_NAME_ = m.Name("Final")
 TUPLE_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Tuple"))
 LIST_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("List"))
 DICT_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Dict"))
-UNION_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Union"))
 
