@@ -77,10 +77,6 @@ class TypilusFileApplier(codemod.Codemod):
                 type_idx=self.topn,
             )
         ) and new_fpath != self.context.filename:
-            try:
-                return libcst.parse_module(pathlib.Path(new_fpath).read_text())
-            except ParserSyntaxError:
-                print(pathlib.Path(new_fpath).read_text())
-                sys.exit(1)
+            return libcst.parse_module(pathlib.Path(new_fpath).read_text())
 
         return tree
