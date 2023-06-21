@@ -49,6 +49,8 @@ class TypilusProjectApplier(ParallelTopNAnnotator[RichPath, RichPath]):
         return Normalisation(
             typing_text_to_str=True,
             lowercase_aliases=True,
+            normalise_union_ts=True,
+            remove_if_all_any=True,
         )
 
 
@@ -70,17 +72,21 @@ class TypilusFileApplier(codemod.Codemod):
         self.topn = topn
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        if (
-            new_fpath := self.annotator.annotate(
-                fpath=self.context.filename,
-                pred_idx=-1,
-                type_idx=self.topn,
-            )
-        ) and new_fpath != self.context.filename:
-            try:
-                return libcst.parse_module(pathlib.Path(new_fpath).read_text())
-            except ParserSyntaxError as e:
-                print(pathlib.Path(new_fpath).read_text())
-                raise e
+        # try:
+        new_fpath = self.annotator.annotate(
+            fpath=self.context.filename,
+            pred_idx=-1,
+            type_idx=self.topn,
+        )
+        if new_fpath != self.context.filename:
+            code = pathlib.Path(new_fpath).read_text()
+            return libcst.parse_module(code)
+        else:
+            return tree
+        #    code = tree.code
 
-        return tree
+        #except Exception as e:
+        #    print(code)
+        #    raise e
+
+
