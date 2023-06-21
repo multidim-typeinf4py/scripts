@@ -2,17 +2,8 @@ import typing
 import libcst
 from libcst import codemod, matchers as m
 
-DICT_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Dict"))
-DICT_NAME = m.Name("Dict")
-
-TUPLE_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Tuple"))
-TUPLE_NAME_ = m.Name("Tuple")
-
-LIST_ATTR_ = m.Attribute(m.Name("typing"), m.Name("List"))
-LIST_NAME_ = m.Name("List")
-
-SET_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Set"))
-SET_NAME_ = m.Name("Set")
+from scripts.infer.normalisers._matchers import DICT_ATTR_, TUPLE_ATTR_, LIST_ATTR_, SET_ATTR_, DICT_NAME, TUPLE_NAME_, \
+    LIST_NAME_, SET_NAME_, TEXT_ATTR_, TEXT_NAME_, OPTIONAL_ATTR_, OPTIONAL_NAME_, FINAL_ATTR_, FINAL_NAME_
 
 
 class LowercaseTypingAliases(codemod.ContextAwareTransformer):
@@ -60,10 +51,6 @@ class LowercaseTypingAliases(codemod.ContextAwareTransformer):
             return updated_node
 
 
-TEXT_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Text"))
-TEXT_NAME_ = m.Name("Text")
-
-
 class TextToStr(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation())
     def leave_Attribute(
@@ -87,8 +74,7 @@ class TextToStr(codemod.ContextAwareTransformer):
         return updated_node
 
 
-OPTIONAL_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Optional"))
-OPTIONAL_NAME_ = m.Name("Optional")
+
 
 
 class RemoveOuterOptional(codemod.ContextAwareTransformer):
@@ -105,11 +91,6 @@ class RemoveOuterOptional(codemod.ContextAwareTransformer):
         index = typing.cast(libcst.Index, subscript.slice[0].slice)
         return updated_node.with_changes(annotation=index.value)
 
-
-
-
-FINAL_ATTR_ = m.Attribute(m.Name("typing"), m.Name("Final"))
-FINAL_NAME_ = m.Name("Final")
 
 class RemoveOuterFinal(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation(m.Subscript(

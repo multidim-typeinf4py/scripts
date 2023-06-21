@@ -78,6 +78,12 @@ class Test_LowercaseTypingAliases(codemod.CodemodTest):
             after="a: set[set[int, str], None] = ...",
         )
 
+    def test_catch_typing_rename(self) -> None:
+        self.assertCodemod(
+            before="a: t.Dict[typing.Dict[int, str], None] = ...",
+            after="a: dict[dict[int, str], None] = ...",
+        )
+
 
 class Test_TextToStr(codemod.CodemodTest):
     TRANSFORM = typing_aliases.TextToStr

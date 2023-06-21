@@ -5,9 +5,7 @@ from libcst import codemod, matchers as m
 
 from scripts.common import _stringify
 
-UNION_ = m.Name("Union") | m.Attribute(m.Name("typing"), m.Name("Union"))
-OPTIONAL = m.Name("Optional") | m.Attribute(m.Name("typing"), m.Name("Optional"))
-
+from ._matchers import UNION_, OPTIONAL_
 
 class UnionNormaliser(codemod.Codemod):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
@@ -20,7 +18,7 @@ class UnionNormaliser(codemod.Codemod):
 
 
 class _OptionalToUnion(codemod.ContextAwareTransformer):
-    @m.call_if_inside(m.Annotation(m.Subscript(OPTIONAL)))
+    @m.call_if_inside(m.Annotation(m.Subscript(OPTIONAL_)))
     def leave_Annotation(
         self, original_node: libcst.Annotation, updated_node: libcst.Annotation
     ) -> libcst.Annotation:

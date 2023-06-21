@@ -3,20 +3,8 @@ import typing
 import libcst
 from libcst import codemod, matchers as m
 
-
-TUPLE_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Tuple"))
-LIST_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("List"))
-DICT_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Dict"))
-UNION_ = libcst.Attribute(libcst.Name("typing"), libcst.Name("Union"))
-
-
-_QUALIFIED_BOOL_LIT = m.Attribute(m.Name("builtins"), m.Name("False") | m.Name("True"))
-_UNQUALIFIED_BOOL_LIT = m.Name("False") | m.Name("True")
-
-_QUALIFIED_SUBSCRIPT_LITERAL = m.Subscript(
-    m.Attribute(m.Name("typing"), m.Name("Literal"))
-)
-_UNQUALIFIED_SUBSCRIPT_LITERAL = m.Subscript(m.Name("Literal"))
+from ._matchers import LIST_, UNION_, TUPLE_, _QUALIFIED_BOOL_LIT, _UNQUALIFIED_BOOL_LIT, DICT_, \
+    _QUALIFIED_SUBSCRIPT_LITERAL, _UNQUALIFIED_SUBSCRIPT_LITERAL
 
 
 class BadGenericsNormaliser(codemod.ContextAwareTransformer):
@@ -83,7 +71,7 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bool"))
 
         if self.matches(original_node, _QUALIFIED_SUBSCRIPT_LITERAL | _UNQUALIFIED_SUBSCRIPT_LITERAL):
-            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("Literal"))
+            return libcst.Attribute(libcst.Name("typing"), libcst.Name("Literal"))
         return updated_node
 
 

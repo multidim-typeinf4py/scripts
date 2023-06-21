@@ -1,7 +1,8 @@
 import libcst
 from libcst import codemod, matchers as m
 
-ANY_ = m.Attribute(m.Name("typing"), m.Name("Any")) | m.Name("Any")
+from ._matchers import ANY_
+
 
 class RemoveAnys(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation())

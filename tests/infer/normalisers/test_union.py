@@ -64,3 +64,9 @@ class Test_UnionNormaliser(codemod.CodemodTest):
             before="a: typing.Optional[int]",
             after="a: typing.Union[None, int]"
         )
+
+    def test_do_not_sort_other_generics(self) -> None:
+        self.assertCodemod(
+            before="a: dict[str, int]",
+            after="a: dict[str, int]",
+        )
