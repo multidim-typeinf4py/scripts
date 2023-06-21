@@ -1,5 +1,5 @@
 import libcst
-from libcst import codemod
+from libcst import codemod, matchers as m
 from typet5.experiments import typilus, utils
 
 from .base import TaskPreprocessor
@@ -25,5 +25,8 @@ class FStringRewriter(codemod.ContextAwareTransformer):
     ) -> libcst.BaseExpression:
         # typed_ast struggles to handle f-strings correctly
         # e.g.: f"{repo or ''}" fails due to the usage of boolean operators
-        # however, f-strings are all strings, therefore simply return some form of SimpleString
-        return libcst.SimpleString("'<REWRITTEN-FSTRING>'")
+        # however, f-strings are all strings, therefore simply remove all formatted components
+        return updated_node.with_changes(parts=list(filter(
+            lambda p: m.matches(p, ~m.FormattedStringExpression()),
+            original_node.parts
+        )))

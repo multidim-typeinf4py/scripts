@@ -64,10 +64,10 @@ class Test_Typilus(codemod.CodemodTest):
     def test_fstring_removal(self) -> None:
         self.assertWithPreamble(
             before=r"""
-            s = f'{repo or ""}'
+            s = f'{repo or ""} abc'
             """,
             after="""
-            s = '<REWRITTEN-FSTRING>'
+            s = f' abc'
             """,
             task=TypeCollectionCategory.VARIABLE
         )
