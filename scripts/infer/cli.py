@@ -145,11 +145,11 @@ def cli_entrypoint(
                     break
 
                 except ParserSyntaxError:
-                    inference_tool.logger.error("Failed to parse project", exc_info=True)
+                    inference_tool.logger.error(f"{project} - Failed to parse", exc_info=True)
                     break
 
                 except Exception:
-                    inference_tool.logger.error(f"Unhandled error occurred", exc_info=True)
+                    inference_tool.logger.error(f"{project} - Unhandled error occurred", exc_info=True)
                     break
 
                 else:
@@ -188,7 +188,7 @@ def cli_entrypoint(
             print("Not computing extended version of inference dataset; --extended was not given")
 
         elif not overwrite and extended_inference_io.full_location().exists():
-            print(f"Skipping computing extended verison of {project}; extended dataset already exists, and --overwrite was not given")
+            print(f"Skipping computing extended version of {project}; extended dataset already exists, and --overwrite was not given")
 
         else:
             print("Building parametric representation")
