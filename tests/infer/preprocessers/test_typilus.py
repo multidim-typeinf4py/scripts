@@ -60,3 +60,14 @@ class Test_Typilus(codemod.CodemodTest):
             """,
             task=TypeCollectionCategory.CALLABLE_RETURN,
         )
+
+    def test_fstring_removal(self) -> None:
+        self.assertWithPreamble(
+            before=r"""
+            s = f'{repo or ""}'
+            """,
+            after="""
+            s = '<REWRITTEN-FSTRING>'
+            """,
+            task=TypeCollectionCategory.VARIABLE
+        )
