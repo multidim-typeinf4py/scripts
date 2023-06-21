@@ -33,9 +33,7 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
         self.topn = topn
 
     @abc.abstractmethod
-    def extract_predictions_for_file(
-        self, path2topn: T, path: pathlib.Path, topn: int
-    ) -> U:
+    def extract_predictions_for_file(self, path2topn: T, path: pathlib.Path, topn: int) -> U:
         ...
 
     @abc.abstractmethod
@@ -53,14 +51,14 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
         path = pathlib.Path(self.context.filename).relative_to(
             self.context.metadata_manager.root_path
         )
-        predictions = self.extract_predictions_for_file(
-            self.path2batches, path, self.topn
-        )
+        predictions = self.extract_predictions_for_file(self.path2batches, path, self.topn)
         annotator = self.annotator(predictions)
 
         annotated = annotator.transform_module(tree)
 
-        normalised =  Normaliser(context=self.context, strategy=self.normalisation()).transform_module(annotated)
+        normalised = Normaliser(
+            context=self.context, strategy=self.normalisation()
+        ).transform_module(annotated)
         return normalised
 
     @classmethod
@@ -75,27 +73,27 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
     ) -> pt.DataFrame[InferredSchema]:
         collections = [InferredSchema.example(size=0)]
         for n in range(1, topn + 1):
-            with utils.scratchpad(project) as sc:
-                anno = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=cls(
-                        context=codemod.CodemodContext(),
-                        paths2topn=predictions,
-                        topn=n - 1,
-                        **kwargs,
-                    ),
-                    jobs=utils.worker_count(),
-                    repo_root=str(sc),
-                    files=[sc / s for s in subset],
-                )
-                anno_res = utils.format_parallel_exec_result(
-                    f"Annotated with {tool.method()} @ topn={n}", result=anno
-                )
-                tool.logger.info(anno_res)
+            #with utils.scratchpad(project) as sc:
+            anno = codemod.parallel_exec_transform_with_prettyprint(
+                transform=cls(
+                    context=codemod.CodemodContext(),
+                    paths2topn=predictions,
+                    topn=n - 1,
+                    **kwargs,
+                ),
+                jobs=utils.worker_count(),
+                repo_root=str(project),
+                files=[str(project / s) for s in subset],
+            )
+            anno_res = utils.format_parallel_exec_result(
+                f"Annotated with {tool.method()} @ topn={n}", result=anno
+            )
+            tool.logger.info(anno_res)
 
-                collection = build_type_collection(
-                    root=sc, allow_stubs=False, subset=subset
-                ).df.assign(topn=n)
-                collections.append(collection)
+            collection = build_type_collection(
+                root=project, allow_stubs=False, subset=subset
+            ).df.assign(topn=n)
+            collections.append(collection)
         return (
             pd.concat(collections, ignore_index=True)
             .assign(method=tool.method())
