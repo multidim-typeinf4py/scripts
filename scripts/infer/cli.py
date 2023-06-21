@@ -155,6 +155,11 @@ def cli_entrypoint(
 
                 except Exception:
                     inference_tool.logger.error(f"{project} - Unhandled error occurred", exc_info=True)
+
+                    dump_folder = pathlib.Path.cwd() / ".broken"
+                    inference_tool.logger.error(f"Dumping {sc} @ {dump_folder} for further examination", exc_info=True)
+                    shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
+
                     break
 
                 else:
