@@ -143,9 +143,7 @@ class _Type4Py(ParallelisableInference):
         model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__(cpu_executor=cpu_executor, model_executor=model_executor)
-
         self.topn = topn
-        self.pretrained = PTType4Py(model_path, topn=topn)
 
     def method(self) -> str:
         return f"type4pyN{self.topn}"
@@ -174,15 +172,6 @@ class _Type4Py(ParallelisableInference):
 
         self.register_artifact(paths2predictions)
 
-        # paths2predictions = {
-        #    path: self.type_annotate_file(
-        #        source_file_path=mutable / path,
-        #    )
-        #    for path in subset
-        # }
-        # paths2predictions = self.make_predictions(paths2datapoints, subset)
-        # self.logger.debug(paths2predictions)
-
         self.logger.info("Converting predictions into Top-N batches")
         paths2batches = self.make_topn_batches(paths2predictions, subset)
         self.logger.debug(paths2batches)
@@ -194,68 +183,6 @@ class _Type4Py(ParallelisableInference):
             topn=self.topn,
             tool=self,
         )
-
-    def type_annotate_file(
-        self, source_file_path: pathlib.Path, filter_pred_types: bool = True
-    ) -> dict:
-        self.logger.info(f"=== {source_file_path} ===")
-
-        src_f_read = source_file_path.read_text()
-        ext_type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
-        self.logger.info(f"Extracted JSON-representation of {source_file_path}")
-
-        (
-            all_type_slots,
-            vars_type_hints,
-            params_type_hints,
-            rets_type_hints,
-        ) = get_dps_single_file(ext_type_hints)
-        self.logger.info("Extracted type hints from JSON")
-
-        if not all_type_slots:
-            self.logger.warn(
-                f"No type slots detected in {source_file_path}; no predictions can be made"
-            )
-            return dict()
-
-        ext_type_hints = get_type_preds_single_file(
-            ext_type_hints,
-            all_type_slots,
-            (vars_type_hints, params_type_hints, rets_type_hints),
-            pre_trained_m,
-            filter_pred_types,
-        )
-        self.logger.info("Predicted type annotations for the given file")
-
-        return ext_type_hints
-
-    def extract_datapoints(
-        self, mutable: pathlib.Path, subset: set[pathlib.Path]
-    ) -> dict[pathlib.Path, FileDatapoints]:
-        tasks = self.cpu_executor.map(
-            _file2datapoint, itertools.repeat(mutable), subset
-        )
-        paths2datapoints = dict(
-            tqdm.tqdm(tasks, total=len(subset), desc="Datapoint Extraction")
-        )
-
-        return paths2datapoints
-
-    def make_predictions(
-        self,
-        paths2datapoints: dict[pathlib.Path, FileDatapoints],
-        subset: set[pathlib.Path],
-    ) -> dict[pathlib.Path, dict]:
-        # Type prediction
-        tasks = self.model_executor.map(
-            self._infer_from_datapoints,
-            itertools.repeat(paths2datapoints),
-            subset,
-        )
-        paths2predictions = dict(
-            tqdm.tqdm(tasks, total=len(subset), desc="Type Prediction")
-        )
-        return paths2predictions
 
     def make_topn_batches(
         self, paths2predictions: dict[pathlib.Path, dict], subset: set[pathlib.Path]
@@ -269,37 +196,6 @@ class _Type4Py(ParallelisableInference):
         paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
         return paths2batches
 
-    def _infer_from_datapoints(
-        self,
-        datapoints: dict[pathlib.Path, FileDatapoints],
-        file: pathlib.Path,
-    ) -> tuple[pathlib.Path, dict]:
-        datapoint = datapoints[file]
-
-        # Filter out files for which no predictions were made
-        has_type_slots = any(
-            dp_hint
-            for dp_hint in (
-                datapoint.vars_type_hints,
-                datapoint.param_type_hints,
-                datapoint.rets_type_hints,
-            )
-        )
-        if not has_type_slots:
-            return file, dict()
-
-        return file, get_type_preds_single_file(
-            datapoint.ext_type_hints,
-            datapoint.all_type_slots,
-            (
-                datapoint.vars_type_hints,
-                datapoint.param_type_hints,
-                datapoint.rets_type_hints,
-            ),
-            self.pretrained,
-            filter_pred_types=True,
-        )
-
 def type_annotate_with_requests(
     project: pathlib.Path, relpath: pathlib.Path
 ) -> tuple[pathlib.Path, dict]:
@@ -310,31 +206,6 @@ def type_annotate_with_requests(
     ).json()
 
     return relpath, res.get("response") or {}
-
-
-def _file2datapoint(
-    project: pathlib.Path,
-    file: pathlib.Path,
-) -> tuple[pathlib.Path, FileDatapoints]:
-    filepath = project / file
-
-    source_code = filepath.read_text()
-    ext_type_hints = Extractor.extract(source_code, include_seq2seq=False).to_dict()
-
-    (
-        all_type_slots,
-        vars_type_hints,
-        params_type_hints,
-        rets_type_hints,
-    ) = get_dps_single_file(ext_type_hints)
-
-    return file, FileDatapoints(
-        ext_type_hints=ext_type_hints,
-        all_type_slots=all_type_slots,
-        vars_type_hints=vars_type_hints,
-        param_type_hints=params_type_hints,
-        rets_type_hints=rets_type_hints,
-    )
 
 
 class Type4PyTopN(_Type4Py):

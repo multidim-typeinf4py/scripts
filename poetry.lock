@@ -730,6 +730,18 @@ files = [
 ]
 
 [[package]]
+name = "colored"
+version = "2.1.1"
+description = "Simple python library for color and formatting to terminal"
+category = "dev"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "colored-2.1.1-py3-none-any.whl", hash = "sha256:64a2eb8443def36dd376df3fce5be1d00a3d06f96997de158039075c5e02f069"},
+    {file = "colored-2.1.1.tar.gz", hash = "sha256:ef37e90807a078293deda404f46596100fe941bf5af26e0180d25a99c7722b33"},
+]
+
+[[package]]
 name = "coloredlogs"
 version = "15.0.1"
 description = "Colored terminal output for Python's logging module"
@@ -4173,6 +4185,22 @@ docs = ["furo (>=2023.3.27)", "proselint (>=0.13)", "sphinx (>=6.2.1)", "sphinx-
 test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest (>=7.3.1)", "pytest-cov (>=4)", "pytest-mock (>=3.10)"]
 
 [[package]]
+name = "plotly"
+version = "5.15.0"
+description = "An open-source, interactive data visualization library for Python"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "plotly-5.15.0-py2.py3-none-any.whl", hash = "sha256:3508876bbd6aefb8a692c21a7128ca87ce42498dd041efa5c933ee44b55aab24"},
+    {file = "plotly-5.15.0.tar.gz", hash = "sha256:822eabe53997d5ebf23c77e1d1fcbf3bb6aa745eb05d532afd4b6f9a2e2ab02f"},
+]
+
+[package.dependencies]
+packaging = "*"
+tenacity = ">=6.2.0"
+
+[[package]]
 name = "pluggy"
 version = "1.0.0"
 description = "plugin and hook calling mechanisms for python"
@@ -5693,6 +5721,21 @@ files = [
 widechars = ["wcwidth"]
 
 [[package]]
+name = "tenacity"
+version = "8.2.2"
+description = "Retry code until it succeeds"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "tenacity-8.2.2-py3-none-any.whl", hash = "sha256:2f277afb21b851637e8f52e6a613ff08734c347dc19ade928e519d7d2d8569b0"},
+    {file = "tenacity-8.2.2.tar.gz", hash = "sha256:43af037822bd0029025877f3b2d97cc4d7bb0c2991000a3d59d71517c5c969e0"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx", "tornado (>=4.5)"]
+
+[[package]]
 name = "tensorboard"
 version = "2.13.0"
 description = "TensorBoard lets you watch Tensors Flow"
@@ -6307,7 +6350,7 @@ develop = false
 type = "git"
 url = "https://github.com/multidim-typeinf4py/TypeT5.git"
 reference = "HEAD"
-resolved_reference = "77d147e61abf74b52bfc9c4c48a32356e34296a2"
+resolved_reference = "c1841d597901f42070e785fd45c5abec4915ca2f"
 
 [[package]]
 name = "typewriter"
@@ -6939,4 +6982,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "74dbb4cc8a16724db022794adac4b498229e5411b1b8aeb2140374fa3766fa6f"
+content-hash = "6b82d6483668a562a50e1b99d75c7117d6accff26f724b6f5350c26fc2fa820c"
