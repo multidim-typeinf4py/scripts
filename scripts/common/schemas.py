@@ -48,42 +48,61 @@ class ExtendedInferredSchema(InferredSchema):
     simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
 
 
-# InferredSchemaColumns = list(InferredSchema.to_schema().columns.keys())
-
-
 class ContextCategory(enum.IntEnum):
+    # -> f() -> ...
     CALLABLE_RETURN = enum.auto()
+
+    # -> f(a: ...)
     CALLABLE_PARAMETER = enum.auto()
-    VARIABLE = enum.auto()
-    INSTANCE_ATTR = enum.auto()
+
+    # -> a = 10
+    SINGLE_TARGET_ASSIGN = enum.auto()
+
+    # -> a: int = 10
+    ANN_ASSIGN = enum.auto()
+
+    # -> a += 5
+    AUG_ASSIGN = enum.auto()
+
+    # a, b = 10 or a = b = 10
+    MULTI_TARGET_ASSIGN = enum.auto()
+
+    # a: int in a class
+    INSTANCE_ATTRIBUTE = enum.auto()
+
+    # for x in y:
+    FOR_TARGET = enum.auto()
+
+    # with open as f
+    WITH_TARGET = enum.auto()
 
     def __str__(self) -> str:
         return self.name
 
 
 class ContextSymbolSchema(TypeCollectionSchema):
-    simple_name: pt.Series[str] = pa.Field()
+    # Read above to recognise the category
+    context_category: pt.Series[int] = pa.Field(isin=ContextCategory)
+
+    # Does the annotatable occur in a loop
     loop: pt.Series[int] = pa.Field()
+
+    # Is this annotatable used on the LHS of multiple assignments
     reassigned: pt.Series[int] = pa.Field()
+
+    # Is the annotatable inside a class inside a class, or a function inside a function
     nested: pt.Series[int] = pa.Field()
-    builtin: pt.Series[int] = pa.Field()
-    branching: pt.Series[int] = pa.Field()
-    ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
+
+    # Is the annotatable inside some form of flow control (try, except(*), if, else)
+    flow_control: pt.Series[int] = pa.Field()
+
+    # Does the annotation attached require being able to follow an import?
+    import_source: pt.Series[int] = pa.Field()
+
+    # Does the annotation attached require knowing the builtin scope
+    builtin_source: pt.Series[int] = pa.Field()
+
+    # Does the annotation attached require knowing the local scope
+    local_source: pt.Series[int] = pa.Field()
 
 
-class ContextDatasetSchema(pa.SchemaModel):
-    method: pt.Series[str] = pa.Field()
-    file: pt.Series[str] = pa.Field()
-    qname_ssa: pt.Series[str] = pa.Field()
-    anno_gt: pt.Series[str] = pa.Field(nullable=True)
-    anno_ta: pt.Series[str] = pa.Field(nullable=True)
-    score: pt.Series[int] = pa.Field(ge=-1.0, le=1.0)
-
-    loop: pt.Series[int] = pa.Field()
-    reassigned: pt.Series[int] = pa.Field()
-    nested: pt.Series[int] = pa.Field()
-    user_defined: pt.Series[int] = pa.Field()
-    ctxt_category: pt.Series[int] = pa.Field(isin=ContextCategory)
-
-
-# ContextSymbolSchemaColumns = list(ContextSymbolSchema.to_schema().columns.keys())
