@@ -80,3 +80,8 @@ class Test_UnionNormaliser(codemod.CodemodTest):
             before="data: typing.Union[builtins.bytes, builtins.str]",
             after="data: typing.Union[builtins.bytes, builtins.str]",
         )
+    def test_nested_optional(self) -> None:
+        self.assertCodemod(
+            before="a: typing.Union[typing.Optional[builtins.str]]",
+            after="a: typing.Union[None, builtins.str]"
+        )

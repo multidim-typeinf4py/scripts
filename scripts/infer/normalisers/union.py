@@ -7,6 +7,7 @@ from scripts.common import _stringify
 
 from ._matchers import UNION_, OPTIONAL_
 
+
 class UnionNormaliser(codemod.Codemod):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         optional_to_union = _OptionalToUnion(context=self.context).transform_module(tree)
@@ -18,19 +19,22 @@ class UnionNormaliser(codemod.Codemod):
 
 
 class _OptionalToUnion(codemod.ContextAwareTransformer):
-    @m.call_if_inside(m.Annotation(m.Subscript(OPTIONAL_)))
-    def leave_Annotation(
-        self, original_node: libcst.Annotation, updated_node: libcst.Annotation
-    ) -> libcst.Annotation:
-        optional_t = original_node.annotation.slice[0]
+    @m.call_if_inside(m.Annotation())
+    def leave_Subscript(
+        self, original_node: libcst.Subscript, updated_node: libcst.Subscript
+    ) -> libcst.Subscript:
+        if not m.matches(original_node.value, OPTIONAL_):
+            return updated_node
+        optional_t = original_node.slice[0]
         rewritten_subscript = libcst.Subscript(
             value=libcst.Attribute(libcst.Name("typing"), libcst.Name("Union")),
             slice=[
-                libcst.SubscriptElement(libcst.Index(optional_t)),
-                libcst.SubscriptElement(libcst.Index(libcst.Name("None")))
-            ]
+                optional_t,
+                libcst.SubscriptElement(libcst.Index(libcst.Name("None"))),
+            ],
         )
-        return libcst.Annotation(annotation=rewritten_subscript)
+        return rewritten_subscript
+
 
 
 class _Pep604(codemod.ContextAwareTransformer):
@@ -65,15 +69,13 @@ class _Flatten(codemod.ContextAwareTransformer):
         original_node: libcst.Subscript,
         updated_node: libcst.Subscript,
     ) -> libcst.Subscript:
-        if not m.matches(original_node, m.Subscript(value=UNION_)):
-            return original_node
+        if not m.matches(updated_node, m.Subscript(value=UNION_)):
+            return updated_node
 
         flattened = list[libcst.SubscriptElement]()
         for subscript_element in updated_node.slice:
             # Union element with further inner types
-            if self.matches(
-                subscript_element, m.SubscriptElement(m.Index(m.Subscript(UNION_)))
-            ):
+            if self.matches(subscript_element, m.SubscriptElement(m.Index(m.Subscript(UNION_)))):
                 index = typing.cast(libcst.Index, subscript_element.slice)
                 subscript = typing.cast(libcst.Subscript, index.value)
                 flattened.extend(subscript.slice)
@@ -99,11 +101,9 @@ class _UnionSorter(codemod.ContextAwareTransformer):
         original_node: libcst.Subscript,
         updated_node: libcst.Subscript,
     ) -> libcst.Subscript:
-        subscript_elems_as_str = [_stringify(se.slice.value) for se in updated_node.slice]
+        subscript_elems_as_str = set(_stringify(se.slice.value) for se in updated_node.slice)
         as_sorted = sorted(subscript_elems_as_str)
 
-        sorted_union = libcst.parse_expression(
-            f"typing.Union[{', '.join(as_sorted)}]"
-        )
+        sorted_union = libcst.parse_expression(f"typing.Union[{', '.join(as_sorted)}]")
 
         return typing.cast(libcst.Subscript, sorted_union)
