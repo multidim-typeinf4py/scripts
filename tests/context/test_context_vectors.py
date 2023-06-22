@@ -1,25 +1,22 @@
 import pathlib
 
+import libcst
 import pandas as pd
 import pandera.typing as pt
 import pytest
 
 from scripts.common.schemas import ContextSymbolSchema
 from scripts.context import RelevantFeatures
-from scripts.context import generate_context_vectors_for_file
+from scripts.context.visitors import generate_context_vectors
 
 
 @pytest.fixture(scope="class")
 def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "resources" / "context"
-    filepath = repo / "x.py"
+    filepath = pathlib.Path("x.py")
 
-    cvs = generate_context_vectors_for_file(
-        features=RelevantFeatures(
-            loop=True, reassigned=True, nested=True, builtin=True, branching=True
-        ),
-        repo=repo,
-        file2code=(filepath, filepath.open().read()),
+    cvs = generate_context_vectors(
+        features=RelevantFeatures.default(), project=repo, subset={filepath},
     )
 
     print(cvs)
@@ -53,12 +50,12 @@ class TestFeatures:
         self.exact_check(
             context_dataset,
             ["userdeffed.abc", "userdeffed.efg", "parammed.p"],
-            ContextSymbolSchema.builtin,
+            ContextSymbolSchema.builtin_source,
         )
 
     def test_branching(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.all_positive_check(
-            context_dataset, ["branching.b"], ContextSymbolSchema.branching
+            context_dataset, ["branching.b"], ContextSymbolSchema.flow_control
         )
         self.all_negative_check(
             context_dataset,
@@ -82,13 +79,13 @@ class TestFeatures:
                 "branching",
                 "branching.x",
             ],
-            ContextSymbolSchema.branching,
+            ContextSymbolSchema.flow_control,
         )
         self.one_positive_check(
-            context_dataset, ["branching.a"], ContextSymbolSchema.branching
+            context_dataset, ["branching.a"], ContextSymbolSchema.flow_control
         )
         self.one_negative_check(
-            context_dataset, ["branching.a"], ContextSymbolSchema.branching
+            context_dataset, ["branching.a"], ContextSymbolSchema.flow_control
         )
 
     def one_positive_check(
@@ -200,7 +197,7 @@ def tuple_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     repo = pathlib.Path.cwd() / "tests" / "context"
     cvs = generate_context_vectors_for_file(
         features=RelevantFeatures(
-            loop=True, reassigned=True, nested=True, builtin=True, branching=True
+            loop=True, reassigned=True, nested=True, source=True, flow_control=True
         ),
         repo=repo,
         path=repo / "tuples.py",
