@@ -85,3 +85,8 @@ class Test_UnionNormaliser(codemod.CodemodTest):
             before="a: typing.Union[typing.Optional[builtins.str]]",
             after="a: typing.Union[None, builtins.str]"
         )
+
+        self.assertCodemod(
+            before="a: typing.Tuple[typing.Optional[builtins.str], typing.Optional[builtins.str]]",
+            after="a: typing.Tuple[typing.Union[None, builtins.str], typing.Union[None, builtins.str]]"
+        )

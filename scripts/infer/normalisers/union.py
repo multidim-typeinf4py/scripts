@@ -55,7 +55,7 @@ class _Pep604(codemod.ContextAwareTransformer):
 
 
 class _Flatten(codemod.ContextAwareTransformer):
-    @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
+    @m.call_if_inside(m.Annotation())
     def leave_Subscript(
         self,
         original_node: libcst.Subscript,
@@ -87,12 +87,15 @@ class _Flatten(codemod.ContextAwareTransformer):
 
 
 class _UnionSorter(codemod.ContextAwareTransformer):
-    @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
+    @m.call_if_inside(m.Annotation())
     def leave_Subscript(
         self,
         original_node: libcst.Subscript,
         updated_node: libcst.Subscript,
     ) -> libcst.Subscript:
+        if not m.matches(updated_node, m.Subscript(value=UNION_)):
+            return updated_node
+
         subscript_elems_as_str = set(_stringify(se.slice.value) for se in updated_node.slice)
         as_sorted = sorted(subscript_elems_as_str)
 
