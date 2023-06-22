@@ -137,7 +137,6 @@ def _batchify(
 class _Type4Py(ParallelisableInference):
     def __init__(
         self,
-        model_path: pathlib.Path,
         topn: int,
         cpu_executor: ProcessPoolExecutor | None = None,
         model_executor: ThreadPoolExecutor | None = None,
@@ -216,7 +215,6 @@ class Type4PyTopN(_Type4Py):
         model_executor: ThreadPoolExecutor | None = None,
     ):
         super().__init__(
-            model_path=pathlib.Path("models/type4py"),
             topn=topn,
             cpu_executor=cpu_executor,
             model_executor=model_executor,
