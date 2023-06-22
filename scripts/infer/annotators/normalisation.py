@@ -73,8 +73,8 @@ class Normalisation:
         if self.typing_text_to_str:
             ts.append(t.TextToStr(context=context))
 
-        if self.limit_parametric_depth:
-            ts.append(p.ParametricTypeDepthReducer(context=context))
+        # if self.limit_parametric_depth:
+        #     ts.append(p.ParametricTypeDepthReducer(context=context))
 
         if self.bad_generics:
             ts.append(b.BadGenericsNormaliser(context=context))
@@ -85,11 +85,11 @@ class Normalisation:
         #if self.outer_final_to_t:
         #    ts.append(t.RemoveOuterFinal(context=context))
 
-        if self.normalise_union_ts:
-            ts.append(u.UnionNormaliser(context=context))
+        # if self.normalise_union_ts:
+        #     ts.append(u.UnionNormaliser(context=context))
 
-        if self.remove_if_all_any:
-            ts.append(r.RemoveAnys(context=context))
+        # if self.remove_if_all_any:
+        #     ts.append(r.RemoveAnys(context=context))
 
         if self.lowercase_aliases:
             ts.append(t.LowercaseTypingAliases(context=context))
