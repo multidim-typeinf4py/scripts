@@ -81,21 +81,12 @@ from libcst._exceptions import ParserSyntaxError
     help="Remove and infer annotations in the codebase",
     required=True,
 )
-@click.option(
-    "-e",
-    "--extended",
-    required=False,
-    default=False,
-    help="Create ExtendedDatasetSchema",
-    is_flag=True,
-)
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
     task: str,
-    extended: bool,
 ) -> None:
     structure = DatasetFolderStructure(dataset)
     print("Dataset Kind:", structure)
@@ -213,37 +204,6 @@ def cli_entrypoint(
                     ):
                         shutil.copy(log_path(sc), log_path(inference_output.parent))
                     print(f"Logs have been stored at {inference_output.parent}")
-
-        extended_inference_io = output.ExtendedInferredIO(
-            artifact_root=outpath,
-            dataset=structure,
-            repository=project,
-            tool_name=inference_tool.method(),
-            task=task,
-        )
-        if not extended:
-            print(
-                "Not computing extended version of inference dataset; --extended was not given"
-            )
-
-        elif not overwrite and extended_inference_io.full_location().exists():
-            print(
-                f"Skipping computing extended version of {project}; extended dataset already exists, and --overwrite was not given"
-            )
-
-        else:
-            print("Building parametric representation")
-            inferred[ExtendedInferredSchema.parametric_anno] = inferred[
-                ExtendedInferredSchema.anno
-            ].progress_apply(lambda anno: extending.make_parametric(anno))
-
-            print("Simple or complex?")
-            inferred[ExtendedInferredSchema.simple_or_complex] = inferred[
-                ExtendedInferredSchema.anno
-            ].progress_apply(lambda anno: extending.is_simple_or_complex(anno))
-
-            collection = inferred.pipe(pt.DataFrame[ExtendedInferredSchema])
-            extended_inference_io.write(collection)
 
 
 if __name__ == "__main__":
