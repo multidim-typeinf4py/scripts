@@ -30,6 +30,11 @@ class Test_UnionNormaliser(codemod.CodemodTest):
             after="a: typing.Union[bytes, float, int, str] = ...",
         )
 
+        self.assertCodemod(
+            before="self._trans: typing.Optional[typing.Callable[[str], str]]",
+            after="self._trans: typing.Union[None, typing.Callable[[str], str]]",
+        )
+
     def test_deep_nestage(self) -> None:
         self.assertCodemod(
             before="a: typing.Union[typing.Union[typing.Union[typing.Union[int, str]]]] = ...",
