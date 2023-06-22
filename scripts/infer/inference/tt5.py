@@ -1,9 +1,11 @@
+import collections
+import dataclasses
 import pathlib
 
 import libcst
 import pandera.typing as pt
 import torch
-from libcst import codemod
+from libcst import codemod, matchers
 from typet5.experiments import utils as typet5_utils
 from typet5.function_decoding import (
     RolloutCtx,
@@ -31,7 +33,9 @@ from scripts.infer.preprocessers import tt5
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
+    def __init__(
+        self, context: codemod.CodemodContext, predictions: SignatureMap
+    ) -> None:
         super().__init__(context)
         self.predictions = predictions
 
@@ -85,6 +89,7 @@ class TypeT5TopN(ProjectWideInference):
         project = PythonProject.parse_from_root(root=mutable)
         rctx = RolloutCtx(model=self.wrapper)
 
+        self.logger.info("Making predictions...")
         rollout: RolloutPredictionTopN = asyncio.run(
             rctx.run_on_project(
                 project=project,
@@ -94,6 +99,26 @@ class TypeT5TopN(ProjectWideInference):
                 num_return_sequences=self.topn,
             )
         )
+
+        self.logger.info("Creating artifacts...")
+        top1_artifacts = collections.defaultdict[pathlib.Path, dict](dict)
+
+        for tt5_project_path, tt5_predictions in rollout.final_sigmap.items():
+            project_path = pathlib.Path(tt5_project_path.module)
+            symbol = tt5_project_path.path
+
+            prediction = str(tt5_predictions[0])
+            self.logger.debug(f"{project_path} | {symbol} -> {prediction}")
+
+            assert (
+                project_path not in top1_artifacts
+                or symbol not in top1_artifacts[project_path]
+            ), f"{top1_artifacts[project_path]}, {symbol} {prediction}"
+
+            top1_artifacts[project_path].update({symbol: prediction})
+
+        for path, prediction in top1_artifacts.items():
+            self.register_artifact(path, prediction)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
