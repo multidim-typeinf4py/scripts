@@ -17,7 +17,7 @@ from scripts.common.schemas import InferredSchema
 from scripts.infer.annotators.pyrequery import (
     PyreQueryFileApplier,
 )
-from scripts.infer.annotators.tool_annotator import Normalisation
+from scripts.infer.annotators.tool_annotator import Normalisation, Normaliser
 from scripts.symbols.collector import build_type_collection
 from ._base import ProjectWideInference
 
@@ -26,25 +26,15 @@ from scripts.infer.preprocessers import static
 
 
 class NormalisedPyreQuery(codemod.Codemod):
-    NORMALISER = Normalisation(
-        bad_generics=True,
-        lowercase_aliases=True,
-        normalise_union_ts=True,
-        typing_text_to_str=True,
-    )
-
     def __init__(self, context: codemod.CodemodContext) -> None:
         super().__init__(context)
+        self.strategy = Normalisation.default()
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         inferred = PyreQueryFileApplier(context=self.context).transform_module(tree)
-        normalised = functools.reduce(
-            lambda mod, transformer: transformer.transform_module(mod),
-            NormalisedPyreQuery.NORMALISER.transformers(self.context),
-            inferred,
-        )
-
+        normalised = Normaliser(self.context, strategy=self.strategy).transform_module(inferred)
         return normalised
+
 
 @contextlib.contextmanager
 def pyre_server(project_location: pathlib.Path) -> None:
@@ -67,7 +57,8 @@ def pyre_server(project_location: pathlib.Path) -> None:
     )
 
     start_args = StartArguments.create(
-        command_argument=cmd_args, no_watchman=True,
+        command_argument=cmd_args,
+        no_watchman=True,
     )
     assert start.run(configuration=config, start_arguments=start_args) == ExitCode.SUCCESS
 
@@ -104,11 +95,5 @@ class PyreQuery(ProjectWideInference):
             )
             self.logger.info(anno_res)
 
-            collected = build_type_collection(
-                root=mutable,
-                allow_stubs=False,
-                subset=subset
-            ).df
-        return collected.assign(method=self.method(), topn=1).pipe(
-            pt.DataFrame[InferredSchema]
-        )
+            collected = build_type_collection(root=mutable, allow_stubs=False, subset=subset).df
+        return collected.assign(method=self.method(), topn=1).pipe(pt.DataFrame[InferredSchema])
