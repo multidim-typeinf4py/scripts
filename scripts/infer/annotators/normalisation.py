@@ -43,7 +43,7 @@ class Normalisation:
     # remove_if_all_any: bool = False
 
     # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
-    lowercase_aliases: bool
+    # lowercase_aliases: bool
 
 
     # Optional[T] -> T
@@ -58,7 +58,7 @@ class Normalisation:
             unquote=True, 
             typing_text_to_str=True,
             bad_generics=True,
-            lowercase_aliases=True,
+            # lowercase_aliases=True,
         )
 
     def transformers(
@@ -91,8 +91,8 @@ class Normalisation:
         # if self.remove_if_all_any:
         #     ts.append(r.RemoveAnys(context=context))
 
-        if self.lowercase_aliases:
-            ts.append(t.LowercaseTypingAliases(context=context))
+        # if self.lowercase_aliases:
+        #     ts.append(t.LowercaseTypingAliases(context=context))
 
         return ts
 

@@ -59,7 +59,7 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
         normalised = Normaliser(
             context=self.context, strategy=self.normalisation()
         ).transform_module(annotated)
-        return annotated
+        return normalised
 
     @classmethod
     def collect_topn(
