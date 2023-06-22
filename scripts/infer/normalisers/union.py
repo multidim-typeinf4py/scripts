@@ -39,12 +39,14 @@ class _OptionalToUnion(codemod.ContextAwareTransformer):
 
 class _Pep604(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation())
-    @m.call_if_inside(m.BinaryOperation(operator=m.BitOr()))
     def leave_BinaryOperation(
         self,
         original_node: libcst.BinaryOperation,
         updated_node: libcst.BinaryOperation,
     ) -> libcst.BaseExpression:
+        if not self.matches(original_node.operator, m.BitOr()):
+            return updated_node
+
         return libcst.Subscript(
             value=libcst.Attribute(libcst.Name("typing"), libcst.Name("Union")),
             slice=[
