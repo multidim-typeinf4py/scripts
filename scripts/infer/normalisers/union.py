@@ -53,14 +53,6 @@ class _Pep604(codemod.ContextAwareTransformer):
             ],
         )
 
-    def leave_Module(
-        self,
-        original_node: libcst.Module,
-        updated_node: libcst.Module,
-    ) -> libcst.Module:
-        # flattens and sorts
-        return updated_node.visit(_Flatten(context=self.context))
-
 
 class _Flatten(codemod.ContextAwareTransformer):
     @m.call_if_inside(m.Annotation(m.Subscript(value=UNION_)))
