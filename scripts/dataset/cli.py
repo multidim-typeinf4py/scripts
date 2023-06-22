@@ -115,30 +115,6 @@ def cli_entrypoint(dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool
         extended_dataset_io.write(collection)
 
 
-        #with utils.scratchpad(project) as sc:
-        #    pbar.set_description(desc="Discovering Type Aliases with Pyre-Query")
-        #    tool = PyreQuery()
-        #    inferred = tool.infer(mutable=sc, readonly=project, subset=set)
-        #    pyrequery_annotations = inferred.drop(
-        #        columns=[InferredSchema.method, InferredSchema.topn]
-        #    ).pipe(pt.DataFrame[TypeCollectionSchema])
-
-        #    side_by_side = pd.merge(
-        #        left=collection,
-        #        right=pyrequery_annotations,
-        #        how="left",
-        #        on=[
-        #            TypeCollectionSchema.file,
-        #            TypeCollectionSchema.category,
-        #            TypeCollectionSchema.qname,
-        #            TypeCollectionSchema.qname_ssa,
-        #        ],
-        #        suffixes=("_ground_truth", "_pyrequery_augmented")
-        #    )
-
-        dataset_io.write(collection)
-
-
 
 
 
