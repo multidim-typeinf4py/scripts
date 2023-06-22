@@ -1,6 +1,7 @@
 import collections
 import dataclasses
 import pathlib
+import typing
 
 import libcst
 import pandera.typing as pt
@@ -100,25 +101,8 @@ class TypeT5TopN(ProjectWideInference):
             )
         )
 
-        self.logger.info("Creating artifacts...")
-        top1_artifacts = collections.defaultdict[pathlib.Path, dict](dict)
-
-        for tt5_project_path, tt5_predictions in rollout.final_sigmap.items():
-            project_path = pathlib.Path(tt5_project_path.module)
-            symbol = tt5_project_path.path
-
-            prediction = str(tt5_predictions[0])
-            self.logger.debug(f"{project_path} | {symbol} -> {prediction}")
-
-            assert (
-                project_path not in top1_artifacts
-                or symbol not in top1_artifacts[project_path]
-            ), f"{top1_artifacts[project_path]}, {symbol} {prediction}"
-
-            top1_artifacts[project_path].update({symbol: prediction})
-
-        for path, prediction in top1_artifacts.items():
-            self.register_artifact(path, prediction)
+        self.logger.info("Registering artifacts...")
+        self.register_artifact(rollout.final_sigmap)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,

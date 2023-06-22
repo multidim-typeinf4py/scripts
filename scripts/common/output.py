@@ -1,5 +1,6 @@
 import abc
 import json
+import pickle
 import typing
 
 import pathlib
@@ -71,9 +72,7 @@ class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
         return pd.read_csv(
             input_location,
-            converters={
-                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
-            },
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[ContextSymbolSchema])
@@ -103,24 +102,17 @@ class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
             input_location,
-            converters={
-                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
-            },
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[InferredSchema])
 
-    def _write(
-        self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path
-    ) -> None:
+    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
         return artifact.to_csv(output_location, index=False, na_rep="")
 
     def relative_location(self) -> pathlib.Path:
         return (
-            super().relative_location()
-            / f"{self.tool_name}"
-            / f"{str(self.task)}"
-            / "inferred.csv"
+            super().relative_location() / f"{self.tool_name}" / f"{str(self.task)}" / "inferred.csv"
         )
 
 
@@ -128,9 +120,7 @@ class DatasetIO(DatasetDependentIO[pt.DataFrame[TypeCollectionSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         return pd.read_csv(
             input_location,
-            converters={
-                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
-            },
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[TypeCollectionSchema])
@@ -161,14 +151,10 @@ class InferredLoggingIO:
 
 
 class ExtendedDatasetIO(DatasetDependentIO[pt.DataFrame[ExtendedTypeCollectionSchema]]):
-    def _read(
-        self, input_location: pathlib.Path
-    ) -> pt.DataFrame[ExtendedTypeCollectionSchema]:
+    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ExtendedTypeCollectionSchema]:
         return pd.read_csv(
             input_location,
-            converters={
-                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
-            },
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[ExtendedTypeCollectionSchema])
@@ -200,16 +186,12 @@ class ExtendedInferredIO(DatasetDependentIO[pt.DataFrame[ExtendedInferredSchema]
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
             input_location,
-            converters={
-                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
-            },
+            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[InferredSchema])
 
-    def _write(
-        self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path
-    ) -> None:
+    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
         return artifact.to_csv(output_location, index=False, na_rep="")
 
     def relative_location(self) -> pathlib.Path:
@@ -221,7 +203,7 @@ class ExtendedInferredIO(DatasetDependentIO[pt.DataFrame[ExtendedInferredSchema]
         )
 
 
-class InferenceArtifactIO(DatasetDependentIO[dict[pathlib.Path, dict]]):
+class InferenceArtifactIO(DatasetDependentIO[list[typing.Any]]):
     def __init__(
         self,
         artifact_root: pathlib.Path,
@@ -234,22 +216,20 @@ class InferenceArtifactIO(DatasetDependentIO[dict[pathlib.Path, dict]]):
         self.tool_name = tool_name
         self.task = task
 
-    def _read(self, input_location: pathlib.Path) -> dict[pathlib.Path, dict]:
-        with input_location.open() as f:
-            artifact: dict[str, dict] = json.load(f)
-        return { pathlib.Path(k): v for k, v in artifact.items() }
+    def _read(self, input_location: pathlib.Path) -> list[typing.Any]:
+        with input_location.open("rb") as f:
+            return pickle.load(f)
 
     def _write(
-        self, artifact: dict[pathlib.Path, dict], output_location: pathlib.Path
+        self, artifact: list[typing.Any], output_location: pathlib.Path
     ) -> None:
-        with output_location.open("w") as f:
-            compatible = { str(k): v for k, v in artifact.items() }
-            json.dump(compatible, f, indent=2)
+        with output_location.open("wb") as f:
+            pickle.dump(artifact, f)
 
     def relative_location(self) -> pathlib.Path:
         return (
             super().relative_location()
             / f"{self.tool_name}"
             / f"{str(self.task)}"
-            / f"{self.tool_name}-artifacts.json"
+            / f"{self.tool_name}-artifacts.pickle"
         )

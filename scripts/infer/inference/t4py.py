@@ -172,8 +172,7 @@ class _Type4Py(ParallelisableInference):
             )
         )
 
-        for path, prediction in paths2predictions.items():
-            self.register_artifact(relative_path=path, artifact=prediction)
+        self.register_artifact(paths2predictions)
 
         # paths2predictions = {
         #    path: self.type_annotate_file(

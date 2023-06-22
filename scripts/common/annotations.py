@@ -381,8 +381,10 @@ class MultiVarTypeCollector(
         value = node.value
         if isinstance(value, NAME_OR_ATTRIBUTE):
             new_node = node.with_changes(value=self._handle_NameOrAttribute(value))
+        elif isinstance(value, libcst.Call) and isinstance(value.func, NAME_OR_ATTRIBUTE):
+            new_node = node.with_changes(value=self._handle_NameOrAttribute(value.func))
         else:
-            raise ValueError("Expected any indexed type to have")
+            raise ValueError(f"Subscript value was not a Name or Attribute; was: {libcst.Module([value]).code} {type(value)}")
         if self._get_unique_qualified_name(node) in ("Type", "typing.Type"):
             # Note: we are intentionally not handling qualification of
             # anything inside `Type` because it's common to have nested
