@@ -24,7 +24,7 @@ class Inference(abc.ABC):
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.INFO)
-        self.artifacts: dict[pathlib.Path, dict] | None = None
+        self.artifacts: list[typing.Any] | None = None
 
     @abc.abstractmethod
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
@@ -43,7 +43,7 @@ class Inference(abc.ABC):
     def activate_artifact_tracking(self, location: pathlib.Path, dataset: DatasetFolderStructure, repository: pathlib.Path, task: TypeCollectionCategory) -> None:
         from scripts.common.output import InferenceArtifactIO
 
-        self.artifacts = dict[pathlib.Path, dict]()
+        self.artifacts = list[typing.Any]()
         yield
 
         io = InferenceArtifactIO(
@@ -57,13 +57,12 @@ class Inference(abc.ABC):
         io.write(self.artifacts)
         self.artifacts = None
 
-    def register_artifact(self, relative_path: pathlib.Path, artifact: dict) -> None:
+    def register_artifact(self, artifact: typing.Any) -> None:
         if self.artifacts is None:
-            self.logger.warning(f"Not registering artifact for {relative_path}; contextmanager is not active")
+            self.logger.warning(f"Not registering artifact; contextmanager is not active")
 
         else:
-            assert not relative_path in self.artifacts, f"Artifact for {relative_path} has already been registered"
-            self.artifacts[relative_path] = artifact
+            self.artifacts.append(artifact)
 
     @contextlib.contextmanager
     def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:

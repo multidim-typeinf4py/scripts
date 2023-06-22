@@ -26,12 +26,7 @@ class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
         return TT5FileApplier(context=self.context, sigmap=annotations)
 
     def normalisation(self) -> Normalisation:
-        return Normalisation(
-            bad_generics=True,
-            normalise_union_ts=True,
-            remove_if_all_any=True,
-            lowercase_aliases=True
-        )
+        return Normalisation.default()
 
 
 class TT5FileApplier(codemod.Codemod):

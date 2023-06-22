@@ -28,12 +28,7 @@ class Type4PyProjectApplier(ParallelTopNAnnotator[typing.Mapping[pathlib.Path, l
         return Type4PyFileApplier(context=self.context, predictions=annotations)
 
     def normalisation(self) -> Normalisation:
-        return Normalisation(
-            normalise_union_ts=True,
-            remove_if_all_any=True,
-            lowercase_aliases=True,
-            bad_generics=True,
-        )
+        return Normalisation.default()
 
 
 class Type4PyFileApplier(codemod.Codemod):

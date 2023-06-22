@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import functools
 
@@ -17,16 +19,16 @@ from scripts.infer.normalisers import (
 @dataclasses.dataclass
 class Normalisation:
     # typing.Type["AbstractExtractors"] -> typing.Type[AbstractExecutors]
-    unquote: bool = True
+    unquote: bool
 
     # typing.Text -> str
-    typing_text_to_str: bool = True
+    typing_text_to_str: bool
 
     # List[List[Tuple[int]]] -> List[List[Any]]
-    limit_parametric_depth: bool = True
+    # limit_parametric_depth: bool = True
 
     # [] -> List, (str, int) -> Tuple[str, int], {} -> dict, # (builtins?).{False, True} -> bool
-    bad_generics: bool = False
+    bad_generics: bool
 
     # {list, tuple, dict} -> typing.{List, Tuple, Dict}
     # uppercase_aliases: bool = False
@@ -35,13 +37,13 @@ class Normalisation:
     # int | str -> Union[int, str]
     # Union[Union[int]] -> Union[int]
     # + sorting
-    normalise_union_ts: bool = False
+    # normalise_union_ts: bool = False
 
     # If all type arguments are Any, drop them all. e.g., rewrite List[Any] to List
-    remove_if_all_any: bool = False
+    # remove_if_all_any: bool = False
 
     # (typing?).{List, Tuple, Dict} -> {list, tuple, dict}
-    lowercase_aliases: bool = False
+    lowercase_aliases: bool
 
 
     # Optional[T] -> T
@@ -49,6 +51,15 @@ class Normalisation:
 
     # Final[T] -> T
     # outer_final_to_t: bool = False
+
+    @staticmethod
+    def default() -> Normalisation:
+        return Normalisation(
+            unquote=True, 
+            typing_text_to_str=True,
+            bad_generics=True,
+            lowercase_aliases=True,
+        )
 
     def transformers(
         self, context: codemod.CodemodContext
