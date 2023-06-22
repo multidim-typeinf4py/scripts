@@ -15,6 +15,7 @@ from libcst import codemod
 
 from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.infer.inference import _utils
+from scripts.infer.structure import DatasetFolderStructure
 
 
 class Inference(abc.ABC):
@@ -23,6 +24,7 @@ class Inference(abc.ABC):
 
         self.logger = logging.getLogger(type(self).__qualname__)
         self.logger.setLevel(logging.INFO)
+        self.artifacts: dict[pathlib.Path, dict] | None = None
 
     @abc.abstractmethod
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
@@ -36,6 +38,32 @@ class Inference(abc.ABC):
         subset: Optional[set[pathlib.Path]] = None,
     ) -> pt.DataFrame[InferredSchema]:
         pass
+
+    @contextlib.contextmanager
+    def activate_artifact_tracking(self, location: pathlib.Path, dataset: DatasetFolderStructure, repository: pathlib.Path, task: TypeCollectionCategory) -> None:
+        from scripts.common.output import InferenceArtifactIO
+
+        self.artifacts = dict[pathlib.Path, dict]()
+        yield
+
+        io = InferenceArtifactIO(
+            artifact_root=location,
+            dataset=dataset,
+            repository=repository,
+            tool_name=self.method(),
+            task=task
+        )
+        self.logger.info(f"Writing inference artifacts to {io.full_location()}")
+        io.write(self.artifacts)
+        self.artifacts = None
+
+    def register_artifact(self, relative_path: pathlib.Path, artifact: dict) -> None:
+        if self.artifacts is None:
+            self.logger.warning(f"Not registering artifact for {relative_path}; contextmanager is not active")
+
+        else:
+            assert not relative_path in self.artifacts, f"Artifact for {relative_path} has already been registered"
+            self.artifacts[relative_path] = artifact
 
     @contextlib.contextmanager
     def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:

@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import numpy as np
 import onnxruntime
 import pandera.typing as pt
+import requests
 import torch
 import tqdm
 from annoy import AnnoyIndex
@@ -159,15 +160,27 @@ class _Type4Py(ParallelisableInference):
         # paths2datapoints = self.extract_datapoints(mutable, subset)
         # self.logger.debug(paths2datapoints)
 
-        self.logger.info("Extracting Datapoints and Executing model...")
-        paths2predictions = {
-            path: self.type_annotate_file(
-                self.pretrained,
-                source_file_path=mutable / path,
-                filter_pred_types=True,
+        self.logger.info("Making predictions...")
+        inference_tasks = self.cpu_executor.map(
+            type_annotate_with_requests, itertools.repeat(mutable), subset
+        )
+        paths2predictions = dict(
+            tqdm.tqdm(
+                inference_tasks,
+                total=len(subset),
+                desc="Inference via REST API",
             )
-            for path in subset
-        }
+        )
+
+        for path, prediction in paths2predictions.items():
+            self.register_artifact(relative_path=path, artifact=prediction)
+
+        # paths2predictions = {
+        #    path: self.type_annotate_file(
+        #        source_file_path=mutable / path,
+        #    )
+        #    for path in subset
+        # }
         # paths2predictions = self.make_predictions(paths2datapoints, subset)
         # self.logger.debug(paths2predictions)
 
@@ -183,26 +196,37 @@ class _Type4Py(ParallelisableInference):
             tool=self,
         )
 
-    def type_annotate_file(self, pre_trained_m: PTType4Py, source_file_path: pathlib.Path,
-                       filter_pred_types:bool=True) -> dict:
+    def type_annotate_file(
+        self, source_file_path: pathlib.Path, filter_pred_types: bool = True
+    ) -> dict:
         self.logger.info(f"=== {source_file_path} ===")
 
         src_f_read = source_file_path.read_text()
         ext_type_hints = Extractor.extract(src_f_read, include_seq2seq=False).to_dict()
         self.logger.info(f"Extracted JSON-representation of {source_file_path}")
 
-        all_type_slots, vars_type_hints, params_type_hints, rets_type_hints = get_dps_single_file(ext_type_hints)
+        (
+            all_type_slots,
+            vars_type_hints,
+            params_type_hints,
+            rets_type_hints,
+        ) = get_dps_single_file(ext_type_hints)
         self.logger.info("Extracted type hints from JSON")
 
         if not all_type_slots:
-            self.logger.warn(f"No type slots detected in {source_file_path}; no predictions can be made")
+            self.logger.warn(
+                f"No type slots detected in {source_file_path}; no predictions can be made"
+            )
             return dict()
 
-        ext_type_hints = get_type_preds_single_file(ext_type_hints, all_type_slots,
-                                                    (vars_type_hints, params_type_hints, rets_type_hints),
-                                                    pre_trained_m, filter_pred_types)
+        ext_type_hints = get_type_preds_single_file(
+            ext_type_hints,
+            all_type_slots,
+            (vars_type_hints, params_type_hints, rets_type_hints),
+            pre_trained_m,
+            filter_pred_types,
+        )
         self.logger.info("Predicted type annotations for the given file")
-
 
         return ext_type_hints
 
@@ -276,6 +300,17 @@ class _Type4Py(ParallelisableInference):
             self.pretrained,
             filter_pred_types=True,
         )
+
+def type_annotate_with_requests(
+    project: pathlib.Path, relpath: pathlib.Path
+) -> tuple[pathlib.Path, dict]:
+    # self.logger.info(f"=== {relpath} ===")
+    res = requests.post(
+        "http://localhost:5001/api/predict?tc=0",
+        (project / relpath).read_text().encode(),
+    ).json()
+
+    return relpath, res.get("response") or {}
 
 
 def _file2datapoint(

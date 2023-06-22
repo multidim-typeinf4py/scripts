@@ -7,7 +7,11 @@ import pandas
 import tqdm
 
 from scripts.common import output, extending
-from scripts.common.schemas import TypeCollectionCategory, TypeCollectionSchema, ExtendedInferredSchema
+from scripts.common.schemas import (
+    TypeCollectionCategory,
+    TypeCollectionSchema,
+    ExtendedInferredSchema,
+)
 from scripts.infer.structure import DatasetFolderStructure
 
 from pandera import typing as pt
@@ -42,14 +46,18 @@ from libcst._exceptions import ParserSyntaxError
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -121,15 +129,22 @@ def cli_entrypoint(
             with (
                 scratchpad(project) as sc,
                 inference_tool.activate_logging(sc),
+                inference_tool.activate_artifact_tracking(
+                    location=outpath, dataset=structure, repository=project, task=task
+                ),
             ):
-                print(f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files")
+                print(
+                    f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files"
+                )
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=inference_tool.preprocessor(task=task),
                     jobs=worker_count(),
                     files=codemod.gather_files([str(sc)]),
                     repo_root=str(sc),
                 )
-                print(format_parallel_exec_result(action="Preprocessing", result=result))
+                print(
+                    format_parallel_exec_result(action="Preprocessing", result=result)
+                )
 
                 # Run inference task for hour before aborting
                 # print("Starting inference task with 1h timeout")
@@ -145,19 +160,29 @@ def cli_entrypoint(
                     break
 
                 except ParserSyntaxError:
-                    inference_tool.logger.error(f"{project} - Failed to parse", exc_info=True)
+                    inference_tool.logger.error(
+                        f"{project} - Failed to parse", exc_info=True
+                    )
 
                     dump_folder = pathlib.Path.cwd() / ".broken"
-                    inference_tool.logger.error(f"Dumping {sc} @ {dump_folder} for further examination", exc_info=True)
+                    inference_tool.logger.error(
+                        f"Dumping {sc} @ {dump_folder} for further examination",
+                        exc_info=True,
+                    )
                     shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
                     break
 
                 except Exception:
-                    inference_tool.logger.error(f"{project} - Unhandled error occurred", exc_info=True)
+                    inference_tool.logger.error(
+                        f"{project} - Unhandled error occurred", exc_info=True
+                    )
 
                     dump_folder = pathlib.Path.cwd() / ".broken"
-                    inference_tool.logger.error(f"Dumping {sc} @ {dump_folder} for further examination", exc_info=True)
+                    inference_tool.logger.error(
+                        f"Dumping {sc} @ {dump_folder} for further examination",
+                        exc_info=True,
+                    )
                     shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
                     break
@@ -171,7 +196,9 @@ def cli_entrypoint(
                         "display.expand_frame_repr",
                         False,
                     ):
-                        inferred = inferred[inferred[TypeCollectionSchema.category] == task]
+                        inferred = inferred[
+                            inferred[TypeCollectionSchema.category] == task
+                        ]
                         print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
                     inference_io.write(artifact=inferred)
@@ -195,25 +222,28 @@ def cli_entrypoint(
             task=task,
         )
         if not extended:
-            print("Not computing extended version of inference dataset; --extended was not given")
+            print(
+                "Not computing extended version of inference dataset; --extended was not given"
+            )
 
         elif not overwrite and extended_inference_io.full_location().exists():
-            print(f"Skipping computing extended version of {project}; extended dataset already exists, and --overwrite was not given")
+            print(
+                f"Skipping computing extended version of {project}; extended dataset already exists, and --overwrite was not given"
+            )
 
         else:
             print("Building parametric representation")
-            inferred[ExtendedInferredSchema.parametric_anno] = inferred[ExtendedInferredSchema.anno].progress_apply(
-                lambda anno: extending.make_parametric(anno)
-            )
+            inferred[ExtendedInferredSchema.parametric_anno] = inferred[
+                ExtendedInferredSchema.anno
+            ].progress_apply(lambda anno: extending.make_parametric(anno))
 
             print("Simple or complex?")
-            inferred[ExtendedInferredSchema.simple_or_complex] = inferred[ExtendedInferredSchema.anno].progress_apply(
-                lambda anno: extending.is_simple_or_complex(anno)
-            )
+            inferred[ExtendedInferredSchema.simple_or_complex] = inferred[
+                ExtendedInferredSchema.anno
+            ].progress_apply(lambda anno: extending.is_simple_or_complex(anno))
 
             collection = inferred.pipe(pt.DataFrame[ExtendedInferredSchema])
             extended_inference_io.write(collection)
-
 
 
 if __name__ == "__main__":
