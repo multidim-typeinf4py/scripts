@@ -13,7 +13,7 @@ from typet5.function_decoding import (
     PreprocessArgs,
     DecodingOrders,
     RolloutPredictionTopN,
-    SignatureMap,
+    SignatureMap, RolloutPrediction,
 )
 from typet5.model import ModelWrapper
 from typet5.static_analysis import (
@@ -91,29 +91,34 @@ class TypeT5TopN(ProjectWideInference):
         rctx = RolloutCtx(model=self.wrapper)
 
         self.logger.info("Making predictions...")
-        rollout: RolloutPredictionTopN = asyncio.run(
-            rctx.run_on_project(
-                project=project,
-                pre_args=PreprocessArgs(),
-                decode_order=DecodingOrders.DoubleTraversal(),
-                concurrency=utils.worker_count(),
-                num_return_sequences=self.topn,
+
+        with (
+            ProcessPoolExecutor(utils.worker_count()) as cpu_executor,
+            ThreadPoolExecutor(1) as model_executor,
+        ):
+            rollout: RolloutPrediction = asyncio.run(
+                rctx.project_rollout(
+                    project=project,
+                    pre_args=PreprocessArgs(),
+                    decode_order=DecodingOrders.DoubleTraversal(),
+                    cpu_executor=cpu_executor,
+                    model_executor=model_executor,
+                )
             )
-        )
 
         self.logger.info("Registering artifacts...")
-        self.register_artifact(rollout.final_sigmap)
+        self.register_artifact(rollout)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
             subset=subset,
-            predictions=rollout.final_sigmap,
+            predictions=rollout,
             topn=self.topn,
             tool=self,
         )
 
 
 TypeT5Top1 = wrapped_partial(TypeT5TopN, topn=1)
-TypeT5Top3 = wrapped_partial(TypeT5TopN, topn=3)
-TypeT5Top5 = wrapped_partial(TypeT5TopN, topn=5)
-TypeT5Top10 = wrapped_partial(TypeT5TopN, topn=10)
+#TypeT5Top3 = wrapped_partial(TypeT5TopN, topn=3)
+#TypeT5Top5 = wrapped_partial(TypeT5TopN, topn=5)
+#TypeT5Top10 = wrapped_partial(TypeT5TopN, topn=10)

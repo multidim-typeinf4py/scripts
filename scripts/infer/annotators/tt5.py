@@ -2,25 +2,19 @@ import pathlib
 
 import libcst
 from libcst import codemod
-
-from typet5.static_analysis import SignatureMap, SignatureMapTopN
 from typet5.experiments import utils as typet5_utils
+from typet5.function_decoding import RolloutPrediction
+from typet5.static_analysis import SignatureMap
 
-
-from .tool_annotator import ParallelTopNAnnotator
 from .normalisation import Normalisation
+from .tool_annotator import ParallelTopNAnnotator
 
 
-class TT5ProjectApplier(ParallelTopNAnnotator[SignatureMapTopN, SignatureMap]):
+class TT5ProjectApplier(ParallelTopNAnnotator[RolloutPrediction, SignatureMap]):
     def extract_predictions_for_file(
-        self, path2topn: SignatureMapTopN, path: pathlib.Path, topn: int
+        self, path2topn: RolloutPrediction, path: pathlib.Path, topn: int
     ) -> SignatureMap:
-        assert self.context.full_module_name is not None
-        return SignatureMap(
-            (project_path, signatures[topn])
-            for project_path, signatures in path2topn.items()
-            if project_path.module == self.context.full_module_name
-        )
+        return path2topn.final_sigmap
 
     def annotator(self, annotations: SignatureMap) -> codemod.Codemod:
         return TT5FileApplier(context=self.context, sigmap=annotations)
