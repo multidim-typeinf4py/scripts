@@ -45,6 +45,7 @@ type4py = {git = "https://github.com/multidim-typeinf4py/type4py.git", branch = 
 typet5 = {git = "https://github.com/multidim-typeinf4py/TypeT5.git"}
 typewriter = {git = "https://github.com/multidim-typeinf4py/typewriter.git", branch = "feature/dltinproj"}
 typilus = {git = "https://github.com/multidim-typeinf4py/typilus.git"}
+docker = "^6.1.3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.12.0"
