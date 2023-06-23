@@ -13,7 +13,7 @@ from typet5.function_decoding import (
     PreprocessArgs,
     DecodingOrders,
     RolloutPredictionTopN,
-    SignatureMap, RolloutPrediction, EvalResult,
+    SignatureMap, RolloutPrediction,
 )
 from typet5.model import ModelWrapper
 from typet5.static_analysis import (
@@ -92,30 +92,27 @@ class TypeT5TopN(ProjectWideInference):
 
         self.logger.info("Making predictions...")
 
-        #with (
-        #    ProcessPoolExecutor(utils.worker_count()) as cpu_executor,
-        #    ThreadPoolExecutor(1) as model_executor,
-        #):
-        eval_res: EvalResult = asyncio.run(
-            rctx.evaluate_on_projects(
-                projects=[project],
-                pre_args=PreprocessArgs(),
-                decode_order=DecodingOrders.DoubleTraversal(),
-                concurrency=utils.worker_count(),
-                #cpu_executor=cpu_executor,
-                #model_executor=model_executor,
+        with (
+            ProcessPoolExecutor(utils.worker_count()) as cpu_executor,
+            ThreadPoolExecutor(1) as model_executor,
+        ):
+            rollout: RolloutPrediction = asyncio.run(
+                rctx.project_rollout(
+                    project=project,
+                    pre_args=PreprocessArgs(),
+                    decode_order=DecodingOrders.DoubleTraversal(),
+                    cpu_executor=cpu_executor,
+                    model_executor=model_executor,
+                )
             )
-        )
-
-        predictions = eval_res.predictions[0]
 
         self.logger.info("Registering artifacts...")
-        self.register_artifact(eval_res)
+        self.register_artifact(rollout)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
             subset=subset,
-            predictions=predictions,
+            predictions=rollout,
             topn=self.topn,
             tool=self,
         )
