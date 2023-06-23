@@ -123,48 +123,6 @@ def _dequalify() -> IntoExpr:
     )
 
 
-def _normalise_unions() -> IntoExpr:
-    class UnionNormaliser(libcst.CSTTransformer):
-        def leave_BinaryOperation(
-            self, original_node: libcst.BinaryOperation, updated_node: libcst.BinaryOperation
-        ) -> libcst.BaseExpression:
-            if not m.matches(updated_node.operator, m.BitOr()):
-                return updated_node
-
-            if m.matches(updated_node.left, m.Name()) and m.matches(updated_node.right, m.Name()):
-                return libcst.Subscript(
-                    value=libcst.Name("Union"),
-                    slice=list(
-                        map(libcst.SubscriptElement, [updated_node.left, updated_node.right])
-                    ),
-                )
-
-            if m.matches(updated_node.left, m.Subscript(value=libcst.Name("Union"))):
-                return libcst.Subscript(
-                    value=libcst.Name("Union"),
-                    slice=list(
-                        map(libcst.SubscriptElement, [*updated_node.left.slice, updated_node.right])
-                    ),
-                )
-
-            raise Exception(f"Unhandled binop: {libcst.Module([original_node]).code}")
-
-        def leave_SubscriptElement(
-            self, original_node: libcst.SubscriptElement, updated_node: libcst.SubscriptElement
-        ) -> libcst.FlattenSentinel[libcst.SubscriptElement] | libcst.SubscriptElement:
-            # print(original_node)
-
-            if m.matches(updated_node.slice, m.Index(value=m.Subscript(value=m.Name("Union")))):
-                return libcst.FlattenSentinel(updated_node.slice.value.slice)
-
-            return original_node
-
-    return pl.col(InferredSchema.anno).apply(
-        lambda a: libcst.parse_module(a).visit(UnionNormaliser()).code,
-        return_dtype=Utf8,
-    )
-
-
 def _reduce_parametric() -> IntoExpr:
     return pl.col(InferredSchema.anno).apply(
         lambda a: libcst.parse_module(a).visit(ParametricTypeDepthReducer(max_annot_depth=2)).code,
