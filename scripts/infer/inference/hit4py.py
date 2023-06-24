@@ -3,7 +3,7 @@ import pathlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 
-from scripts.infer.inference.t4py import Type4PyTopN
+from scripts.infer.preprocessers.t4py import Type4PyPreprocessor
 from . import _utils
 from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
@@ -45,7 +45,7 @@ class Type4PyAdaptor(ModelAdaptor):
         return ModelAdaptor.ProjectPredictions(__root__=root)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
-        return self.type4py.preprocessor(task=task)
+        return Type4PyPreprocessor(codemod=codemod.CodemodContext(), task=task)
 
 
 class HiType4PyTopN(HiTyper):
