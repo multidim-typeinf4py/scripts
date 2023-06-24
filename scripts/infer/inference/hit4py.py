@@ -32,7 +32,7 @@ class Type4PyAdaptor(ModelAdaptor):
         from scripts.common.output import InferenceArtifactIO
 
         io = InferenceArtifactIO(
-            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]),
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent / "type4pytopn1",
             dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"type4pyN{self.topn()}",
