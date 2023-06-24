@@ -171,14 +171,14 @@ def cli_entrypoint(
                         f"{project} - Unhandled error occurred", exc_info=True
                     )
 
-                    dump_folder = pathlib.Path.cwd() / ".broken"
-                    inference_tool.logger.error(
-                        f"Dumping {sc} @ {dump_folder} for further examination",
+                    #dump_folder = pathlib.Path.cwd() / ".broken"
+                    #inference_tool.logger.error(
+                    #    f"Dumping {sc} @ {dump_folder} for further examination",
                         exc_info=True,
-                    )
-                    shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
+                    #)
+                    #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
-                    break
+                    #break
 
                 else:
                     with pandas.option_context(
