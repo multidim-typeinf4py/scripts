@@ -35,7 +35,7 @@ class Type4PyAdaptor(ModelAdaptor):
             dataset=os.environ["DATASET_STRUCTURE"],
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"type4pyN{self.topn()}",
-            task=TypeCollectionCategory.__getitem__(os.environ["TASK"])
+            task=TypeCollectionCategory.__getitem__(os.environ["TASK"]),
         )
 
         (type4py_predictions,) = io.read()
@@ -56,16 +56,8 @@ class HiType4PyTopN(HiTyper):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor | None = None,
-        model_executor: ThreadPoolExecutor | None = None,
     ) -> None:
-        super().__init__(
-            Type4PyAdaptor(
-                topn=topn,
-                cpu_executor=cpu_executor,
-                model_executor=model_executor,
-            )
-        )
+        super().__init__(Type4PyAdaptor(topn=topn))
 
     def method(self) -> str:
         return f"HiType4PyN{self.adaptor.topn()}"
