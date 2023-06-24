@@ -17,15 +17,17 @@ import libcst
 import pandas as pd
 import pandera.typing as pt
 import pydantic
-from libcst import codemod, metadata
+from libcst import codemod, metadata, helpers
 from libcst.codemod.visitors._apply_type_annotations import (
     Annotations,
     FunctionKey,
     FunctionAnnotation,
 )
+from typet5.experiments.hityper import HiTyperResponseParser
+from typet5.static_analysis import SignatureMap
 
 from ..annotators.hityper import HiTyperProjectApplier
-from ... import utils
+from scripts import utils
 from scripts.common.annotations import ApplyTypeAnnotationsVisitor
 from scripts.common.schemas import InferredSchema, TypeCollectionCategory
 from scripts.symbols.collector import build_type_collection
@@ -209,103 +211,17 @@ class HiTyper(ProjectWideInference, ABC):
 
     def _parse_predictions(
         self, predictions: _HiTyperPredictions, project: pathlib.Path
-    ) -> dict[pathlib.Path, list[Annotations]]:
-        path2batchpreds: collections.defaultdict[
-            pathlib.Path, list[Annotations]
-        ] = collections.defaultdict(list)
-        for file, scopes in predictions.__root__.items():
-            for batch in self._batchify_scopes(scopes):
-                annotations = Annotations.empty()
+    ) -> dict[pathlib.Path, list[SignatureMap]]:
+        path2batchpreds = collections.defaultdict[pathlib.Path, list[SignatureMap]](list)
+        for file, predictions in predictions.__root__.items():
+            module = helpers.calculate_module_and_package(project, filename=file).name
+            parser = HiTyperResponseParser(module=module)
+            sigmap = parser.parse(predictions)
 
-                for scope, predictions in batch.items():
-                    scope_components = _derive_qname(scope)
-                    for prediction in filter(
-                        lambda p: p.category == _HiTyperPredictionCategory.LOCAL,
-                        predictions,
-                    ):
-                        if (ty := prediction.type[0]) is None:
-                            continue
-                        annotation = libcst.Annotation(libcst.parse_expression(ty))
-
-                        scope_key = ".".join((*scope_components, prediction.name))
-                        annotations.attributes[scope_key] = annotation
-
-                        scope_key = ".".join(
-                            (*scope_components, "self", prediction.name)
-                        )
-                        annotations.attributes[scope_key] = annotation
-
-                    if scope != "global@global":
-                        # hityper does not infer self, so add it manually for non-global functions
-                        if not scope.endswith("@global"):
-                            parameters: list[libcst.Param] = [
-                                libcst.Param(name=libcst.Name("self"))
-                            ]
-                        else:
-                            parameters = []
-                        returns: Optional[libcst.Annotation] = None
-
-                        for prediction in filter(
-                            lambda p: p.category != _HiTyperPredictionCategory.LOCAL,
-                            predictions,
-                        ):
-                            ty = prediction.type[0]
-                            if prediction.category == _HiTyperPredictionCategory.ARG:
-                                parameters.append(
-                                    libcst.Param(
-                                        name=libcst.Name(prediction.name),
-                                        annotation=(
-                                            libcst.Annotation(
-                                                libcst.parse_expression(ty)
-                                            )
-                                            if ty is not None
-                                            else None
-                                        ),
-                                    )
-                                )
-
-                            else:
-                                returns = (
-                                    libcst.Annotation(libcst.parse_expression(ty))
-                                    if ty is not None
-                                    else None
-                                )
-
-                        scope_key = ".".join(scope_components)
-
-                        ps = libcst.Parameters(parameters)
-                        fkey = FunctionKey.make(scope_key, ps)
-                        annotations.functions[fkey] = FunctionAnnotation(ps, returns)
-
-                path2batchpreds[pathlib.Path(file).relative_to(project)].append(
-                    annotations
-                )
+            path2batchpreds[pathlib.Path(file).relative_to(project)].append(
+                sigmap
+            )
         return path2batchpreds
-
-    def _batchify_scopes(
-        self, scopes: _HiTyperScope2Prediction
-    ) -> list[_HiTyperScope2Prediction]:
-        batches: list[_HiTyperScope2Prediction] = []
-
-        for n in range(self.adaptor.topn()):
-            batch = _HiTyperScope2Prediction()
-
-            for scope, predictions in scopes.items():
-                batch_predictions: list = []
-                for prediction in predictions:
-                    batch_predictions.append(
-                        _HiTyperPrediction(
-                            category=prediction.category,
-                            name=prediction.name,
-                            type=[
-                                prediction.type[n] if n < len(prediction.type) else None
-                            ],
-                        )
-                    )
-
-                batch[scope] = batch_predictions
-            batches.append(batch)
-        return batches
 
 
 def _derive_qname(scope: str) -> list[str]:
