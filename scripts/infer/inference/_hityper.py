@@ -173,6 +173,8 @@ class HiTyper(ProjectWideInference, ABC):
         with outpath.open("w") as f:
             json.dump(model_preds.dict(exclude_none=True)["__root__"], f)
 
+        input("Waiting for input...")
+
         htm.infertypes(
             _InferenceArguments(
                 repo=str(mutable),
