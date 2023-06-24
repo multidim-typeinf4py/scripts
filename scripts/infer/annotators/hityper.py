@@ -19,10 +19,15 @@ class HiTyperProjectApplier(
         path: pathlib.Path,
         topn: int,
     ) -> Annotations:
-        topn = path2topn[path]
-        predictions = topn[self.topn]
+        if not topn := path2topn.get(path):
+            return Annotations.empty()
+        
+        try:
+            predictions = topn[self.topn]
+            return predictions
+        except IndexError:
+            return Annotations.empty()
 
-        return predictions
 
     def annotator(self, annotations: Annotations) -> codemod.Codemod:
         return HiTyperFileApplier(context=self.context, annotations=annotations)
