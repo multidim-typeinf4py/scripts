@@ -198,10 +198,10 @@ class HiTyper(ProjectWideInference, ABC):
 
         with pathlib.Path(inferred_types_path).open() as ps:
             repo_predictions = json.load(ps)
+        self.register_artifact(repo_predictions)
 
         predictions = self._parse_predictions(repo_predictions, mutable)
         self.logger.info(f"Registering HiTyper's artifacts...")
-        self.register_artifact(predictions)
 
         return HiTyperProjectApplier.collect_topn(
             project=mutable,
