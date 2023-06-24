@@ -171,7 +171,7 @@ class HiTyper(ProjectWideInference, ABC):
 
         self.logger.info(f"Writing model predictions to {outpath} for HiTyper to use")
         with outpath.open("w") as f:
-            json.dump(model_preds.dict(exclude_none=True)["__root__"], f)
+            json.dump(model_preds.dict(exclude_none=True)["__root__"], f, indent=2)
 
         input("Waiting for input...")
 
