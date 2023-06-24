@@ -19,7 +19,7 @@ class HiTyperProjectApplier(
         path: pathlib.Path,
         topn: int,
     ) -> Annotations:
-        if not topn := path2topn.get(path):
+        if not (topn := path2topn.get(path)):
             return Annotations.empty()
         
         try:
