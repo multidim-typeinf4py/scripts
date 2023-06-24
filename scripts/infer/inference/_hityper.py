@@ -137,7 +137,7 @@ class HiTyper(ProjectWideInference, ABC):
     def __init__(self, adaptor: ModelAdaptor) -> None:
         super().__init__()
         self.adaptor = adaptor
-        logging.getLogger(hityper.__name__).setLevel(logging.WARNING)
+        logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
         return self.adaptor.preprocessor(task)
