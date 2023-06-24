@@ -173,7 +173,10 @@ class HiTyper(ProjectWideInference, ABC):
         with outpath.open("w") as f:
             json.dump(model_preds.dict(exclude_none=True)["__root__"], f, indent=2)
 
-        input("Waiting for input...")
+        self.logger.info(f"Registering {self.adaptor.__class__.__qualname__}'s artifacts...")
+        self.register_artifact(model_preds)
+
+        # input("Waiting for input...")
 
         htm.infertypes(
             _InferenceArguments(
@@ -192,6 +195,9 @@ class HiTyper(ProjectWideInference, ABC):
         )
         repo_predictions = _HiTyperPredictions.parse_file(inferred_types_path)
         predictions = self._parse_predictions(repo_predictions, mutable)
+
+        self.logger.info(f"Registering HiTyper's artifacts...")
+        self.register_artifact(predictions)
 
         return HiTyperProjectApplier.collect_topn(
             project=mutable,
