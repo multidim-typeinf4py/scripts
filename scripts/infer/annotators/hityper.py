@@ -28,14 +28,7 @@ class HiTyperProjectApplier(
         return HiTyperFileApplier(context=self.context, annotations=annotations)
 
     def normalisation(self) -> Normalisation:
-        return Normalisation(
-            bad_list_generics=True,
-            bad_tuple_generics=True,
-            bad_dict_generics=True,
-            lowercase_aliases=True,
-            unnest_union_t=True,
-            typing_text_to_str=True,
-        )
+        return Normalisation.default()
 
 
 class HiTyperFileApplier(codemod.Codemod):
