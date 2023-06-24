@@ -174,7 +174,7 @@ def cli_entrypoint(
                     #dump_folder = pathlib.Path.cwd() / ".broken"
                     #inference_tool.logger.error(
                     #    f"Dumping {sc} @ {dump_folder} for further examination",
-                        exc_info=True,
+                    #    exc_info=True,
                     #)
                     #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
