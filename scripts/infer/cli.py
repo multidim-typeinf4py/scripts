@@ -88,7 +88,13 @@ def cli_entrypoint(
     overwrite: bool,
     task: str,
 ) -> None:
+    import os
     structure = DatasetFolderStructure(dataset)
+
+    os.environ["ARTIFACT_ROOT"] = str(outpath.resolve())
+    os.environ["DATASET_STRUCTURE"] = type(dataset).__name__
+    os.environ["TASK"] = task
+
     print("Dataset Kind:", structure)
 
     task = TypeCollectionCategory.__getitem__(task)
@@ -97,6 +103,7 @@ def cli_entrypoint(
     test_set = structure.test_set()
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
+        os.environ["REPOSITORY"] = str(project.resolve())
         pbar.set_description(desc=f"{project}")
 
         inference_io = output.InferredIO(
