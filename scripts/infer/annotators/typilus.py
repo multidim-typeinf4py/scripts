@@ -46,12 +46,7 @@ class TypilusProjectApplier(ParallelTopNAnnotator[RichPath, RichPath]):
         )
 
     def normalisation(self) -> Normalisation:
-        return Normalisation(
-            typing_text_to_str=True,
-            lowercase_aliases=True,
-            normalise_union_ts=True,
-            remove_if_all_any=True,
-        )
+        return Normalisation.default()
 
 
 class TypilusFileApplier(codemod.Codemod):
