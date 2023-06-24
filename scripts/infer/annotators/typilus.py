@@ -75,7 +75,10 @@ class TypilusFileApplier(codemod.Codemod):
         )
         if new_fpath != self.context.filename:
             code = pathlib.Path(new_fpath).read_text()
-            return libcst.parse_module(code)
+            try:
+                return libcst.parse_module(code)
+            except Exception:
+                print(self.context.filename, code)
         else:
             return tree
         #    code = tree.code
