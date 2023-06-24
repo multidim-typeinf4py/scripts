@@ -178,7 +178,7 @@ def cli_entrypoint(
                     #)
                     #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
-                    #break
+                    break
 
                 else:
                     with pandas.option_context(
