@@ -4,6 +4,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 
 from scripts.infer.preprocessers.t4py import Type4PyPreprocessor
+from scripts.infer.structure import DatasetFolderStructure
 from . import _utils
 from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
@@ -32,7 +33,7 @@ class Type4PyAdaptor(ModelAdaptor):
 
         io = InferenceArtifactIO(
             artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]),
-            dataset=os.environ["DATASET_STRUCTURE"],
+            dataset=DatasetFolderStructure(os.environ["DATASET_ROOT"]),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"type4pyN{self.topn()}",
             task=TypeCollectionCategory.__getitem__(os.environ["TASK"]),

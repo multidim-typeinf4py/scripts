@@ -1,4 +1,6 @@
 import concurrent.futures
+import dataclasses
+import json
 import pathlib
 import shutil
 
@@ -46,18 +48,14 @@ from libcst._exceptions import ParserSyntaxError
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(
-        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(
-        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
-    ),
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -89,10 +87,11 @@ def cli_entrypoint(
     task: str,
 ) -> None:
     import os
+
     structure = DatasetFolderStructure(dataset)
 
     os.environ["ARTIFACT_ROOT"] = str(outpath.resolve())
-    os.environ["DATASET_STRUCTURE"] = type(dataset).__name__
+    os.environ["DATASET_ROOT"] = str(structure.dataset_root.resolve())
     os.environ["TASK"] = task
 
     print("Dataset Kind:", structure)
@@ -140,9 +139,7 @@ def cli_entrypoint(
                     files=codemod.gather_files([str(sc)]),
                     repo_root=str(sc),
                 )
-                print(
-                    format_parallel_exec_result(action="Preprocessing", result=result)
-                )
+                print(format_parallel_exec_result(action="Preprocessing", result=result))
 
                 # Run inference task for hour before aborting
                 # print("Starting inference task with 1h timeout")
@@ -158,9 +155,7 @@ def cli_entrypoint(
                     break
 
                 except ParserSyntaxError:
-                    inference_tool.logger.error(
-                        f"{project} - Failed to parse", exc_info=True
-                    )
+                    inference_tool.logger.error(f"{project} - Failed to parse", exc_info=True)
 
                     dump_folder = pathlib.Path.cwd() / ".broken"
                     inference_tool.logger.error(
@@ -194,9 +189,7 @@ def cli_entrypoint(
                         "display.expand_frame_repr",
                         False,
                     ):
-                        inferred = inferred[
-                            inferred[TypeCollectionSchema.category] == task
-                        ]
+                        inferred = inferred[inferred[TypeCollectionSchema.category] == task]
                         print(inferred.sample(n=min(len(inferred), 20)).sort_index())
 
                     inference_io.write(artifact=inferred)
