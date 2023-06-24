@@ -79,8 +79,7 @@ class TypilusFileApplier(codemod.Codemod):
                 return libcst.parse_module(code)
             except Exception:
                 print(self.context.filename, code)
-        else:
-            return tree
+        return tree
         #    code = tree.code
 
         #except Exception as e:
