@@ -1975,7 +1975,7 @@ transformers = ">=4.17.0"
 type = "git"
 url = "https://github.com/multidim-typeinf4py/HiTyper.git"
 reference = "HEAD"
-resolved_reference = "9b2d93247d8fd20b0f1827c3b6c05907331736a4"
+resolved_reference = "8271368c4ae9762530a97fa1a0f62e836cf28624"
 
 [[package]]
 name = "huggingface-hub"
