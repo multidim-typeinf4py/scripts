@@ -10,7 +10,7 @@ from ._utils import wrapped_partial
 
 from libcst import codemod
 
-from scripts.common.output import InferenceArtifactIO
+
 from scripts.common.schemas import TypeCollectionCategory
 
 
@@ -20,18 +20,22 @@ class Type4PyAdaptor(ModelAdaptor):
         topn: int,
     ) -> None:
         super().__init__()
-        self.topn = topn
+        self._topn = topn
 
     def topn(self) -> int:
-        return self.topn
+        return self._topn
 
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
+        from scripts.common.output import InferenceArtifactIO
+
         io = InferenceArtifactIO(
-            artifact_root=pathlib.Path(os.environ.get("ARTIFACT_ROOT")),
-            dataset=os.environ.get("DATASET_STRUCTURE"),
-            repository=pathlib.Path(os.environ.get("REPOSITORY")),
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]),
+            dataset=os.environ["DATASET_STRUCTURE"],
+            repository=pathlib.Path(os.environ["REPOSITORY"]),
+            tool_name=f"type4pyN{self.topn()}",
+            task=TypeCollectionCategory.__getitem__(os.environ["TASK"])
         )
 
         (type4py_predictions,) = io.read()

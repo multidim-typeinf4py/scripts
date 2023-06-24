@@ -56,7 +56,7 @@ class DatasetDependentIO(ArtifactIO[A]):
     def __init__(
         self,
         artifact_root: pathlib.Path,
-        dataset: DatasetFolderStructure,
+        dataset: DatasetFolderStructure | str,
         repository: pathlib.Path,
     ) -> None:
         super().__init__(artifact_root)
@@ -65,7 +65,10 @@ class DatasetDependentIO(ArtifactIO[A]):
 
     def relative_location(self) -> pathlib.Path:
         ar = self.dataset.author_repo(self.repository)
-        return pathlib.Path(type(self.dataset).__name__) / f"{ar!s}"
+        dataset_name = (
+            self.dataset if isinstance(self.dataset, str) else type(self.dataset).__name__
+        )
+        return pathlib.Path(dataset_name) / f"{ar!s}"
 
 
 class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
@@ -207,7 +210,7 @@ class InferenceArtifactIO(DatasetDependentIO[list[typing.Any]]):
     def __init__(
         self,
         artifact_root: pathlib.Path,
-        dataset: DatasetFolderStructure,
+        dataset: DatasetFolderStructure | str,
         repository: pathlib.Path,
         tool_name: str,
         task: TypeCollectionCategory,
@@ -220,9 +223,7 @@ class InferenceArtifactIO(DatasetDependentIO[list[typing.Any]]):
         with input_location.open("rb") as f:
             return pickle.load(f)
 
-    def _write(
-        self, artifact: list[typing.Any], output_location: pathlib.Path
-    ) -> None:
+    def _write(self, artifact: list[typing.Any], output_location: pathlib.Path) -> None:
         with output_location.open("wb") as f:
             pickle.dump(artifact, f)
 
