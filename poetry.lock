@@ -6431,7 +6431,7 @@ typed-astunparse = "^2.1.4"
 type = "git"
 url = "https://github.com/multidim-typeinf4py/typilus.git"
 reference = "HEAD"
-resolved_reference = "e9500fbf32e1be2a819bef34fc9b1292a06d1099"
+resolved_reference = "c6191c8ce5aa741d4e386e22f32bb1e30277bab9"
 
 [[package]]
 name = "typing-extensions"
