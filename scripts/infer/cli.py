@@ -90,8 +90,8 @@ def cli_entrypoint(
 
     structure = DatasetFolderStructure(dataset)
 
-    os.environ["ARTIFACT_ROOT"] = str(outpath.resolve())
-    os.environ["DATASET_ROOT"] = str(structure.dataset_root.resolve())
+    os.environ["ARTIFACT_ROOT"] = str(outpath)
+    os.environ["DATASET_ROOT"] = str(structure.dataset_root)
     os.environ["TASK"] = task
 
     print("Dataset Kind:", structure)
@@ -102,7 +102,7 @@ def cli_entrypoint(
     test_set = structure.test_set()
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
-        os.environ["REPOSITORY"] = str(project.resolve())
+        os.environ["REPOSITORY"] = str(project)
         pbar.set_description(desc=f"{project}")
 
         inference_io = output.InferredIO(
