@@ -195,9 +195,11 @@ class HiTyper(ProjectWideInference, ABC):
             + str(mutable).replace("/", "_")
             + "_INFERREDTYPES.json"
         )
-        repo_predictions = _HiTyperPredictions.parse_file(inferred_types_path)
-        predictions = self._parse_predictions(repo_predictions, mutable)
 
+        with pathlib.Path(inferred_types_path).open() as ps:
+            repo_predictions = json.load(ps)
+
+        predictions = self._parse_predictions(repo_predictions, mutable)
         self.logger.info(f"Registering HiTyper's artifacts...")
         self.register_artifact(predictions)
 
@@ -210,17 +212,15 @@ class HiTyper(ProjectWideInference, ABC):
         )
 
     def _parse_predictions(
-        self, predictions: _HiTyperPredictions, project: pathlib.Path
+        self, predictions: dict, project: pathlib.Path
     ) -> dict[pathlib.Path, list[SignatureMap]]:
         path2batchpreds = collections.defaultdict[pathlib.Path, list[SignatureMap]](list)
-        for file, predictions in predictions.__root__.items():
+        for file, predictions in predictions.items():
             module = helpers.calculate_module_and_package(project, filename=file).name
             parser = HiTyperResponseParser(module=module)
             sigmap = parser.parse(predictions)
 
-            path2batchpreds[pathlib.Path(file).relative_to(project)].append(
-                sigmap
-            )
+            path2batchpreds[pathlib.Path(file).relative_to(project)].append(sigmap)
         return path2batchpreds
 
 
