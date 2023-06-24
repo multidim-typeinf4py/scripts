@@ -157,12 +157,12 @@ def cli_entrypoint(
                 except ParserSyntaxError:
                     inference_tool.logger.error(f"{project} - Failed to parse", exc_info=True)
 
-                    dump_folder = pathlib.Path.cwd() / ".broken"
-                    inference_tool.logger.error(
-                        f"Dumping {sc} @ {dump_folder} for further examination",
-                        exc_info=True,
-                    )
-                    shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
+                    #dump_folder = pathlib.Path.cwd() / ".broken"
+                    #inference_tool.logger.error(
+                    #    f"Dumping {sc} @ {dump_folder} for further examination",
+                    #    exc_info=True,
+                    #)
+                    #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
                     break
 
