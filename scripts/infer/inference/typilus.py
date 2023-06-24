@@ -51,16 +51,22 @@ class Typilus(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
-        # Transform repo into test dataset
+        self.logger.info("Extracting graphs from repository...")
         test_dataset_path = self.repo_to_dataset(mutable)
 
         # Predict over transformed dataset
+        self.logger.info("Making predictions...")
         pred_path = self.predict(
             dataset=test_dataset_path,
             predictions_out=mutable / "typilus-predictions.json.gz",
         )
 
+        self.logger.info("Register prediction artifact")
+        with (mutable / "typilus-predictions.json.gz").open("rb") as f:
+            self.register_artifact(f.read())
+
         # Apply annotations
+        self.logger.info("Applying predictions...")
         return self.annotate_and_collect(mutable, subset, pred_path)
 
     def repo_to_dataset(self, repo: pathlib.Path) -> RichPath:
