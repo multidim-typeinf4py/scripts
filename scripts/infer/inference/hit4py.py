@@ -1,6 +1,7 @@
-import functools
+import os
 import pathlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+
 
 from scripts.infer.inference.t4py import Type4PyTopN
 from . import _utils
@@ -8,36 +9,37 @@ from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
 
 from libcst import codemod
-from scripts.common.schemas import TypeCollectionCategory
 
+from scripts.common.output import InferenceArtifactIO
+from scripts.common.schemas import TypeCollectionCategory
 
 
 class Type4PyAdaptor(ModelAdaptor):
     def __init__(
         self,
         topn: int,
-        cpu_executor: ProcessPoolExecutor,
-        model_executor: ThreadPoolExecutor,
     ) -> None:
         super().__init__()
-        self.type4py = Type4PyTopN(
-            topn=topn,
-            cpu_executor=cpu_executor,
-            model_executor=model_executor,
-        )
+        self.topn = topn
 
     def topn(self) -> int:
-        return self.type4py.topn
+        return self.topn
 
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
-        datapoints = self.type4py.extract_datapoints(project, subset)
-        predictions = self.type4py.make_predictions(datapoints, subset)
+        io = InferenceArtifactIO(
+            artifact_root=pathlib.Path(os.environ.get("ARTIFACT_ROOT")),
+            dataset=os.environ.get("DATASET_STRUCTURE"),
+            repository=pathlib.Path(os.environ.get("REPOSITORY")),
+        )
 
+        (type4py_predictions,) = io.read()
+
+        # Make relative to temporary project root
         root: dict[str, ModelAdaptor.FilePredictions] = {
             str(project.resolve() / file): ModelAdaptor.FilePredictions.parse_obj(p)
-            for file, p in predictions.items()
+            for file, p in type4py_predictions.items()
             if p
         }
         return ModelAdaptor.ProjectPredictions(__root__=root)
