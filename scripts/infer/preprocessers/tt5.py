@@ -3,12 +3,12 @@ from libcst import codemod
 
 from scripts.infer.inference._base import TypeCollectionCategory
 from scripts.infer.preprocessers.base import AnnotationRemover, TaskPreprocessor
-from typet5.static_analysis import mask_assign_type
+from typet5.static_analysis import mask_assign_type, AnnotRemover
 
 
 class TT5Preprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        rewritten = TT5AnnotationRemover(context=self.context, task=self.task).transform_module(tree)
+        rewritten = tree.visit(AnnotRemover())
         return rewritten
 
 
