@@ -47,31 +47,17 @@ class PTType4Py:
         self.type4py_model = onnxruntime.InferenceSession(
             str(self.model_path / f"type4py_complete_model.onnx"),
             providers=[
-                "CUDAExecutionProvider"
-                if torch.cuda.is_available()
-                else "CPUExecutionProvider"
+                "CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
             ],
         )
-        self.type4py_model_params = json.load(
-            (self.model_path / "model_params.json").open()
-        )
+        self.type4py_model_params = json.load((self.model_path / "model_params.json").open())
         self.type4py_model_params["k"] = topn
 
-        self.w2v_model = Word2Vec.load(
-            fname=str(self.model_path / "w2v_token_model.bin")
-        )
-        self.type_clusters_idx = AnnoyIndex(
-            self.type4py_model_params["output_size"], "euclidean"
-        )
-        self.type_clusters_idx.load(
-            str(self.model_path / "type4py_complete_type_cluster")
-        )
-        self.type_clusters_labels = np.load(
-            str(self.model_path / f"type4py_complete_true.npy")
-        )
-        self.label_enc = pickle.load(
-            (self.model_path / "label_encoder_all.pkl").open("rb")
-        )
+        self.w2v_model = Word2Vec.load(fname=str(self.model_path / "w2v_token_model.bin"))
+        self.type_clusters_idx = AnnoyIndex(self.type4py_model_params["output_size"], "euclidean")
+        self.type_clusters_idx.load(str(self.model_path / "type4py_complete_type_cluster"))
+        self.type_clusters_labels = np.load(str(self.model_path / f"type4py_complete_true.npy"))
+        self.label_enc = pickle.load((self.model_path / "label_encoder_all.pkl").open("rb"))
 
         self.topn = topn
         self.vths = None
@@ -99,9 +85,7 @@ def _batchify(
                 "name": fn["name"],
                 "q_name": fn["q_name"],
                 "params": {p: read_or_null(fn["params_p"][p], n) for p in fn["params"]},
-                "ret_type": (
-                    read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""
-                ),
+                "ret_type": (read_or_null(fn["ret_type_p"], n) if "ret_type_p" in fn else ""),
                 "variables": variables_read(fn, n),
             }
             for fn in d.get("funcs", [])
@@ -159,22 +143,18 @@ class _Type4Py(ParallelisableInference):
 
         self.logger.info("Making predictions...")
 
+        import urllib3
+        urllib3.disable_warnings()
 
-
-        #inference_tasks = self.cpu_executor.map(
-        #    type_annotate_with_requests, itertools.repeat(mutable), subset
-        #)
-        #paths2predictions = dict(
-        #    tqdm.tqdm(
-        #        inference_tasks,
-        #        total=len(subset),
-        #        desc="Inference via REST API",
-        #    )
-        #)
-
+        inference_tasks = self.cpu_executor.map(
+            type_annotate_with_requests, itertools.repeat(mutable), subset
+        )
         paths2predictions = dict(
-            type_annotate_with_requests(project=mutable, relpath=path)
-            for path in subset
+            tqdm.tqdm(
+                inference_tasks,
+                total=len(subset),
+                desc="Inference via REST API",
+            )
         )
 
         self.register_artifact(paths2predictions)
@@ -203,11 +183,16 @@ class _Type4Py(ParallelisableInference):
         paths2batches = dict(tqdm.tqdm(tasks, total=len(subset), desc="Top-N Batching"))
         return paths2batches
 
+
 def type_annotate_with_requests(
     project: pathlib.Path, relpath: pathlib.Path
 ) -> tuple[pathlib.Path, dict]:
     # self.logger.info(f"=== {relpath} ===")
-    res = requests.post("http://localhost:5001/api/predict?tc=0", (project / relpath).read_text().encode()).json()
+    res = requests.post(
+        "https://type4py.com/api/predict?tc=0",
+        (project / relpath).read_text().encode(),
+        verify=False,
+    ).json()
 
     return relpath, res.get("response") or {}
 
