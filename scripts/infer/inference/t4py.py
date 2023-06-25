@@ -144,6 +144,7 @@ class _Type4Py(ParallelisableInference):
         self.logger.info("Making predictions...")
 
         import urllib3
+
         urllib3.disable_warnings()
 
         inference_tasks = self.cpu_executor.map(
@@ -188,11 +189,15 @@ def type_annotate_with_requests(
     project: pathlib.Path, relpath: pathlib.Path
 ) -> tuple[pathlib.Path, dict]:
     # self.logger.info(f"=== {relpath} ===")
-    res = requests.post(
-        "https://type4py.com/api/predict?tc=0",
-        (project / relpath).read_text().encode(),
-        verify=False,
-    ).json()
+    try:
+        res = requests.post(
+            "https://type4py.com/api/predict?tc=0",
+            (project / relpath).read_text().encode(),
+            verify=False,
+        ).json()
+
+    except Exception:
+        return relpath, {}
 
     return relpath, res.get("response") or {}
 
