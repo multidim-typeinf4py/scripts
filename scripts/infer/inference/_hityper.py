@@ -226,8 +226,8 @@ class HiTyper(ProjectWideInference, ABC):
 
 # Adapted from TypeT5 implementation
 def parse_hityper(module: str, res_json: dict[str, list]) -> SignatureMap:
-    import pprint
-    pprint.pprint(res_json)
+    # import pprint
+    # pprint.pprint(res_json)
     assignment = dict()
 
     def parse_var(x: dict) -> tuple[str, libcst.Annotation | None]:
