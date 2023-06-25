@@ -158,15 +158,23 @@ class _Type4Py(ParallelisableInference):
         # self.logger.debug(paths2datapoints)
 
         self.logger.info("Making predictions...")
-        inference_tasks = self.cpu_executor.map(
-            type_annotate_with_requests, itertools.repeat(mutable), subset
-        )
+
+
+
+        #inference_tasks = self.cpu_executor.map(
+        #    type_annotate_with_requests, itertools.repeat(mutable), subset
+        #)
+        #paths2predictions = dict(
+        #    tqdm.tqdm(
+        #        inference_tasks,
+        #        total=len(subset),
+        #        desc="Inference via REST API",
+        #    )
+        #)
+
         paths2predictions = dict(
-            tqdm.tqdm(
-                inference_tasks,
-                total=len(subset),
-                desc="Inference via REST API",
-            )
+            type_annotate_with_requests(project=mutable, relpath=path)
+            for path in subset
         )
 
         self.register_artifact(paths2predictions)
@@ -199,10 +207,7 @@ def type_annotate_with_requests(
     project: pathlib.Path, relpath: pathlib.Path
 ) -> tuple[pathlib.Path, dict]:
     # self.logger.info(f"=== {relpath} ===")
-    res = requests.post(
-        "http://localhost:5001/api/predict?tc=0",
-        (project / relpath).read_text().encode(),
-    ).json()
+    res = requests.post("http://localhost:5001/api/predict?tc=0", (project / relpath).read_text().encode()).json()
 
     return relpath, res.get("response") or {}
 
