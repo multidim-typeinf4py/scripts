@@ -217,7 +217,7 @@ class HiTyper(ProjectWideInference, ABC):
         path2batchpreds = collections.defaultdict[pathlib.Path, list[SignatureMap]](list)
         for file, predictions in predictions.items():
             module = helpers.calculate_module_and_package(project, filename=file).name
-            sigmap = parse_hityper(module, predictions)
+            sigmap = self.parse_hityper(module, predictions)
             # print(file, sigmap, "\n", sep="\n")
 
             path2batchpreds[pathlib.Path(file).relative_to(project)].append(sigmap)
