@@ -196,7 +196,8 @@ def type_annotate_with_requests(
             verify=False,
         ).json()
 
-    except Exception:
+    except Exception as e:
+        print(f"REST API request failed: {e}")
         return relpath, {}
 
     return relpath, res.get("response") or {}
