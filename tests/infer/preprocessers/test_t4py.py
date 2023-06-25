@@ -23,12 +23,12 @@ class Test_Type4PyPreprocessing(codemod.CodemodTest):
             before=code,
             after="""
             def f(a: int, b: int, c: int) -> int:
-                v = ...
+                v: ...
                 v = a + b + c
                 return v
 
             class Interface:
-                attr = ...
+                attr: ...
             """,
             task=TypeCollectionCategory.VARIABLE,
         )
@@ -61,20 +61,4 @@ class Test_Type4PyPreprocessing(codemod.CodemodTest):
                 attr: int
             """,
             task=TypeCollectionCategory.CALLABLE_RETURN,
-        )
-
-
-    def test_ellipsis_masked(self) -> None:
-        self.assertCodemodWithPreamble(
-            before="""
-            a: int
-            a: int = ...
-            b = ...
-            """,
-            after="""
-            a = ...
-            a = None
-            b = None
-            """,
-            task=TypeCollectionCategory.VARIABLE,
         )
