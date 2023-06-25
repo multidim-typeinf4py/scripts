@@ -24,7 +24,7 @@ from libcst.codemod.visitors._apply_type_annotations import (
     FunctionAnnotation,
 )
 from typet5.experiments.hityper import HiTyperResponseParser
-from typet5.static_analysis import SignatureMap
+from typet5.static_analysis import SignatureMap, ProjectPath, VariableSignature, FunctionSignature
 
 from ..annotators.hityper import HiTyperProjectApplier
 from scripts import utils
@@ -217,19 +217,56 @@ class HiTyper(ProjectWideInference, ABC):
         path2batchpreds = collections.defaultdict[pathlib.Path, list[SignatureMap]](list)
         for file, predictions in predictions.items():
             module = helpers.calculate_module_and_package(project, filename=file).name
-            parser = HiTyperResponseParser(module=module)
-            sigmap = parser.parse(predictions)
+            sigmap = parse_hityper(module, predictions)
+            # print(file, sigmap, "\n", sep="\n")
 
             path2batchpreds[pathlib.Path(file).relative_to(project)].append(sigmap)
         return path2batchpreds
 
 
-def _derive_qname(scope: str) -> list[str]:
-    if scope == "global@global":
-        return []
+# Adapted from TypeT5 implementation
+def parse_hityper(module: str, res_json: dict[str, list]) -> SignatureMap:
+    import pprint
+    pprint.pprint(res_json)
+    assignment = dict()
 
-    *funcname, classname = scope.replace(",", ".").split("@")
-    if classname == "global":
-        return funcname
+    def parse_var(x: dict) -> tuple[str, libcst.Annotation | None]:
+        return x["name"], _parse_annot(x["type"])
 
-    return [classname, *funcname]
+    for e_name, e_list in res_json.items():
+        name, parent = e_name.split("@")
+        parent = "" if parent == "global" else parent.replace(",", ".")
+        base_path = ProjectPath(module, parent).append(name)
+
+        vars = [v := parse_var(x) for x in e_list if x["category"] == "local"]
+        for varname, annot in vars:
+            # HiTyper does not make predictions for class attributes
+            # But it does make predictions for self.x and similar, so add another entry if we are in a method
+            assignment[base_path.append(varname)] = VariableSignature(annot, in_class=False)
+
+            in_method = all(e != "global" for e in e_name.split("@"))
+            if in_method:
+                assignment[base_path.append(f"self.{varname}")] = VariableSignature(annot, in_class=False)
+        else:
+            params = [parse_var(x) for x in e_list if x["category"] == "arg"]
+            returns = [parse_var(x) for x in e_list if x["category"] == "return"]
+            rt = returns[0][1] if returns else None
+            assignment[base_path] = FunctionSignature(
+                {v[0]: v[1] for v in params},
+                rt,
+                in_class=False,
+            )
+
+    return assignment
+
+
+def _parse_annot(ts: list[str]) -> libcst.Annotation | None:
+    if not ts:
+        return None
+    try:
+        if len(ts) == 1:
+            return libcst.Annotation(libcst.parse_expression(ts[0]))
+        else:
+            return libcst.Annotation(libcst.parse_expression(" | ".join(ts)))
+    except libcst.ParserSyntaxError:
+        return None
