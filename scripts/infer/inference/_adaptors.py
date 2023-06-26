@@ -55,6 +55,7 @@ class ParallelStubber(codemod.ContextAwareTransformer):
             )
         except ParserSyntaxError as e:
             self.logger.exception(f"Failed to apply stubfile to: {self.context.filename}")
+            return tree
 
         stubbed = visitor(
             context=self.context,
