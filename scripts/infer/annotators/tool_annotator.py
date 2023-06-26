@@ -82,8 +82,8 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
                         **kwargs,
                     ),
                     jobs=utils.worker_count(),
-                    repo_root=str(project),
-                    files=[str(project / s) for s in subset],
+                    repo_root=str(sc),
+                    files=[str(sc / s) for s in subset],
                 )
                 anno_res = utils.format_parallel_exec_result(
                     f"Annotated with {tool.method()} @ topn={n}", result=anno
@@ -91,7 +91,7 @@ class ParallelTopNAnnotator(codemod.Codemod, abc.ABC, typing.Generic[T, U]):
                 tool.logger.info(anno_res)
 
                 collection = build_type_collection(
-                    root=project, allow_stubs=False, subset=subset
+                    root=sc, allow_stubs=False, subset=subset
                 ).df.assign(topn=n)
                 collections.append(collection)
         return (
