@@ -93,3 +93,24 @@ class Test_BadGenerics(codemod.CodemodTest):
             expected="a: dict[builtins.bool]",
             actual=transformed.code
         )
+
+    def test_literal_conversion(self):
+        self.assertCodemod(
+            before="a: typing_extensions.Literal[b'Report-To']",
+            after="a: builtins.bytes",
+        )
+
+        self.assertCodemod(
+            before="a: typing_extensions.Literal['Report-To']",
+            after="a: builtins.str",
+        )
+
+        self.assertCodemod(
+            before="a: typing_extensions.Literal[42]",
+            after="a: builtins.int",
+        )
+
+        self.assertCodemod(
+            before="a: typing_extensions.Literal[42.5]",
+            after="a: builtins.float",
+        )

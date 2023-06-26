@@ -37,7 +37,7 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
                 libcst.SubscriptElement(
                     libcst.Index(
                         libcst.Subscript(
-                            value=UNION_,
+                            value=libcst.Attribute(libcst.Name("typing"), libcst.Name("Union")),
                             slice=_replace_elements(list_.elements),
                         )
                     )
@@ -69,10 +69,36 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
     ) -> libcst.Attribute:
         if self.matches(original_node, _QUALIFIED_BOOL_LIT | _UNQUALIFIED_BOOL_LIT):
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bool"))
-
-        if self.matches(original_node, _QUALIFIED_SUBSCRIPT_LITERAL | _UNQUALIFIED_SUBSCRIPT_LITERAL):
-            return libcst.Attribute(libcst.Name("typing"), libcst.Name("Literal"))
         return updated_node
+
+    @m.call_if_inside(m.Annotation(_QUALIFIED_SUBSCRIPT_LITERAL | _UNQUALIFIED_SUBSCRIPT_LITERAL))
+    @m.leave(_QUALIFIED_SUBSCRIPT_LITERAL | _UNQUALIFIED_SUBSCRIPT_LITERAL)
+    def leave_subscript_literal(
+        self, original_node: libcst.Subscript, updated_node: libcst.Subscript
+    ) -> libcst.Attribute:
+        if len(original_node.slice) != 1:
+            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("Literal"))
+
+        if self.matches(original_node.slice[0], m.SubscriptElement(
+            m.Index(m.SimpleString())
+        )):
+            simple_string = typing.cast(libcst.SimpleString, updated_node.slice[0].slice.value)
+            if simple_string.value.startswith("b"):
+                return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bytes"))
+
+            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("str"))
+
+        elif self.matches(original_node.slice[0], m.SubscriptElement(
+            m.Index(m.Integer())
+        )):
+            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("int"))
+
+        elif self.matches(original_node.slice[0], m.SubscriptElement(
+            m.Index(m.Float())
+        )):
+            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("float"))
+
+        raise NotImplementedError(f"Unknown subscript type: {updated_node.slice[0].slice}")
 
 
 def _replace_elements(
