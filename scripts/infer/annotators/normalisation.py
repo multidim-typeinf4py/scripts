@@ -46,12 +46,6 @@ class Normalisation:
     # lowercase_aliases: bool
 
 
-    # Optional[T] -> T
-    # outer_optional_to_t: bool = False
-
-    # Final[T] -> T
-    # outer_final_to_t: bool = False
-
     @staticmethod
     def default() -> Normalisation:
         return Normalisation(
