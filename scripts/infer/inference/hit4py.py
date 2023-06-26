@@ -36,9 +36,11 @@ class Type4PyAdaptor(ModelAdaptor):
             dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"type4pyN{self.topn()}",
-            task=TypeCollectionCategory.__getitem__(os.environ["TASK"]),
+            task=os.environ["TASK"],
         )
 
+        # No need to trim predictions; HiTyper does this for us via
+        # tdg.recommendType(self, ..., topn)
         (type4py_predictions,) = io.read()
 
         # Make relative to temporary project root
@@ -48,6 +50,7 @@ class Type4PyAdaptor(ModelAdaptor):
             if p
         }
         return ModelAdaptor.ProjectPredictions(__root__=root)
+
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
         return Type4PyPreprocessor(context=codemod.CodemodContext(), task=task)

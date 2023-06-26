@@ -191,7 +191,7 @@ def type_annotate_with_requests(
     # self.logger.info(f"=== {relpath} ===")
     try:
         res = requests.post(
-            "https://type4py.com/api/predict?tc=0",
+            "http://localhost:5001/api/predict?tc=0",
             (project / relpath).read_text().encode(),
             verify=False,
         ).json()

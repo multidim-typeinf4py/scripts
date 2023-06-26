@@ -25,3 +25,10 @@ return_inference() {
         --task CALLABLE_RETURN \
         --outpath "$(dirname "$2")/$1"
 }
+
+all_inference() {
+    echo "Tool: $1 - TT5-Experiment"
+    poetry run python main.py tt5exp --dataset "$2" \
+        --tool "$1" \
+        --outpath "$(dirname "$2")/$1"
+}

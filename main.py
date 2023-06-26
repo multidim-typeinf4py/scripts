@@ -4,7 +4,7 @@ import click
 # import context
 # import logregr
 # import harness
-from scripts import dataset, infer, srcdiff, utils
+from scripts import dataset, infer, srcdiff, tt5exp, utils
 
 # import hintdiff
 # import symbols
@@ -29,6 +29,7 @@ if __name__ == "__main__":
         commands=[
             # context.cli_entrypoint,
             infer.cli_entrypoint,
+            tt5exp.cli_entrypoint,
             # harness.cli_entrypoint,
             dataset.cli_entrypoint,
             # symbols.cli_entrypoint,

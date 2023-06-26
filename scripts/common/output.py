@@ -96,11 +96,11 @@ class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
         dataset: DatasetFolderStructure,
         repository: pathlib.Path,
         tool_name: str,
-        task: TypeCollectionCategory,
+        task: TypeCollectionCategory | str,
     ) -> None:
         super().__init__(artifact_root, dataset, repository)
         self.tool_name = tool_name
-        self.task = task
+        self.task = str(task)
 
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
@@ -213,11 +213,11 @@ class InferenceArtifactIO(DatasetDependentIO[list[typing.Any]]):
         dataset: DatasetFolderStructure | str,
         repository: pathlib.Path,
         tool_name: str,
-        task: TypeCollectionCategory,
+        task: TypeCollectionCategory | str,
     ) -> None:
         super().__init__(artifact_root, dataset, repository)
         self.tool_name = tool_name
-        self.task = task
+        self.task = str(task)
 
     def _read(self, input_location: pathlib.Path) -> list[typing.Any]:
         with input_location.open("rb") as f:
