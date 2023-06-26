@@ -8,13 +8,12 @@ from scripts.common.schemas import TypeCollectionCategory
 from typet5.experiments import type4py
 from typet5.experiments import utils
 
+from .tt5 import TT5AnnotationRemover
+
 
 class StaticPreprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        rewritten = _StaticAnnotationRemover(
-            context=self.context,
-            task=self.task,
-        ).transform_module(tree)
+        rewritten = TT5AnnotationRemover(context=self.context, task=self.task).transform_module(tree)
         return rewritten
 
 
@@ -27,7 +26,6 @@ class _StaticAnnotationRemover(AnnotationRemover):
 
         is_class_scope = self.is_class_scope(original_node.target)
         if is_class_scope and original_node.value is None:
-            # This is similar to TypeT5's published implementation, which makes a = int
             # a: int -> a = int()
             return libcst.Assign(
                 targets=[libcst.AssignTarget(updated_node.target)],
