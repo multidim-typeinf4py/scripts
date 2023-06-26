@@ -171,17 +171,21 @@ class PyreQueryFileApplier(
     ) -> libcst.Annotation | None:
         inferred = self.get_metadata(metadata.TypeInferenceProvider, node, None)
         if inferred:
-            cleaned = self.try_to_cleanup_var_type(inferred)
+            cleaned = self.try_to_cleanup_type(inferred)
             return libcst.Annotation(libcst.parse_expression(cleaned))
 
         return None
 
 
-    def try_to_cleanup_var_type(self, type_annotation: str) -> str:
+    def try_to_cleanup_type(self, type_annotation: str) -> str:
         if type_annotation.startswith("typing_extensions.Literal[b'"):
             return "typing_extensions.Literal[b'']"
 
         if type_annotation.startswith("typing_extensions.Literal['"):
             return "typing_extensions.Literal['']"
+
+        # Indicates assignment to method or function, simply give typing.Callable
+        if type_annotation.startswith("BoundMethod[typing.Callable"):
+            return "typing.Callable"
 
         return type_annotation
