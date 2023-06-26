@@ -81,6 +81,8 @@ def cli_entrypoint(
     os.environ["DATASET_ROOT"] = str(structure.dataset_root)
     task = "all"
 
+    os.environ["TASK"] = task
+
     print("Dataset Kind:", structure)
 
     inference_tool = tool()
