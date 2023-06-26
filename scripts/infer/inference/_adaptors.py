@@ -4,7 +4,7 @@ from typing import Optional
 
 import libcst
 import pandera.typing as pt
-from libcst import codemod
+from libcst import codemod, ParserSyntaxError
 from libcst.codemod import visitors
 
 from scripts.common.schemas import TypeCollectionSchema
@@ -48,9 +48,13 @@ class ParallelStubber(codemod.ContextAwareTransformer):
             return tree
 
         visitor = visitors.ApplyTypeAnnotationsVisitor
-        visitor.store_stub_in_context(
-            context=self.context, stub=libcst.parse_module(stubfile.read_text())
-        )
+        try:
+            stub = libcst.parse_module(stubfile.read_text())
+            visitor.store_stub_in_context(
+                context=self.context, stub=stub
+            )
+        except ParserSyntaxError as e:
+            self.logger.exception(f"Failed to apply stubfile to: {self.context.filename}")
 
         stubbed = visitor(
             context=self.context,
