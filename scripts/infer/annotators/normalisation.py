@@ -61,9 +61,6 @@ class Normalisation:
         # assert self.lowercase_aliases + self.uppercase_aliases <= 1
 
         ts = list[codemod.Codemod]()
-        if self.unquote:
-            ts.append(us.Unquote(context=context))
-
         if self.typing_text_to_str:
             ts.append(t.TextToStr(context=context))
 
@@ -72,6 +69,9 @@ class Normalisation:
 
         if self.bad_generics:
             ts.append(b.BadGenericsNormaliser(context=context))
+
+        if self.unquote:
+            ts.append(us.Unquote(context=context))
 
         #if self.outer_optional_to_t:
         #    ts.append(t.RemoveOuterOptional(context=context))
