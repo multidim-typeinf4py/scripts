@@ -5,7 +5,7 @@ import tqdm
 from libcst import codemod
 
 from scripts import utils
-from scripts.common import output, extending
+from scripts.common import output
 from scripts.common.schemas import (
     TypeCollectionSchema,
     ExtendedTypeCollectionSchema,
@@ -52,7 +52,7 @@ from .normalisation import to_limited, to_adjusted, to_base
     is_flag=True,
 )
 def cli_entrypoint(
-    dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool
+    dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool, extended: bool,
 ) -> None:
     structure = DatasetFolderStructure(dataset_root=dataset)
     print(structure)
@@ -66,14 +66,14 @@ def cli_entrypoint(
         dataset_io = output.DatasetIO(
             artifact_root=outpath, dataset=structure, repository=project
         )
-        if not overwrite and not extending and dataset_io.full_location().exists():
+        if not overwrite and not extended and dataset_io.full_location().exists():
             print(
                 f"Skipping {project}; dataset already exists, no extension requested, and overwrite flag was not provided!"
             )
             continue
 
-        elif extending and dataset_io.full_location().exists():
-            print("Loading ground truth from cache for extending")
+        elif extended and dataset_io.full_location().exists():
+            print("Loading ground truth from cache for extended")
             collection = dataset_io.read()
 
         else:
@@ -99,7 +99,7 @@ def cli_entrypoint(
         extended_dataset_io = output.ExtendedDatasetIO(
             artifact_root=outpath, dataset=structure, repository=project
         )
-        if not extending:
+        if not extended:
             continue
 
         elif not overwrite and extended_dataset_io.full_location().exists():
