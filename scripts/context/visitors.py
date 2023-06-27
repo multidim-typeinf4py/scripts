@@ -21,7 +21,8 @@ from scripts.common.metadata import anno4inst
 from scripts.common.schemas import (
     ContextCategory,
     ContextSymbolSchema,
-    TypeCollectionCategory, TypeCollectionSchema,
+    TypeCollectionCategory,
+    TypeCollectionSchema,
 )
 from scripts.context.features import RelevantFeatures
 from scripts.symbols.collector import build_type_collection
@@ -62,17 +63,21 @@ def generate_context_vectors(
 
     context_df = pd.concat(contexts, ignore_index=True)
 
-    return pd.merge(
-        left=type_collection.df,
-        right=context_df,
-        on=[
-            TypeCollectionSchema.file,
-            TypeCollectionSchema.category,
-            TypeCollectionSchema.qname,
-            TypeCollectionSchema.qname_ssa,
-        ],
-        # validate="1:1"
-    ).pipe(pt.DataFrame[ContextSymbolSchema])
+    return (
+        pd.merge(
+            left=type_collection.df,
+            right=context_df,
+            on=[
+                TypeCollectionSchema.file,
+                TypeCollectionSchema.category,
+                TypeCollectionSchema.qname,
+                TypeCollectionSchema.qname_ssa,
+            ],
+            # validate="1:1"
+        )
+        .drop(columns=[TypeCollectionSchema.anno])
+        .pipe(pt.DataFrame[ContextSymbolSchema])
+    )
 
 
 def generate_context_vectors_for_file(
@@ -105,7 +110,6 @@ class ContextVectorVisitor(
             ContextSymbolSchema.file,
             ContextSymbolSchema.category,
             ContextSymbolSchema.qname,
-
             # Predictor Variables begin here
             ContextSymbolSchema.context_category,
             ContextSymbolSchema.loop,
@@ -400,7 +404,6 @@ class ContextVectorVisitor(
         else:
             prediction_category = TypeCollectionCategory.VARIABLE
 
-
         reassignedf = int(self.features.reassigned and self._is_reassigned(identifier))
 
         self.visible_symbols[self.scope_components()].add(identifier)
@@ -415,9 +418,13 @@ class ContextVectorVisitor(
 
             types = visitor.types
 
-            builtin = int(self.features.source and any(self.is_builtin(ty) for ty in types))
+            builtin = int(
+                self.features.source and any(self.is_builtin(ty) for ty in types)
+            )
             local = int(self.features.source and any(self.is_local(ty) for ty in types))
-            imported = int(self.features.source and any(self.is_imported(ty) for ty in types))
+            imported = int(
+                self.features.source and any(self.is_imported(ty) for ty in types)
+            )
         else:
             builtin, local, imported = 0, 0, 0
 
@@ -429,7 +436,6 @@ class ContextVectorVisitor(
                 self.filepath,
                 prediction_category,
                 qname,
-
                 # Predictor Variables begin here
                 context_category,
                 loopf,
@@ -484,21 +490,15 @@ class ContextVectorVisitor(
         )
 
     def is_builtin(self, ty: libcst.Name | libcst.Attribute) -> bool:
-        qnames = self.get_metadata(
-            metadata.QualifiedNameProvider, ty
-        )
+        qnames = self.get_metadata(metadata.QualifiedNameProvider, ty)
         return any(qname.source is QualifiedNameSource.BUILTIN for qname in qnames)
 
     def is_local(self, ty: libcst.Name | libcst.Attribute) -> bool:
-        qnames = self.get_metadata(
-            metadata.QualifiedNameProvider, ty
-        )
+        qnames = self.get_metadata(metadata.QualifiedNameProvider, ty)
         return any(qname.source is QualifiedNameSource.LOCAL for qname in qnames)
 
     def is_imported(self, ty: libcst.Name | libcst.Attribute) -> bool:
-        qnames = self.get_metadata(
-            metadata.QualifiedNameProvider, ty
-        )
+        qnames = self.get_metadata(metadata.QualifiedNameProvider, ty)
         return any(qname.source is QualifiedNameSource.IMPORT for qname in qnames)
 
     @m.visit(m.FunctionDef() | m.ClassDef())
@@ -564,10 +564,9 @@ class ContextVectorVisitor(
         if not self.dfrs:
             return ContextSymbolSchema.example(size=0)
 
-        df = (
-            pd.DataFrame(self.dfrs, columns=ContextVectorVisitor.ContextVector._fields)
-            .pipe(generate_qname_ssas_for_file)
-        )
+        df = pd.DataFrame(
+            self.dfrs, columns=ContextVectorVisitor.ContextVector._fields
+        ).pipe(generate_qname_ssas_for_file)
 
         # Update keyword modified scopage
         reassigned_names = df[ContextSymbolSchema.qname].isin(
@@ -577,10 +576,11 @@ class ContextVectorVisitor(
 
         return df
 
+
 from libcst import matchers as m
 
-class TypeExtractor(m.MatcherDecoratableVisitor):
 
+class TypeExtractor(m.MatcherDecoratableVisitor):
     def __init__(self):
         super().__init__()
         self.types: list[libcst.Name | libcst.Attribute] = []
