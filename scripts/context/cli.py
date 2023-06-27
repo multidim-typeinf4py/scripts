@@ -68,13 +68,8 @@ def cli_entrypoint(
             )
             continue
 
+        # Safety first!
         with utils.scratchpad(project) as sc:
-            codemod.parallel_exec_transform_with_prettyprint(
-                transform=Normaliser(context=codemod.CodemodContext(), strategy=Normalisation.default()),
-
-            )
-
-
             context_vectors = generate_context_vectors(
                 features=RelevantFeatures.default(),
                 project=sc,
