@@ -114,3 +114,13 @@ class Test_BadGenerics(codemod.CodemodTest):
             before="a: typing_extensions.Literal[42.5]",
             after="a: builtins.float",
         )
+
+        self.assertCodemod(
+            before='type: Literal["default"] = "default"',
+            after='type: builtins.str = "default"',
+        )
+
+        self.assertCodemod(
+            before='type: Literal[None]',
+            after='type: None',
+        )
