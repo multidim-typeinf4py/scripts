@@ -2,7 +2,7 @@ import pathlib
 
 import click
 import tqdm
-from libcst import codemod
+from libcst import codemod, metadata
 from pandera import typing as pt
 
 from scripts.common.output import ExtendedDatasetIO, ContextIO
@@ -90,18 +90,22 @@ def cli_entrypoint(
 
             # Remove all type annotations
             with scratchpad(project) as sc:
+                files = codemod.gather_files([str(sc)])
+
                 print(
                     f"Apply annotations from '{target}' as a scratchpad for context gathering!"
                 )
                 transformed_ground_truths = (
-                    extended_ground_truths.rename(columns={target: TypeCollectionSchema.anno})
+                    extended_ground_truths.rename(
+                        columns={target: TypeCollectionSchema.anno}
+                    )
                     .drop(columns=set(annotation_columns).difference({target}))
                     .pipe(pt.DataFrame[TypeCollectionSchema])
                 )
 
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TT5AllAnnotRemover(codemod.CodemodContext()),
-                    files=codemod.gather_files([str(sc)]),
+                    files=files,
                     jobs=worker_count(),
                     repo_root=str(sc),
                 )
@@ -113,10 +117,16 @@ def cli_entrypoint(
 
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationApplierTransformer(
-                        context=codemod.CodemodContext(),
+                        context=codemod.CodemodContext(
+                            metadata_manager=metadata.FullRepoManager(
+                                repo_root_dir=sc,
+                                paths=files,
+                                providers={metadata.FullyQualifiedNameProvider},
+                            )
+                        ),
                         annotations=transformed_ground_truths,
                     ),
-                    files=codemod.gather_files([str(sc)]),
+                    files=files,
                     jobs=worker_count(),
                     repo_root=str(sc),
                 )
