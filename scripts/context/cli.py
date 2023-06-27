@@ -2,11 +2,14 @@ import pathlib
 
 import click
 import tqdm
+from libcst import codemod
 
+from scripts import utils
 from scripts.common.output import ContextIO
 from scripts.common.schemas import (
     ExtendedTypeCollectionSchema,
 )
+from scripts.infer.annotators.normalisation import Normaliser, Normalisation
 
 
 @click.command(
@@ -49,13 +52,6 @@ def cli_entrypoint(
     structure = DatasetFolderStructure(dataset)
     test_set = structure.test_set()
 
-    annotation_columns = [
-        ExtendedTypeCollectionSchema.raw_anno,
-        ExtendedTypeCollectionSchema.depth_limited_anno,
-        ExtendedTypeCollectionSchema.adjusted_anno,
-        ExtendedTypeCollectionSchema.base_anno,
-    ]
-
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         pbar.set_description(desc=f"{project}")
 
@@ -72,11 +68,18 @@ def cli_entrypoint(
             )
             continue
 
-        context_vectors = generate_context_vectors(
-            features=RelevantFeatures.default(),
-            project=project,
-            subset=subset,
-        )
+        with utils.scratchpad(project) as sc:
+            codemod.parallel_exec_transform_with_prettyprint(
+                transform=Normaliser(context=codemod.CodemodContext(), strategy=Normalisation.default()),
+
+            )
+
+
+            context_vectors = generate_context_vectors(
+                features=RelevantFeatures.default(),
+                project=sc,
+                subset=subset,
+            )
 
         print(f"Writing context vectors to {output_io.full_location()}")
         output_io.write(context_vectors)
