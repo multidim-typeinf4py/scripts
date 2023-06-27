@@ -1,7 +1,9 @@
+from __future__ import annotations
+
+import pandas as pd
 from typet5 import PythonType
 from typet5.type_env import AccuracyMetric
 
-import pandas as pd
 
 def to_limited(anno: str | None) -> str | None:
     if pd.isna(anno):

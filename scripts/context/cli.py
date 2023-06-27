@@ -57,6 +57,7 @@ def cli_entrypoint(
 
     annotation_columns = [
         ExtendedTypeCollectionSchema.raw_anno,
+        ExtendedTypeCollectionSchema.depth_limited_anno,
         ExtendedTypeCollectionSchema.adjusted_anno,
         ExtendedTypeCollectionSchema.base_anno,
     ]
