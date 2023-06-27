@@ -109,7 +109,7 @@ def cli_entrypoint(
             )
 
         extended_df = collection.rename(
-            {TypeCollectionSchema.anno: ExtendedTypeCollectionSchema.raw_anno}
+            columns={TypeCollectionSchema.anno: ExtendedTypeCollectionSchema.raw_anno}
         )
         extended_df[ExtendedTypeCollectionSchema.depth_limited_anno] = extended_df[
             ExtendedTypeCollectionSchema.raw_anno

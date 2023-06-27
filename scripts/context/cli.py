@@ -51,7 +51,7 @@ def cli_entrypoint(
     from scripts.infer.structure import DatasetFolderStructure
     from scripts.tt5exp.remover import TT5AllAnnotRemover
     from scripts.utils import format_parallel_exec_result, scratchpad, worker_count
-    
+
     structure = DatasetFolderStructure(dataset)
     test_set = structure.test_set()
 
@@ -93,7 +93,7 @@ def cli_entrypoint(
                     f"Apply annotations from '{target}' as a scratchpad for context gathering!"
                 )
                 transformed_ground_truths = (
-                    extended_ground_truths.rename({target: TypeCollectionSchema.anno})
+                    extended_ground_truths.rename(columns={target: TypeCollectionSchema.anno})
                     .drop(columns=set(annotation_columns).difference(target))
                     .pipe(pt.DataFrame[TypeCollectionSchema])
                 )
