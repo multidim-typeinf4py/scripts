@@ -71,7 +71,7 @@ def generate_context_vectors(
             TypeCollectionSchema.qname,
             TypeCollectionSchema.qname_ssa,
         ],
-        validate="1:1"
+        # validate="1:1"
     ).pipe(pt.DataFrame[ContextSymbolSchema])
 
 
