@@ -95,7 +95,7 @@ def cli_entrypoint(
                 )
                 transformed_ground_truths = (
                     extended_ground_truths.rename(columns={target: TypeCollectionSchema.anno})
-                    .drop(columns=set(annotation_columns).difference(target))
+                    .drop(columns=set(annotation_columns).difference({target}))
                     .pipe(pt.DataFrame[TypeCollectionSchema])
                 )
 
