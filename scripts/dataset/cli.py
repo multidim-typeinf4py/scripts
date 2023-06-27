@@ -116,15 +116,15 @@ def cli_entrypoint(
         )
         extended_df[ExtendedTypeCollectionSchema.depth_limited_anno] = extended_df[
             ExtendedTypeCollectionSchema.raw_anno
-        ].progress_apply(lambda a: to_limited(a.loc[0]))
+        ].progress_apply(lambda a: to_limited(a))
 
         extended_df[ExtendedTypeCollectionSchema.adjusted_anno] = extended_df[
             ExtendedTypeCollectionSchema.depth_limited_anno
-        ].progress_apply(lambda a: to_adjusted(a.loc[0]))
+        ].progress_apply(lambda a: to_adjusted(a))
 
         extended_df[ExtendedTypeCollectionSchema.base_anno] = extended_df[
             ExtendedTypeCollectionSchema.depth_limited_anno
-        ].progress_apply(lambda a: to_base(a.loc[0]))
+        ].progress_apply(lambda a: to_base(a))
 
 
 if __name__ == "__main__":

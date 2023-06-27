@@ -1,9 +1,10 @@
 from typet5 import PythonType
 from typet5.type_env import AccuracyMetric
 
+import pandas as pd
 
 def to_limited(anno: str | None) -> str | None:
-    if anno is None:
+    if pd.isna(anno):
         return None
 
     pt = PythonType.from_str(anno)
@@ -20,7 +21,7 @@ def to_limited(anno: str | None) -> str | None:
 
 
 def to_adjusted(anno: str | None) -> str | None:
-    if anno is None:
+    if pd.isna(anno):
         return None
 
     pt = PythonType.from_str(anno)
@@ -36,7 +37,7 @@ def to_adjusted(anno: str | None) -> str | None:
 
 
 def to_base(anno: str | None) -> str | None:
-    if anno is None:
+    if pd.isna(anno):
         return None
 
     pt = PythonType.from_str(anno)
