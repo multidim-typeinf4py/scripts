@@ -72,6 +72,10 @@ class DatasetDependentIO(ArtifactIO[A]):
 
 
 class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
+    def __init__(self, artifact_root: pathlib.Path, dataset: DatasetFolderStructure | str, repository: pathlib.Path, annotation_form: str):
+        super().__init__(artifact_root, dataset, repository)
+        self.annotation_form = annotation_form
+
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
         return pd.read_csv(
             input_location,
@@ -86,7 +90,7 @@ class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
         return artifact.to_csv(output_location, index=False, na_rep="")
 
     def relative_location(self) -> pathlib.Path:
-        return super().relative_location() / "context.csv"
+        return super().relative_location() / f"context-{self.annotation_form}.csv"
 
 
 class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
