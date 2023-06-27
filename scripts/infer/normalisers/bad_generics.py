@@ -75,7 +75,7 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
     @m.leave(_QUALIFIED_SUBSCRIPT_LITERAL | _UNQUALIFIED_SUBSCRIPT_LITERAL)
     def leave_subscript_literal(
         self, original_node: libcst.Subscript, updated_node: libcst.Subscript
-    ) -> libcst.Attribute:
+    ) -> libcst.Attribute | libcst.Name:
         if len(original_node.slice) != 1:
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("Literal"))
 
@@ -102,6 +102,11 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
             m.Index(m.Name("None"))
         )):
             return libcst.Name("None")
+
+        elif self.matches(original_node.slice[0], m.SubscriptElement(
+            m.Index(_QUALIFIED_BOOL_LIT | _UNQUALIFIED_BOOL_LIT)
+        )):
+            return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bool"))
 
         from scripts.common.ast_helper import _stringify
         raise NotImplementedError(f"Unknown subscript type: {_stringify(updated_node)}")
