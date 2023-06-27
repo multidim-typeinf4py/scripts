@@ -57,27 +57,8 @@ def generate_context_vectors(
     if not contexts:
         return ContextSymbolSchema.example(size=0)
 
-    type_collection = build_type_collection(
-        root=project, allow_stubs=False, subset=subset
-    )
-
     context_df = pd.concat(contexts, ignore_index=True)
-
-    return (
-        pd.merge(
-            left=type_collection.df,
-            right=context_df,
-            on=[
-                TypeCollectionSchema.file,
-                TypeCollectionSchema.category,
-                TypeCollectionSchema.qname,
-                TypeCollectionSchema.qname_ssa,
-            ],
-            # validate="1:1"
-        )
-        .drop(columns=[TypeCollectionSchema.anno])
-        .pipe(pt.DataFrame[ContextSymbolSchema])
-    )
+    return context_df.pipe(pt.DataFrame[ContextSymbolSchema])
 
 
 def generate_context_vectors_for_file(
