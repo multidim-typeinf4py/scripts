@@ -98,7 +98,8 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
         )):
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("float"))
 
-        raise NotImplementedError(f"Unknown subscript type: {updated_node.slice[0].slice}")
+        from scripts.common.ast_helper import _stringify
+        raise NotImplementedError(f"Unknown subscript type: {_stringify(updated_node)}")
 
 
 def _replace_elements(
