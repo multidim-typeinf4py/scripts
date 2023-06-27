@@ -63,12 +63,11 @@ def cli_entrypoint(
             artifact_root=outpath,
             dataset=structure,
             repository=project,
-            annotation_form=target,
         )
 
         if not overwrite and output_io.full_location().exists():
             print(
-                f"Skipping computing context on '{target}' on '{project}'; "
+                f"Skipping computing context on '{project}'; "
                 f"artifact exists and --overwrite was not specified"
             )
             continue
