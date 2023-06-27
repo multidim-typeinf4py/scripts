@@ -10,12 +10,6 @@ from scripts.common.schemas import (
     TypeCollectionSchema,
     ExtendedTypeCollectionSchema,
 )
-from scripts.context import RelevantFeatures
-from scripts.context.visitors import generate_context_vectors
-from scripts.infer.insertion import TypeAnnotationApplierTransformer
-from scripts.infer.structure import DatasetFolderStructure
-from scripts.tt5exp.remover import TT5AllAnnotRemover
-from scripts.utils import format_parallel_exec_result, scratchpad, worker_count
 
 
 @click.command(
@@ -51,6 +45,13 @@ def cli_entrypoint(
     outpath: pathlib.Path,
     overwrite: bool,
 ) -> None:
+    from scripts.context import RelevantFeatures
+    from scripts.context.visitors import generate_context_vectors
+    from scripts.infer.insertion import TypeAnnotationApplierTransformer
+    from scripts.infer.structure import DatasetFolderStructure
+    from scripts.tt5exp.remover import TT5AllAnnotRemover
+    from scripts.utils import format_parallel_exec_result, scratchpad, worker_count
+    
     structure = DatasetFolderStructure(dataset)
     test_set = structure.test_set()
 
