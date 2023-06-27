@@ -92,11 +92,11 @@ def cli_entrypoint(
                 )
                 print(utils.format_parallel_exec_result("Normalising codebase", res))
 
-            collection = build_type_collection(
-                root=project,
-                allow_stubs=False,
-                subset=subset,
-            ).df
+                collection = build_type_collection(
+                    root=sc,
+                    allow_stubs=False,
+                    subset=subset,
+                ).df
             dataset_io.write(collection)
 
         extended_dataset_io = output.ExtendedDatasetIO(
