@@ -113,6 +113,7 @@ def cli_entrypoint(
                 "Skipping computing extended form; "
                 "already exists and --overwrite was not specified"
             )
+            continue
 
         extended_df = collection.rename(
             columns={TypeCollectionSchema.anno: ExtendedTypeCollectionSchema.raw_anno}
