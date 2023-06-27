@@ -79,7 +79,7 @@ def cli_entrypoint(
             )
             continue
 
-        elif extended and dataset_io.full_location().exists():
+        elif not overwrite and extended and dataset_io.full_location().exists():
             print("Loading ground truth from cache for extended")
             collection = dataset_io.read()
 
