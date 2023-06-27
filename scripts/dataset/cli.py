@@ -59,6 +59,8 @@ def cli_entrypoint(
     overwrite: bool,
     extended: bool,
 ) -> None:
+    tqdm.pandas()
+    
     structure = DatasetFolderStructure(dataset_root=dataset)
     print(structure)
 
@@ -115,6 +117,7 @@ def cli_entrypoint(
             )
             continue
 
+        print("Computing extended ground truth")
         extended_df = collection.rename(
             columns={TypeCollectionSchema.anno: ExtendedTypeCollectionSchema.raw_anno}
         )
