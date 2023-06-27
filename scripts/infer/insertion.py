@@ -1,8 +1,9 @@
+import dataclasses
 import pathlib
 
 import libcst
 import pandera.typing as pt
-from libcst import codemod
+from libcst import codemod, metadata
 
 from scripts.common.annotations import ApplyTypeAnnotationsVisitor
 from scripts.common.schemas import TypeCollectionSchema
@@ -43,7 +44,16 @@ class TypeAnnotationApplierTransformer(codemod.ContextAwareTransformer):
 
         # removed = tree.visit(TypeAnnotationRemover(context=self.context))
 
-        symbol_collector = TypeCollectorVisitor.strict(context=self.context)
+        metadata_manager = metadata.FullRepoManager(
+            repo_root_dir=self.context.metadata_manager.root_path,
+            paths=[self.context.filename],
+            providers={metadata.FullyQualifiedNameProvider},
+        )
+        metadata_manager.resolve_cache()
+
+        symbol_collector = TypeCollectorVisitor.strict(
+            context=dataclasses.replace(self.context, metadata_manager=metadata_manager)
+        )
         tree.visit(symbol_collector)
         annotations = TypeCollection.to_libcst_annotations(
             module_tycol, symbol_collector.collection.df

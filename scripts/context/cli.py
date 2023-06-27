@@ -117,13 +117,7 @@ def cli_entrypoint(
 
                 result = codemod.parallel_exec_transform_with_prettyprint(
                     transform=TypeAnnotationApplierTransformer(
-                        context=codemod.CodemodContext(
-                            metadata_manager=metadata.FullRepoManager(
-                                repo_root_dir=sc,
-                                paths=files,
-                                providers={metadata.FullyQualifiedNameProvider},
-                            )
-                        ),
+                        context=codemod.CodemodContext(),
                         annotations=transformed_ground_truths,
                     ),
                     files=files,
