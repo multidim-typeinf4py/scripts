@@ -4,6 +4,8 @@ import click
 import tqdm
 from libcst import codemod
 
+from pandera import typing as pt
+
 from scripts import utils
 from scripts.common import output
 from scripts.common.schemas import (
@@ -103,6 +105,7 @@ def cli_entrypoint(
             artifact_root=outpath, dataset=structure, repository=project
         )
         if not extended:
+            print("Not computing extended form; request with --extended")
             continue
 
         elif not overwrite and extended_dataset_io.full_location().exists():
@@ -125,6 +128,10 @@ def cli_entrypoint(
         extended_df[ExtendedTypeCollectionSchema.base_anno] = extended_df[
             ExtendedTypeCollectionSchema.depth_limited_anno
         ].progress_apply(lambda a: to_base(a))
+
+        extended_dataset_io.write(extended_df.pipe(
+            pt.DataFrame[ExtendedTypeCollectionSchema]
+        ))
 
 
 if __name__ == "__main__":
