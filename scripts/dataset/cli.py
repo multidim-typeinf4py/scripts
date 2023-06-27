@@ -59,8 +59,8 @@ def cli_entrypoint(
     overwrite: bool,
     extended: bool,
 ) -> None:
-    tqdm.pandas()
-    
+    tqdm.tqdm.pandas()
+
     structure = DatasetFolderStructure(dataset_root=dataset)
     print(structure)
 
