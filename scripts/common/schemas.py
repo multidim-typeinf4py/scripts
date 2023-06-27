@@ -79,7 +79,7 @@ class ContextCategory(enum.IntEnum):
         return self.name
 
 
-class ContextSymbolSchema(TypeCollectionSchema):
+class ContextSymbolSchema(SymbolSchema):
     # Read above to recognise the category
     context_category: pt.Series[int] = pa.Field(isin=ContextCategory)
 

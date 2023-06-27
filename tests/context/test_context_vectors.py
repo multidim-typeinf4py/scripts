@@ -1,6 +1,5 @@
 import pathlib
 
-import libcst
 import pandas as pd
 import pandera.typing as pt
 import pytest
@@ -190,20 +189,6 @@ class TestFeatures:
             )
 
         assert not errors, ",".join(errors)
-
-
-@pytest.fixture
-def tuple_dataset() -> pt.DataFrame[ContextSymbolSchema]:
-    repo = pathlib.Path.cwd() / "tests" / "context"
-    cvs = generate_context_vectors_for_file(
-        features=RelevantFeatures(
-            loop=True, reassigned=True, nested=True, source=True, flow_control=True
-        ),
-        repo=repo,
-        path=repo / "tuples.py",
-    )
-
-    return cvs
 
 
 # def test_tuple_handling(tuple_dataset: pt.DataFrame[ContextSymbolSchema]):
