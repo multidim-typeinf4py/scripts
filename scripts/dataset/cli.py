@@ -52,7 +52,10 @@ from .normalisation import to_limited, to_adjusted, to_base
     is_flag=True,
 )
 def cli_entrypoint(
-    dataset: pathlib.Path, outpath: pathlib.Path, overwrite: bool, extended: bool,
+    dataset: pathlib.Path,
+    outpath: pathlib.Path,
+    overwrite: bool,
+    extended: bool,
 ) -> None:
     structure = DatasetFolderStructure(dataset_root=dataset)
     print(structure)
@@ -113,15 +116,15 @@ def cli_entrypoint(
         )
         extended_df[ExtendedTypeCollectionSchema.depth_limited_anno] = extended_df[
             ExtendedTypeCollectionSchema.raw_anno
-        ].progress_apply(lambda a: to_limited(a))
+        ].progress_apply(lambda a: to_limited(a.loc[0]))
 
         extended_df[ExtendedTypeCollectionSchema.adjusted_anno] = extended_df[
             ExtendedTypeCollectionSchema.depth_limited_anno
-        ].progress_apply(lambda a: to_adjusted(a))
+        ].progress_apply(lambda a: to_adjusted(a.loc[0]))
 
         extended_df[ExtendedTypeCollectionSchema.base_anno] = extended_df[
             ExtendedTypeCollectionSchema.depth_limited_anno
-        ].progress_apply(lambda a: to_base(a))
+        ].progress_apply(lambda a: to_base(a.loc[0]))
 
 
 if __name__ == "__main__":
