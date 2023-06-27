@@ -25,12 +25,11 @@ class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
-class ExtendedTypeCollectionSchema(TypeCollectionSchema):
-    # is_type_alias: pt.Series[bool] = pa.Field()
-    parametric_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
-    # type_neutral_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
-    # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
-    simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
+class ExtendedTypeCollectionSchema(SymbolSchema):
+    raw_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    depth_limited_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    adjusted_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+    base_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
 

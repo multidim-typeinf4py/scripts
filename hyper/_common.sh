@@ -32,3 +32,9 @@ all_inference() {
         --tool "$1" \
         --outpath "$(dirname "$2")/$1"
 }
+
+generate_context() {
+    echo "Generating Context Vectors for Ground Truth"
+    poetry run python main.py context --dataset "$2" \
+        --outpath "$(dirname "$2")"
+}

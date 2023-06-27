@@ -80,7 +80,10 @@ def cli_entrypoint(
             )
 
             if not overwrite and output_io.full_location().exists():
-                print(f"Skipping computing context on '{target}' on '{project}'")
+                print(
+                    f"Skipping computing context on '{target}' on '{project}'; "
+                    f"artifact exists and --overwrite was not specified"
+                )
                 continue
 
             # Remove all type annotations
@@ -90,7 +93,7 @@ def cli_entrypoint(
                 )
                 transformed_ground_truths = (
                     extended_ground_truths.rename({target: TypeCollectionSchema.anno})
-                    .drop(set(annotation_columns).difference(target))
+                    .drop(columns=set(annotation_columns).difference(target))
                     .pipe(pt.DataFrame[TypeCollectionSchema])
                 )
 
@@ -126,6 +129,8 @@ def cli_entrypoint(
                     project=sc,
                     subset=subset,
                 )
+
+                print(f"Writing context vectors to {output_io.full_location()}")
                 output_io.write(context_vectors)
 
 
