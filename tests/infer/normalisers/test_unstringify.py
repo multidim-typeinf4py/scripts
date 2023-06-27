@@ -16,3 +16,9 @@ class Test_Unstringify(codemod.CodemodTest):
             before="a: typing.Type['AbstractExtractors']",
             after="a: typing.Type[AbstractExtractors]",
         )
+
+    def test_annotated_metadata(self):
+        self.assertCodemod(
+            before="a: Annotated[T, 'x']",
+            after="a: T"
+        )

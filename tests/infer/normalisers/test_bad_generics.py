@@ -124,3 +124,8 @@ class Test_BadGenerics(codemod.CodemodTest):
             before='type: Literal[None]',
             after='type: None',
         )
+
+        self.assertCodemod(
+            before='type: te.Literal[True]',
+            after='type: builtins.bool',
+        )

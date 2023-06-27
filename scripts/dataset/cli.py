@@ -19,7 +19,7 @@ from scripts.symbols.collector import build_type_collection
 from .normalisation import to_limited, to_adjusted, to_base
 
 
-@click.command(name="dataset", help="Consume dataset into inference agnostic DataFrame")
+@click.command(name="ground-truth", help="Convert dataset into inference agnostic DataFrame with ground-truth labels")
 @click.option(
     "-d",
     "--dataset",

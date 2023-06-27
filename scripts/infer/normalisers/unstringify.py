@@ -13,3 +13,11 @@ class Unquote(codemod.ContextAwareTransformer):
             return unquoted
         except ParserSyntaxError:
             return original_node
+
+    @m.call_if_inside(m.Annotation())
+    @m.leave(m.Subscript(m.Name("Annotated") | m.Attribute(m.Name(), m.Name("Annotated"))))
+    def _convert_annotated(self, original_node: libcst.Subscript, updated_node: libcst.Subscript) -> libcst.BaseExpression:
+        """Docs: Add metadata x to a given type T by using the annotation Annotated[T, x]"""
+        if self.matches(updated_node.slice[0], m.SubscriptElement(m.Index())):
+            return updated_node.slice[0].slice.value
+        return updated_node
