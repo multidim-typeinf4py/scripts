@@ -77,5 +77,21 @@ def branching():
     else:
         a = 20
 
+def categories(x):
+    a = 10
+    b: int = 10
+    c += 5
+    d, = 10,
+
+    class C:
+        e: int
+
+    for xs in x:
+        ...
+
+    with open() as f:
+        ...
+
+
 if __name__ == "__main__":
     local_reassign()

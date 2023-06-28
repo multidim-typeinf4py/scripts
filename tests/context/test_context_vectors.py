@@ -4,7 +4,7 @@ import pandas as pd
 import pandera.typing as pt
 import pytest
 
-from scripts.common.schemas import ContextSymbolSchema
+from scripts.common.schemas import ContextCategory, ContextSymbolSchema
 from scripts.context import RelevantFeatures
 from scripts.context.visitors import generate_context_vectors
 
@@ -15,7 +15,9 @@ def context_dataset() -> pt.DataFrame[ContextSymbolSchema]:
     filepath = pathlib.Path("x.py")
 
     cvs = generate_context_vectors(
-        features=RelevantFeatures.default(), project=repo, subset={filepath},
+        features=RelevantFeatures.default(),
+        project=repo,
+        subset={filepath},
     )
 
     print(cvs)
@@ -26,7 +28,7 @@ class TestFeatures:
     def test_loop(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.exact_check(
             context_dataset,
-            ["looping.x", "looping.a", "looping._", "branching.a", "branching.e"],
+            ["looping.x", "looping.a", "looping._", "branching.a", "branching.e", "categories.xs"],
             ContextSymbolSchema.loop,
         )
 
@@ -48,14 +50,12 @@ class TestFeatures:
     def test_userdeffed(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
         self.exact_check(
             context_dataset,
-            ["userdeffed.abc", "userdeffed.efg", "parammed.p"],
+            ["userdeffed.abc", "userdeffed.efg", "parammed.p", "categories.b"],
             ContextSymbolSchema.builtin_source,
         )
 
     def test_branching(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
-        self.all_positive_check(
-            context_dataset, ["branching.b"], ContextSymbolSchema.flow_control
-        )
+        self.all_positive_check(context_dataset, ["branching.b"], ContextSymbolSchema.flow_control)
         self.all_negative_check(
             context_dataset,
             [
@@ -80,12 +80,47 @@ class TestFeatures:
             ],
             ContextSymbolSchema.flow_control,
         )
-        self.one_positive_check(
-            context_dataset, ["branching.a"], ContextSymbolSchema.flow_control
-        )
-        self.one_negative_check(
-            context_dataset, ["branching.a"], ContextSymbolSchema.flow_control
-        )
+        self.one_positive_check(context_dataset, ["branching.a"], ContextSymbolSchema.flow_control)
+        self.one_negative_check(context_dataset, ["branching.a"], ContextSymbolSchema.flow_control)
+
+    def test_categories(self, context_dataset: pt.DataFrame[ContextSymbolSchema]):
+        qnames = context_dataset[ContextSymbolSchema.qname]
+
+        categories = context_dataset[qnames == "categories"]
+        assert len(categories) == 1
+        assert (categories[ContextSymbolSchema.context_category] == ContextCategory.CALLABLE_RETURN).all()
+
+        categoriesx = context_dataset[qnames == "categories.x"]
+        assert len(categoriesx) == 1
+        assert (categoriesx[ContextSymbolSchema.context_category] == ContextCategory.CALLABLE_PARAMETER).all()
+
+        categoriesa = context_dataset[qnames == "categories.a"]
+        assert len(categoriesa) == 1
+        assert (categoriesa[ContextSymbolSchema.context_category] == ContextCategory.SINGLE_TARGET_ASSIGN).all()
+
+        categoriesb = context_dataset[qnames == "categories.b"]
+        assert len(categoriesb) == 1
+        assert (categoriesb[ContextSymbolSchema.context_category] == ContextCategory.ANN_ASSIGN).all()
+
+        categoriesc = context_dataset[qnames == "categories.c"]
+        assert len(categoriesc) == 1
+        assert (categoriesc[ContextSymbolSchema.context_category] == ContextCategory.AUG_ASSIGN).all()
+
+        categoriesd = context_dataset[qnames == "categories.d"]
+        assert len(categoriesd) == 1
+        assert (categoriesd[ContextSymbolSchema.context_category] == ContextCategory.MULTI_TARGET_ASSIGN).all()
+
+        categoriese = context_dataset[qnames == "categories.C.e"]
+        assert len(categoriese) == 1
+        assert (categoriese[ContextSymbolSchema.context_category] == ContextCategory.INSTANCE_ATTRIBUTE).all()
+
+        categoriesxs = context_dataset[qnames == "categories.xs"]
+        assert len(categoriesxs) == 1
+        assert (categoriesxs[ContextSymbolSchema.context_category] == ContextCategory.FOR_TARGET).all()
+
+        categoriesf = context_dataset[qnames == "categories.f"]
+        assert len(categoriesf) == 1
+        assert (categoriesf[ContextSymbolSchema.context_category] == ContextCategory.WITH_TARGET).all()
 
     def one_positive_check(
         self,
