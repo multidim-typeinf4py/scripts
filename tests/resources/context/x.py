@@ -92,6 +92,17 @@ def categories(x):
     with open() as f:
         ...
 
+def exceptions():
+    try:
+        a = 10
+    except:
+        b = 20
+    else:
+        c = 30
+    finally:
+        d = 40
+    e = 50
+
 
 if __name__ == "__main__":
     local_reassign()
