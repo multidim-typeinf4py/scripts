@@ -467,7 +467,7 @@ class ContextVectorVisitor(
 
     def is_in_flow_control(self) -> bool:
         return any(
-            isinstance(s, (libcst.If, libcst.Else)) for s in self.full_scope_nodes
+            isinstance(s, (libcst.If, libcst.Try, libcst.Else)) for s in self.full_scope_nodes
         )
 
     def is_builtin(self, ty: libcst.Name | libcst.Attribute) -> bool:
