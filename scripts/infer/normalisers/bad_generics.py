@@ -108,8 +108,8 @@ class BadGenericsNormaliser(codemod.ContextAwareTransformer):
         )):
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bool"))
 
-        from scripts.common.ast_helper import _stringify
-        raise NotImplementedError(f"Unknown subscript type: {_stringify(updated_node)}")
+        # Cannot reduce any further, simply drop the subscript
+        return libcst.Attribute(libcst.Name("builtins"), libcst.Name("Literal"))
 
 
 def _replace_elements(
