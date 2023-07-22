@@ -147,17 +147,7 @@ class _Type4Py(ParallelisableInference):
 
         urllib3.disable_warnings()
 
-        inference_tasks = self.cpu_executor.map(
-            type_annotate_with_requests, itertools.repeat(mutable), subset
-        )
-        paths2predictions = dict(
-            tqdm.tqdm(
-                inference_tasks,
-                total=len(subset),
-                desc="Inference via REST API",
-            )
-        )
-
+        paths2predictions = self.make_predictions(mutable, subset)
         self.register_artifact(paths2predictions)
 
         self.logger.info("Converting predictions into Top-N batches")
@@ -171,6 +161,21 @@ class _Type4Py(ParallelisableInference):
             topn=self.topn,
             tool=self,
         )
+
+    def make_predictions(
+        self, mutable: pathlib.Path, subset: set[pathlib.Path]
+    ) -> dict[pathlib.Path, dict]:
+        inference_tasks = self.cpu_executor.map(
+            type_annotate_with_requests, itertools.repeat(mutable), subset
+        )
+        paths2predictions = dict(
+            tqdm.tqdm(
+                inference_tasks,
+                total=len(subset),
+                desc="Inference via REST API",
+            )
+        )
+        return paths2predictions
 
     def make_topn_batches(
         self, paths2predictions: dict[pathlib.Path, dict], subset: set[pathlib.Path]

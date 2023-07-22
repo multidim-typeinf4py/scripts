@@ -1,18 +1,13 @@
 import os
 import pathlib
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-
-
-from scripts.infer.preprocessers.t4py import Type4PyPreprocessor
-from scripts.infer.structure import DatasetFolderStructure
-from . import _utils
-from ._hityper import ModelAdaptor, HiTyper
-from ._utils import wrapped_partial
 
 from libcst import codemod
 
-
 from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.preprocessers.t4py import Type4PyPreprocessor
+from scripts.infer.structure import DatasetFolderStructure
+from ._hityper import ModelAdaptor, HiTyper
+from ._utils import wrapped_partial
 
 
 class Type4PyAdaptor(ModelAdaptor):
@@ -32,7 +27,7 @@ class Type4PyAdaptor(ModelAdaptor):
         from scripts.common.output import InferenceArtifactIO
 
         io = InferenceArtifactIO(
-            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent / "type4pytopn1",
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent / f"type4pytopn{self.topn()}",
             dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"type4pyN{self.topn()}",
@@ -49,18 +44,15 @@ class Type4PyAdaptor(ModelAdaptor):
             for file, p in type4py_predictions.items()
             if p
         }
-        return ModelAdaptor.ProjectPredictions(__root__=root)
 
+        return ModelAdaptor.ProjectPredictions(__root__=root)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
         return Type4PyPreprocessor(context=codemod.CodemodContext(), task=task)
 
 
 class HiType4PyTopN(HiTyper):
-    def __init__(
-        self,
-        topn: int,
-    ) -> None:
+    def __init__(self, topn: int) -> None:
         super().__init__(Type4PyAdaptor(topn=topn))
 
     def method(self) -> str:

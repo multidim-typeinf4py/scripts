@@ -15,6 +15,7 @@ from libcst import codemod
 from scripts.common.schemas import TypeCollectionCategory
 from scripts.infer.preprocessers import static
 
+
 class MyPy(ProjectWideInference):
     def method(self) -> str:
         return "mypy"

@@ -9,6 +9,7 @@ import itertools
 import json
 import math
 import operator
+import os
 import pathlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Iterator
@@ -35,6 +36,8 @@ from scripts.infer.annotators.typilus import TypilusPrediction
 
 from scripts.common.schemas import TypeCollectionCategory
 from libcst import codemod
+
+from scripts.infer.structure import DatasetFolderStructure
 
 
 @dataclasses.dataclass
@@ -242,38 +245,50 @@ class Typilus2HiTyper(ModelAdaptor):
         topn: int,
     ) -> None:
         super().__init__()
-        self.typilus = TypilusTopN(
-            topn=topn,
-        )
+        self._topn = topn
 
     def topn(self) -> int:
-        return self.typilus.topn
+        return self._topn
 
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
-        dataset = self.typilus.repo_to_dataset(project)
-        predictions = self.typilus.predict(dataset, project / "typilus-predictions.json.gz")
+        from scripts.common.output import InferenceArtifactIO
+
+        io = InferenceArtifactIO(
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent / f"typilustopn{self.topn()}",
+            dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
+            repository=pathlib.Path(os.environ["REPOSITORY"]),
+            tool_name=f"typilusN{self.topn()}",
+            task=os.environ["TASK"],
+        )
+
+        (cached_predictions,) = io.read()
 
         # Load predictions from disk and perform same sifting
         # that annotator from typilus does, i.e. select using fpath
         sifted = list[TypilusPrediction](
             filter(
                 lambda p: any(f"/{s}" == p["provenance"] for s in subset),
-                (prediction for batch in _load_json_gz(predictions.path) for prediction in batch),
+                (
+                    prediction
+                    for batch in _load_json_gz(cached_predictions.path)
+                    for prediction in batch
+                ),
             )
         )
 
         project_predictions = dict[str, ModelAdaptor.FilePredictions]()
 
+        provenance_getter = operator.itemgetter("provenance")
         for provenance, predictions in itertools.groupby(
-            sifted, key=operator.itemgetter("provenance")
+            sorted(sifted, key=provenance_getter),
+            key=provenance_getter,
         ):
             provenance = pathlib.Path(provenance[1:])
-            predictions = list[TypilusPrediction](predictions)
-
             fullpath = project / provenance
 
+            predictions = list[TypilusPrediction](predictions)
             visitor = TypilusHiTyperVisitor(predictions)
 
             typilus_ast = typed_ast.ast3.parse(source=fullpath.read_text())
@@ -298,15 +313,8 @@ def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
 
 
 class HiTypilusTopN(HiTyper):
-    def __init__(
-        self,
-        topn: int,
-    ) -> None:
-        super().__init__(
-            Typilus2HiTyper(
-                topn=topn,
-            )
-        )
+    def __init__(self, topn: int) -> None:
+        super().__init__(Typilus2HiTyper(topn=topn))
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
         return self.adaptor.preprocessor(task)

@@ -139,7 +139,7 @@ class HiTyper(ProjectWideInference, ABC):
     def __init__(self, adaptor: ModelAdaptor) -> None:
         super().__init__()
         self.adaptor = adaptor
-        logging.getLogger(hityper.__name__).setLevel(logging.INFO)
+        logging.getLogger(hityper.__name__).setLevel(logging.ERROR)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
         return self.adaptor.preprocessor(task)
@@ -190,10 +190,7 @@ class HiTyper(ProjectWideInference, ABC):
         )
 
         inferred_types_path = (
-            str(output_dir)
-            + "/"
-            + str(mutable).replace("/", "_")
-            + "_INFERREDTYPES.json"
+            str(output_dir) + "/" + str(mutable).replace("/", "_") + "_INFERREDTYPES.json"
         )
 
         with pathlib.Path(inferred_types_path).open() as ps:
@@ -223,7 +220,6 @@ class HiTyper(ProjectWideInference, ABC):
             path2batchpreds[pathlib.Path(file).relative_to(project)].append(sigmap)
         return path2batchpreds
 
-
     # Adapted from TypeT5 implementation
     def parse_hityper(self, module: str, res_json: dict[str, list]) -> SignatureMap:
         self.logger.debug(json.dumps(res_json, indent=2))
@@ -245,7 +241,9 @@ class HiTyper(ProjectWideInference, ABC):
 
                 in_method = all(e != "global" for e in e_name.split("@"))
                 if in_method:
-                    assignment[base_path.append(f"self.{varname}")] = VariableSignature(annot, in_class=False)
+                    assignment[base_path.append(f"self.{varname}")] = VariableSignature(
+                        annot, in_class=False
+                    )
             else:
                 params = [parse_var(x) for x in e_list if x["category"] == "arg"]
                 returns = [parse_var(x) for x in e_list if x["category"] == "return"]

@@ -65,17 +65,13 @@ class Inference(abc.ABC):
 
     def register_artifact(self, artifact: typing.Any) -> None:
         if self.artifacts is None:
-            self.logger.warning(
-                f"Not registering artifact; contextmanager is not active"
-            )
+            self.logger.warning(f"Not registering artifact; contextmanager is not active")
 
         else:
             self.artifacts.append(artifact)
 
     @contextlib.contextmanager
-    def activate_logging(
-        self, project: pathlib.Path
-    ) -> typing.Generator[None, None, None]:
+    def activate_logging(self, project: pathlib.Path) -> typing.Generator[None, None, None]:
         formatter = logging.Formatter(
             fmt="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -165,9 +161,7 @@ class PerFileInference(Inference):
 
         for subfile in paths:
             relative = subfile.relative_to(mutable)
-            self.logger.info(
-                f"Inferring per-file on {relative} @ {mutable} ({readonly})"
-            )
+            self.logger.info(f"Inferring per-file on {relative} @ {mutable} ({readonly})")
             reldf: pt.DataFrame[InferredSchema] = self._infer_file(mutable, relative)
             updates.append(reldf)
 

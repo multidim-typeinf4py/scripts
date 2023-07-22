@@ -69,9 +69,7 @@ class _TypeWriter2HiTyper(libcst.CSTVisitor):
         self.ret_cursor = 0
 
         self.file_predictions = FilePredictions()
-        self.insertion_point_stack: list[ClassPred | FilePredictions] = [
-            self.file_predictions
-        ]
+        self.insertion_point_stack: list[ClassPred | FilePredictions] = [self.file_predictions]
 
         self.topn = topn
 
@@ -170,12 +168,8 @@ class TypeWriterAdaptor(ModelAdaptor):
         self, project: pathlib.Path, subset: set[pathlib.Path]
     ) -> ModelAdaptor.ProjectPredictions:
         with tempfile.TemporaryDirectory() as td:
-            paths2predictables = self.typewriter.extract_predictables(
-                td, project, subset
-            )
-            paths2predictions = self.typewriter.make_predictions(
-                td, paths2predictables, subset
-            )
+            paths2predictables = self.typewriter.extract_predictables(td, project, subset)
+            paths2predictions = self.typewriter.make_predictions(td, paths2predictables, subset)
 
         file2predictions: dict[pathlib.Path, tuple] = {
             project / s: preds for s, preds in paths2predictions.items()
@@ -195,9 +189,9 @@ class TypeWriterAdaptor(ModelAdaptor):
             ).visit(visitor)
 
             file_predictions = dataclasses.asdict(visitor.file_predictions)
-            hityper_predictions[
-                str(path.resolve())
-            ] = ModelAdaptor.FilePredictions.parse_obj(file_predictions)
+            hityper_predictions[str(path.resolve())] = ModelAdaptor.FilePredictions.parse_obj(
+                file_predictions
+            )
 
         return ModelAdaptor.ProjectPredictions(__root__=hityper_predictions)
 
@@ -211,8 +205,7 @@ class TypeWriterAdaptor(ModelAdaptor):
             for x in range(len(topn_parameters[0]))
         ]
         ret_types = [
-            [topn_returns[n][x] for n in range(self.topn())]
-            for x in range(len(topn_returns[0]))
+            [topn_returns[n][x] for n in range(self.topn())] for x in range(len(topn_returns[0]))
         ]
 
         return param_types, ret_types

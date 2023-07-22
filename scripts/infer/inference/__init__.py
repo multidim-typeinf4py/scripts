@@ -12,6 +12,7 @@ from .monkey import MonkeyType
 
 from .hit4py import HiType4PyTop1
 from .hitypilus import HiTypilusTop1
+
 # from .hitypewriter import HiTypeWriterTop10
 
 SUPPORTED_TOOLS: dict[str, type[Inference]] = {
@@ -19,30 +20,24 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     MyPy.__name__.lower(): MyPy,
     PyreInfer.__name__.lower(): PyreInfer,
     PyreQuery.__name__.lower(): PyreQuery,
-
     # ML Models @ Top 1
     Type4PyTop1.__name__.lower(): Type4PyTop1,
     TypilusTop1.__name__.lower(): TypilusTop1,
-    #TypeWriterTop1.__name__.lower(): TypeWriterTop1,
-
+    # TypeWriterTop1.__name__.lower(): TypeWriterTop1,
     # ML Models @ Top 5
     Type4PyTop5.__name__.lower(): Type4PyTop5,
     TypilusTop5.__name__.lower(): TypilusTop5,
-    #TypeWriterTop5.__name__.lower(): TypeWriterTop5,
-
+    # TypeWriterTop5.__name__.lower(): TypeWriterTop5,
     # ML Models @ Top 10
     Type4PyTop10.__name__.lower(): Type4PyTop10,
     TypilusTop10.__name__.lower(): TypilusTop10,
-    #TypeWriterTop10.__name__.lower(): TypeWriterTop10,
-
+    # TypeWriterTop10.__name__.lower(): TypeWriterTop10,
     # Dynamic inference
     MonkeyType.__name__.lower(): MonkeyType,
-
     # TypeT5
     TypeT5Top1.__name__.lower(): TypeT5Top1,
-    #TypeT5Top5.__name__.lower(): Type4PyTop5,
-    #TypeT5Top10.__name__.lower(): TypeT5Top10,
-
+    # TypeT5Top5.__name__.lower(): Type4PyTop5,
+    # TypeT5Top10.__name__.lower(): TypeT5Top10,
     # Hybrid HiTyper integrations
     HiType4PyTop1.__name__.lower(): HiType4PyTop1,
     HiTypilusTop1.__name__.lower(): HiTypilusTop1,

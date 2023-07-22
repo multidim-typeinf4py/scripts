@@ -11,8 +11,10 @@ def wrapped_partial(func, *args, **kwargs):
     partial_func.__name__ = f"{partial_func.__name__}{kwargs['topn']}"
     return partial_func
 
+
 def cpu_executor() -> ProcessPoolExecutor:
     return ProcessPoolExecutor(max_workers=utils.worker_count())
+
 
 def model_executor() -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=1)

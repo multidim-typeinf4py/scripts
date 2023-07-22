@@ -36,9 +36,7 @@ class ParallelStubber(codemod.ContextAwareTransformer):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         assert self.context.filename is not None
         rel_stub_path = (
-            pathlib.Path(self.context.filename)
-            .relative_to(self.project_folder)
-            .with_suffix(".pyi")
+            pathlib.Path(self.context.filename).relative_to(self.project_folder).with_suffix(".pyi")
         )
         stubfile = self.stub_folder / rel_stub_path
         if not stubfile.is_file():
@@ -50,9 +48,7 @@ class ParallelStubber(codemod.ContextAwareTransformer):
         visitor = visitors.ApplyTypeAnnotationsVisitor
         try:
             stub = libcst.parse_module(stubfile.read_text())
-            visitor.store_stub_in_context(
-                context=self.context, stub=stub
-            )
+            visitor.store_stub_in_context(context=self.context, stub=stub)
         except ParserSyntaxError as e:
             self.logger.exception(f"Failed to apply stubfile to: {self.context.filename}")
             return tree

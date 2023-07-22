@@ -32,9 +32,7 @@ class MonkeyType(ProjectWideInference):
         container = None
         try:
             self.logger.info("Creating Docker Image...")
-            container = client.containers.create(
-                image="monkeytype", command="sleep infinity"
-            )
+            container = client.containers.create(image="monkeytype", command="sleep infinity")
 
             self.logger.info(f"Waiting for {container.id} to start...")
             container.start()

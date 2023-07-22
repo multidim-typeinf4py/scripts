@@ -13,7 +13,8 @@ from typet5.function_decoding import (
     PreprocessArgs,
     DecodingOrders,
     RolloutPredictionTopN,
-    SignatureMap, RolloutPrediction,
+    SignatureMap,
+    RolloutPrediction,
 )
 from typet5.model import ModelWrapper
 from typet5.static_analysis import (
@@ -34,9 +35,7 @@ from scripts.infer.preprocessers import tt5
 
 
 class TypeT5Applier(codemod.ContextAwareTransformer):
-    def __init__(
-        self, context: codemod.CodemodContext, predictions: SignatureMap
-    ) -> None:
+    def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
         super().__init__(context)
         self.predictions = predictions
 
@@ -119,6 +118,6 @@ class TypeT5TopN(ProjectWideInference):
 
 
 TypeT5Top1 = wrapped_partial(TypeT5TopN, topn=1)
-#TypeT5Top3 = wrapped_partial(TypeT5TopN, topn=3)
-#TypeT5Top5 = wrapped_partial(TypeT5TopN, topn=5)
-#TypeT5Top10 = wrapped_partial(TypeT5TopN, topn=10)
+# TypeT5Top3 = wrapped_partial(TypeT5TopN, topn=3)
+# TypeT5Top5 = wrapped_partial(TypeT5TopN, topn=5)
+# TypeT5Top10 = wrapped_partial(TypeT5TopN, topn=10)
