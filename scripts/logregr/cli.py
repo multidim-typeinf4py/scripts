@@ -103,8 +103,8 @@ def dataset(
             ContextSymbolSchema.loop,
             ContextSymbolSchema.reassigned,
             ContextSymbolSchema.nested,
-            ContextSymbolSchema.builtin,
-            ContextSymbolSchema.ctxt_category,
+            ContextSymbolSchema.builtin_source,
+            ContextSymbolSchema.context_category,
         ]
     ].pipe(pt.DataFrame[ContextDatasetSchema])
 
