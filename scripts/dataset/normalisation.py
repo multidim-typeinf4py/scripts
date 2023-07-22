@@ -9,14 +9,18 @@ def to_limited(anno: str | None) -> str | None:
     if pd.isna(anno):
         return None
 
-    pt = PythonType.from_str(anno)
+    try:
+        pt = PythonType.from_str(anno)
+    except SyntaxError:
+        return None
+
     converter = AccuracyMetric(
         common_type_names=set(),
         normalize_types=True,
         relaxed_equality=False,
         match_base_only=False,
         ignore_namespace=False,
-        ast_depth_limit=2
+        ast_depth_limit=2,
     )
 
     return str(converter.process_type(pt))
@@ -26,7 +30,10 @@ def to_adjusted(anno: str | None) -> str | None:
     if pd.isna(anno):
         return None
 
-    pt = PythonType.from_str(anno)
+    try:
+        pt = PythonType.from_str(anno)
+    except SyntaxError:
+        return None
     converter = AccuracyMetric(
         common_type_names=set(),
         normalize_types=True,
@@ -42,7 +49,11 @@ def to_base(anno: str | None) -> str | None:
     if pd.isna(anno):
         return None
 
-    pt = PythonType.from_str(anno)
+    try:
+        pt = PythonType.from_str(anno)
+    except SyntaxError:
+        return None
+
     converter = AccuracyMetric(
         common_type_names=set(),
         normalize_types=True,
