@@ -1,13 +1,10 @@
 import collections
 import dataclasses
-import itertools
-import operator
 import os
 import pathlib
 
-from typet5.function_decoding import RolloutPrediction
+from libcst import codemod
 from typet5.static_analysis import (
-    ProjectPath,
     SignatureMap,
     PythonProject,
     VariableSignature,
@@ -15,9 +12,11 @@ from typet5.static_analysis import (
     FunctionSignature,
 )
 
+from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.structure import DatasetFolderStructure
+from scripts.infer.preprocessers import tt5
 from ._hityper import ModelAdaptor, HiTyper
 from ._utils import wrapped_partial
-from ..structure import DatasetFolderStructure
 
 
 class TT5Adaptor(ModelAdaptor):
@@ -27,6 +26,9 @@ class TT5Adaptor(ModelAdaptor):
 
     def topn(self) -> int:
         return self._topn
+
+    def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        return tt5.TT5Preprocessor(context=codemod.CodemodContext(), task=task)
 
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
@@ -44,12 +46,10 @@ class TT5Adaptor(ModelAdaptor):
 
         # No need to trim predictions; HiTyper does this for us via
         # tdg.recommendType(self, ..., topn)
-        cached_predictions: RolloutPrediction
-        (cached_predictions,) = io.read()
-        pred_assignments: SignatureMap = cached_predictions.final_sigmap
+        pred_assignments: SignatureMap
+        (pred_assignments,) = io.read()
 
         # Make relative to temporary project root
-
         root = dict[str, ModelAdaptor.FilePredictions]()
 
         #
@@ -60,6 +60,8 @@ class TT5Adaptor(ModelAdaptor):
                 for project_path, signature in pred_assignments.items()
                 if project_path.module == module
             }
+
+            # print(file, "->", module)
 
             root[str(project.resolve() / file)] = signatures_to_type4py_format(module_predictions)
 
@@ -95,9 +97,9 @@ def signatures_to_type4py_format(
 ) -> ModelAdaptor.FilePredictions:
     from scripts.common.ast_helper import _stringify
 
-    classes = list()
-    funcs = list()
-    variables = list()
+    classes = list[ModelAdaptor.ClassPrediction]()
+    funcs = list[ModelAdaptor.FuncPrediction]()
+    variables = ModelAdaptor.VarPrediction()
 
     methods = collections.defaultdict[str, dict[str, MethodPrediction]](dict)
     functions = dict[str, FunctionPrediction]()
@@ -106,14 +108,18 @@ def signatures_to_type4py_format(
     globls = dict[str, VariablePrediction]()
 
     for symbol_path, signature in sorted(predictions.items()):
+        # print(symbol_path, "->", signature)
         match signature:
             case VariableSignature(_, True):
-                clazz, vname = symbol_path.split(".")
+                *clazz, vname = symbol_path.split(".")
+                clazz = ".".join(clazz)
+
                 qname = f"{clazz}.{vname}"
                 attributes[clazz][qname] = AttributePrediction(
                     clazz=clazz,
-                    variable=VariablePrediction(vname=qname, signature=signature),
+                    variable=VariablePrediction(vname=vname, signature=signature),
                 )
+                # print(attributes[clazz][qname])
 
             case VariableSignature(_, False):
                 (vname,) = symbol_path.split(".")
@@ -154,12 +160,35 @@ def signatures_to_type4py_format(
 
         attrs = dict()
         for attr_qname, attr_prediction in attributes.get(class_qname, {}).items():
+            *clazz, vname = attr_qname.split(".")
             anno = attr_prediction.variable.signature.annot
-            attrs[attr_qname] = [(_stringify(anno), 0.9)]
+            attrs[vname] = [(_stringify(anno), 0.9)]
 
         classes.append(
             ModelAdaptor.ClassPrediction(q_name=class_qname, funcs=class_methods, variables_p=attrs)
         )
+
+    for fqname, function in functions.items():
+        funcs.append(
+            ModelAdaptor.FuncPrediction(
+                q_name=fqname,
+                params_p={
+                    param: [(_stringify(anno), 0.9)]
+                    for param, anno in function.signature.params.items()
+                    if param is not None
+                },
+                ret_type_p=(
+                    [(_stringify(ret), 0.9)]
+                    if (ret := function.signature.returns) is not None
+                    else None
+                ),
+                variables_p={},
+            )
+        )
+
+    for vqname, variable in globls.items():
+        anno = variable.signature.annot
+        variables[vqname] = [(_stringify(anno), 0.9)]
 
     return ModelAdaptor.FilePredictions(
         classes=classes,
@@ -173,7 +202,7 @@ class HiTT5TopN(HiTyper):
         super().__init__(TT5Adaptor(topn=topn))
 
     def method(self) -> str:
-        return f"HiType4PyN{self.adaptor.topn()}"
+        return f"HiTypeT5PyN{self.adaptor.topn()}"
 
 
 HiTT5TopNTop1 = wrapped_partial(HiTT5TopN, topn=1)
