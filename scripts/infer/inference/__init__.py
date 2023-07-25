@@ -1,4 +1,5 @@
 from ._base import Inference
+from .hitt5 import HiTT5TopNTop1
 
 from .mypy import MyPy
 from .pyreinfer import PyreInfer
@@ -41,6 +42,7 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     # Hybrid HiTyper integrations
     HiType4PyTop1.__name__.lower(): HiType4PyTop1,
     HiTypilusTop1.__name__.lower(): HiTypilusTop1,
+    HiTT5TopNTop1.__name__.lower(): HiTT5TopNTop1,
     # HiTypeWriterTop10.__name__.lower(): HiTypeWriterTop10,
 }
 
