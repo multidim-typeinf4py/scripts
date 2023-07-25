@@ -106,7 +106,7 @@ class TypeT5TopN(ProjectWideInference):
             )
 
         self.logger.info("Registering artifacts...")
-        self.register_artifact(rollout)
+        self.register_artifact(rollout.predicted_sigmap)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
