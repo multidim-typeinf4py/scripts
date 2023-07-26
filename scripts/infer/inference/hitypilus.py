@@ -88,6 +88,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self, symbol: str, prediction: str, probability: float, kind: AnnotationKind
     ) -> None:
         probability = math.exp(probability)
+        prediction = prediction.replace("typing.Text", "str")
 
         match kind:
             case AnnotationKind.VAR:
@@ -202,7 +203,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
         match target:
             case Name():
                 symbol = target.id
-            case Attribute() if node.value.id == "self":
+            case Attribute() if target.value.id == "self":
                 symbol = target.attr
             case _:
                 return
