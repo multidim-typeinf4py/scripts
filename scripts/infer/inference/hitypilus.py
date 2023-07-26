@@ -273,7 +273,7 @@ class Typilus2HiTyper(ModelAdaptor):
                 lambda p: any(f"/{s}" == p["provenance"] for s in subset),
                 (
                     prediction
-                    for batch in _load_json_gz(cached_predictions.path)
+                    for batch in _load_json_gz(cached_predictions)
                     for prediction in batch
                 ),
             )
@@ -306,9 +306,10 @@ class Typilus2HiTyper(ModelAdaptor):
         return typilus.TypilusPreprocessor(context=codemod.CodemodContext(), task=task)
 
 
-def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
+def _load_json_gz(predictions: bytes) -> Iterator[TypilusPrediction]:
+    import io
     reader = codecs.getreader("utf-8")
-    with gzip.open(filename) as f:
+    with gzip.open(io.BytesIO(predictions)) as f:
         for line in reader(f):
             yield json.loads(line, object_pairs_hook=TypilusPrediction)
 
