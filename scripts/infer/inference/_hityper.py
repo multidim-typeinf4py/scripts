@@ -6,6 +6,7 @@ import enum
 import json
 import logging
 import pathlib
+import pprint
 from abc import ABC
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -175,7 +176,7 @@ class HiTyper(ProjectWideInference, ABC):
         with outpath.open("w") as f:
             json.dump(model_preds.dict(exclude_none=True)["__root__"], f, indent=2)
 
-        self.logger.info(f"Registering {self.adaptor.__class__.__qualname__}'s artifacts...")
+        self.logger.info(f"Registering {self.adaptor.__class__.__qualname__}'s predictions...")
         self.register_artifact(model_preds)
 
         # input("Waiting for input...")
@@ -193,12 +194,14 @@ class HiTyper(ProjectWideInference, ABC):
             str(output_dir) + "/" + str(mutable).replace("/", "_") + "_INFERREDTYPES.json"
         )
 
+        self.logger.info(f"Registering HiTyper's predictions...")
         with pathlib.Path(inferred_types_path).open() as ps:
             repo_predictions = json.load(ps)
         self.register_artifact(repo_predictions)
 
+        self.logger.info(f"Registering transformed predictions...")
         predictions = self._parse_predictions(repo_predictions, mutable)
-        self.logger.info(f"Registering HiTyper's artifacts...")
+        self.register_artifact(predictions)
 
         return HiTyperProjectApplier.collect_topn(
             project=mutable,
@@ -233,7 +236,7 @@ class HiTyper(ProjectWideInference, ABC):
             parent = "" if parent == "global" else parent.replace(",", ".")
             base_path = ProjectPath(module, parent).append(name)
 
-            vars = [v := parse_var(x) for x in e_list if x["category"] == "local"]
+            vars = [parse_var(x) for x in e_list if x["category"] == "local"]
             for varname, annot in vars:
                 # HiTyper does not make predictions for class attributes
                 # But it does make predictions for self.x and similar, so add another entry if we are in a method
