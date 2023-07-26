@@ -37,6 +37,7 @@ from scripts.infer.annotators.typilus import TypilusPrediction
 from scripts.common.schemas import TypeCollectionCategory
 from libcst import codemod
 
+from scripts.infer.preprocessers import typilus
 from scripts.infer.structure import DatasetFolderStructure
 
 
@@ -302,7 +303,7 @@ class Typilus2HiTyper(ModelAdaptor):
         return ModelAdaptor.ProjectPredictions(__root__=project_predictions)
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
-        return self.typilus.preprocessor(task)
+        return typilus.TypilusPreprocessor(context=codemod.CodemodContext(), task=task)
 
 
 def _load_json_gz(filename: str) -> Iterator[TypilusPrediction]:
