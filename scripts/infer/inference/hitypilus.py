@@ -18,6 +18,7 @@ import astunparse
 import typed_ast.ast3
 from type_check.annotater import AnnotationKind
 from typed_ast.ast3 import (
+    AsyncFunctionDef,
     AnnAssign,
     Assign,
     Attribute,
@@ -138,6 +139,12 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self.qnames.pop()
 
     def visit_FunctionDef(self, node: FunctionDef):
+        self.__handle_function(node)
+
+    def visit_AsyncFunctionDef(self, node: AsyncFunctionDef):
+        self.__handle_function(node)
+
+    def __handle_function(self, node: FunctionDef | AsyncFunctionDef):
         if not hasattr(self.insertion_point, "funcs"):
             # HiTyper does not support children at this insertion point, so do not recurse
             # and continue
@@ -167,8 +174,6 @@ class TypilusHiTyperVisitor(NodeVisitor):
 
         self.insertion_point_stack.pop()
         self.qnames.pop()
-
-    visit_AsyncFunctionDef = visit_FunctionDef
 
     def visit_AnnAssign(self, node: AnnAssign):
         self.generic_visit(node)
