@@ -168,6 +168,8 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self.insertion_point_stack.pop()
         self.qnames.pop()
 
+    visit_AsyncFunctionDef = visit_FunctionDef
+
     def visit_AnnAssign(self, node: AnnAssign):
         self.generic_visit(node)
 
