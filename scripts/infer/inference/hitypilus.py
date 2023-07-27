@@ -23,6 +23,7 @@ from typed_ast.ast3 import (
     Assign,
     Attribute,
     FunctionDef,
+    Lambda,
     Name,
     Tuple,
     arg,
@@ -224,6 +225,9 @@ class TypilusHiTyperVisitor(NodeVisitor):
                 probability=pred_prob,
                 kind=AnnotationKind.VAR,
             )
+
+    def visit_Lambda(self, node: Lambda):
+        return
 
     def __extract_types_and_probs(
         self, identifier, lineno, kind
