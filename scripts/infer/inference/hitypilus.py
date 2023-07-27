@@ -3,7 +3,6 @@ from __future__ import annotations
 import codecs
 import dataclasses
 import enum
-import functools
 import gzip
 import itertools
 import json
@@ -11,11 +10,11 @@ import math
 import operator
 import os
 import pathlib
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Iterator
 
 import astunparse
 import typed_ast.ast3
+from libcst import codemod
 from type_check.annotater import AnnotationKind
 from typed_ast.ast3 import (
     AsyncFunctionDef,
@@ -31,14 +30,10 @@ from typed_ast.ast3 import (
     ClassDef,
 )
 
+from scripts.common.schemas import TypeCollectionCategory
+from scripts.infer.annotators.typilus import TypilusPrediction
 from scripts.infer.inference._hityper import ModelAdaptor, HiTyper
 from scripts.infer.inference._utils import wrapped_partial
-from scripts.infer.inference.typilus import Typilus, TypilusTopN
-from scripts.infer.annotators.typilus import TypilusPrediction
-
-from scripts.common.schemas import TypeCollectionCategory
-from libcst import codemod
-
 from scripts.infer.preprocessers import typilus
 from scripts.infer.structure import DatasetFolderStructure
 
@@ -180,11 +175,12 @@ class TypilusHiTyperVisitor(NodeVisitor):
         self.generic_visit(node)
 
         varname = astunparse.unparse(node.target).strip()
-        match node.target:
+        target = node.target
+        match target:
             case Name():
-                symbol = node.target.id
-            case Attribute() if node.value.id == "self":
-                symbol = node.attr
+                symbol = target.id
+            case Attribute() if isinstance(target.value, Name) and target.value.id == "self":
+                symbol = target.attr
             case _:
                 return
 
@@ -211,7 +207,7 @@ class TypilusHiTyperVisitor(NodeVisitor):
         match target:
             case Name():
                 symbol = target.id
-            case Attribute() if target.value.id == "self":
+            case Attribute() if isinstance(target.value, Name) and target.value.id == "self":
                 symbol = target.attr
             case _:
                 return
