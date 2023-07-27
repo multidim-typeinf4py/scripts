@@ -14,7 +14,7 @@ class NoOpPreprocessor(codemod.Codemod):
 
 class NoMLAdaptor(ModelAdaptor):
     def topn(self) -> int:
-        return 0
+        return 1
 
     def predict(
         self, project: pathlib.Path, subset: set[pathlib.Path]
