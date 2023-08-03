@@ -31,7 +31,8 @@ class ExtendedTypeCollectionSchema(SymbolSchema):
     adjusted_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     base_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
-
+class RepositoryTypeCollectionSchema(ExtendedTypeCollectionSchema):
+    repository: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 
 class InferredSchema(TypeCollectionSchema):
@@ -46,6 +47,8 @@ class ExtendedInferredSchema(InferredSchema):
     # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
     simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
 
+class RepositoryInferredSchema(ExtendedInferredSchema):
+    repository: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 class ContextCategory(enum.IntEnum):
     # -> f() -> ...
