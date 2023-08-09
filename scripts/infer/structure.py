@@ -26,6 +26,8 @@ class DatasetFolderStructure(abc.ABC):
         path: pathlib.Path = args[0] if args else kwargs.pop("dataset_root")
         if path.name.lower() == "many-types-4-py-dataset":
             cls = ManyTypes4Py
+        elif path.name.lower() == "cdt4py":
+            cls = CrossDomainTypes4Py
         elif path.name.lower() == "better-types-4-py-dataset":
             cls = BetterTypes4Py
         else:
@@ -46,6 +48,34 @@ class DatasetFolderStructure(abc.ABC):
     @abc.abstractmethod
     def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
         ...
+
+
+class CrossDomainTypes4Py(DatasetFolderStructure):
+    def project_iter(self) -> typing.Generator[pathlib.Path, None, None]:
+        for suffix in ("flask", "numpy"):
+            authors = (
+                author
+                for author in (self.dataset_root / suffix).iterdir()
+                if author.is_dir() and not author.name.startswith(".")
+            )
+
+            for author in authors:
+                repos = (repo for repo in author.iterdir() if repo.is_dir())
+                yield from repos
+
+    def author_repo(self, repo: pathlib.Path) -> AuthorRepo:
+        return AuthorRepo(repo.parent.name, repo.name)
+
+    def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
+        ts = dict[pathlib.Path, set[pathlib.Path]]()
+
+        # TODO: Parse deduplication file, select all files regardless of split
+        # TODO: as we plan to use the entirety of CDT4Py for testing purposes
+        for project in self.project_iter():
+            subpyfiles = codemod.gather_files([str(project)])
+            ts[project] = set(map(lambda p: pathlib.Path(p).relative_to(project), subpyfiles))
+
+        return ts
 
 
 class ManyTypes4Py(DatasetFolderStructure):
