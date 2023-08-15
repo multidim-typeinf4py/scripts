@@ -14,7 +14,7 @@ class TT5ProjectApplier(ParallelTopNAnnotator[RolloutPrediction, SignatureMap]):
     def extract_predictions_for_file(
         self, path2topn: RolloutPrediction, path: pathlib.Path, topn: int
     ) -> SignatureMap:
-        return path2topn.final_sigmap
+        return path2topn.predicted_sigmap
 
     def annotator(self, annotations: SignatureMap) -> codemod.Codemod:
         return TT5FileApplier(context=self.context, sigmap=annotations)

@@ -86,27 +86,39 @@ class TypeT5TopN(ProjectWideInference):
     def _infer_project(
         self, mutable: pathlib.Path, subset: set[pathlib.Path]
     ) -> pt.DataFrame[InferredSchema]:
+
         project = PythonProject.parse_from_root(root=mutable)
         rctx = RolloutCtx(model=self.wrapper)
 
         self.logger.info("Making predictions...")
 
-        with (
-            ProcessPoolExecutor(utils.worker_count()) as cpu_executor,
-            ThreadPoolExecutor(1) as model_executor,
-        ):
-            rollout: RolloutPrediction = asyncio.run(
-                rctx.project_rollout(
+        task = os.environ.get("TASK")
+        if task is None or task == "all":
+            eval_result = asyncio.run(rctx.evaluate_on_projects(
+                projects=[project],
+                pre_args=PreprocessArgs(),
+                decode_order=DecodingOrders.DoubleTraversal(),
+                concurrency=utils.worker_count(),
+                use_oracle=False
+            ))
+            rollout: RolloutPrediction = eval_result.predictions[0]
+
+        else:
+            with (
+                ProcessPoolExecutor(utils.worker_count()) as cpu_executor,
+                ThreadPoolExecutor(1) as model_executor,
+            ):
+                rollout: RolloutPrediction = asyncio.run(rctx.project_rollout(
                     project=project,
                     pre_args=PreprocessArgs(),
                     decode_order=DecodingOrders.DoubleTraversal(),
                     cpu_executor=cpu_executor,
-                    model_executor=model_executor,
-                )
-            )
+                    model_executor=model_executor
+                ))
 
         self.logger.info("Registering artifacts...")
         self.register_artifact(rollout.predicted_sigmap)
+        self.register_artifact(rollout.logit_scores)
 
         return TT5ProjectApplier.collect_topn(
             project=mutable,
