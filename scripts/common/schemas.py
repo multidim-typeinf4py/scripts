@@ -47,7 +47,7 @@ class ExtendedInferredSchema(InferredSchema):
     # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
     simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
 
-class RepositoryInferredSchema(ExtendedInferredSchema):
+class RepositoryInferredSchema(InferredSchema):
     repository: pt.Series[str] = pa.Field(nullable=True, coerce=True)
 
 class ContextCategory(enum.IntEnum):
