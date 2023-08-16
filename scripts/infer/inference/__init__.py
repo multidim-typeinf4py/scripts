@@ -9,7 +9,7 @@ from .pyrequery import PyreQuery
 from .typilus import TypilusTop10, TypilusTop1, TypilusTop5
 from .t4py import Type4PyTop10, Type4PyTop1, Type4PyTop5
 from .tt5 import TypeT5Top1
-from .monkey import MonkeyType
+# from .monkey import MonkeyType
 
 from .hit4py import HiType4PyTop1
 from .hitypilus import HiTypilusTop1
@@ -35,7 +35,7 @@ SUPPORTED_TOOLS: dict[str, type[Inference]] = {
     #TypilusTop10.__name__.lower(): TypilusTop10,
     # TypeWriterTop10.__name__.lower(): TypeWriterTop10,
     # Dynamic inference
-    MonkeyType.__name__.lower(): MonkeyType,
+#    MonkeyType.__name__.lower(): MonkeyType,
     # TypeT5
     TypeT5Top1.__name__.lower(): TypeT5Top1,
     # TypeT5Top5.__name__.lower(): Type4PyTop5,
