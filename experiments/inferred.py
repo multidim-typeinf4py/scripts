@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import pandas as pd
 
 from scripts.common.output import InferredIO, ExtendedDatasetIO
@@ -11,7 +12,7 @@ from scripts.common.schemas import (
     RepositoryInferredSchema,
 )
 
-from scripts.dataset.normalisation import to_adjusted
+from scripts.dataset.normalisation import to_adjusted, to_base
 
 from scripts.infer.structure import DatasetFolderStructure
 
@@ -20,14 +21,14 @@ import pathlib
 
 
 def load_entire_inferred(
-    artifact_root: pathlib.Path,
-    dataset: DatasetFolderStructure,
-    tool_name: str,
-    task: TypeCollectionCategory | str,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure,
+        tool_name: str,
+        task: TypeCollectionCategory | str,
 ) -> pt.DataFrame[RepositoryInferredSchema]:
-    dfs: list[pt.DataFrame[InferredSchema]] = [InferredSchema.example(size=0)]
+    dfs: list[pt.DataFrame[RepositoryInferredSchema]] = [RepositoryInferredSchema.example(size=0)]
 
-    for repository in dataset.test_set():
+    for repository in (bar := tqdm(dataset.test_set())):
         inferred = InferredIO(
             artifact_root=artifact_root,
             dataset=dataset,
@@ -35,6 +36,8 @@ def load_entire_inferred(
             tool_name=tool_name,
             task=task,
         )
+        bar.set_description(str(inferred.full_location()))
+
         if inferred.full_location().exists():
             dfs.append(inferred.read().assign(repository=dataset.author_repo(repository)))
 
@@ -54,19 +57,20 @@ def load_entire_inferred(
 
 
 def load_groundtruths(
-    artifact_root: pathlib.Path,
-    dataset: DatasetFolderStructure,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure,
 ) -> pt.DataFrame[RepositoryTypeCollectionSchema]:
     dfs: list[pt.DataFrame[RepositoryTypeCollectionSchema]] = [
         RepositoryTypeCollectionSchema.example(size=0)
     ]
 
-    for repository in dataset.test_set():
+    for repository in (bar := tqdm(dataset.test_set())):
         ground_truth = ExtendedDatasetIO(
             artifact_root=artifact_root,
             dataset=dataset,
             repository=repository,
         )
+        bar.set_description(str(ground_truth.full_location()))
         if ground_truth.full_location().exists():
             assigned = (
                 ground_truth.read()
@@ -85,6 +89,7 @@ def load_groundtruths(
         ],
         keep=False,
     )
+
     return batched.pipe(pt.DataFrame[RepositoryTypeCollectionSchema])
 
 
@@ -107,16 +112,21 @@ def error_if_duplicate_keys(df: pt.DataFrame[SymbolSchema]) -> None:
 
 
 def join_truth_to_preds(
-    truth: pt.DataFrame[RepositoryTypeCollectionSchema],
-    predictions: pt.DataFrame[RepositoryInferredSchema],
+        truth: pt.DataFrame[RepositoryTypeCollectionSchema],
+        predictions: pt.DataFrame[RepositoryInferredSchema],
+        comparable_anno: str
 ) -> pd.DataFrame:
-    select_anno = truth.drop(
-        columns=[
-            ExtendedTypeCollectionSchema.raw_anno,
-            ExtendedTypeCollectionSchema.depth_limited_anno,
-            ExtendedTypeCollectionSchema.base_anno,
-        ]
-    ).rename({ExtendedTypeCollectionSchema.adjusted_anno: "anno"})
+    ignored = list(
+        {
+                       ExtendedTypeCollectionSchema.raw_anno,
+                       ExtendedTypeCollectionSchema.depth_limited_anno,
+                       ExtendedTypeCollectionSchema.base_anno,
+                       ExtendedTypeCollectionSchema.adjusted_anno
+                   }.difference([comparable_anno]))
+    select_anno = truth.drop(columns=ignored).rename(columns={comparable_anno: "gt_anno"})
+
+    print(predictions.columns)
+    print(select_anno.columns)
 
     df = pd.merge(
         left=select_anno,
@@ -130,17 +140,35 @@ def join_truth_to_preds(
         ],
         # validate="1:1",
     )
+
+    # Unify N/A representations
+    df[["gt_anno", RepositoryInferredSchema.anno]] = df[["gt_anno", RepositoryInferredSchema.anno]].fillna(pd.NA)
     return df
 
 
+def evaluatable(joined: pd.DataFrame) -> pd.DataFrame:
+    # remove entries without truth
+    missing_gt = joined["gt_anno"].isna()
+
+    # do not track attributes, self, cls
+    trivial_symbols = joined["qname"].str.endswith((".self", ".cls", ".args", ".kwargs"))
+
+    combined = ~missing_gt & ~trivial_symbols
+    cleaned = joined.loc[combined]
+
+    # change N/A to <MISSING> for evaluations
+    cleaned["anno"] = cleaned["anno"].fillna("<MISSING>")
+    return cleaned
+
+
 def typet5_adjusted_form(
-    df: pt.DataFrame[InferredSchema], anno: str = InferredSchema.anno
+        df: pt.DataFrame[InferredSchema], anno: str = InferredSchema.anno
 ) -> pt.DataFrame[InferredSchema]:
     import tqdm
-
     tqdm.tqdm.pandas()
 
     # Replace mask artifacts
+    df = df.copy()
     df[anno] = df[anno].replace(to_replace="...", value=pd.NA)
 
     # Dequalified
@@ -148,6 +176,27 @@ def typet5_adjusted_form(
 
     # remove None, Any
     trivial_mask = df[anno].isin(["None", "Any"])
-    df = df.drop(df[trivial_mask].index)
+    df = df[~trivial_mask]
+
+    return df
+
+
+
+def typet5_base_form(
+        df: pt.DataFrame[InferredSchema], anno: str = InferredSchema.anno
+) -> pt.DataFrame[InferredSchema]:
+    import tqdm
+    tqdm.tqdm.pandas()
+
+    # Replace mask artifacts
+    df = df.copy()
+    df[anno] = df[anno].replace(to_replace="...", value=pd.NA)
+
+    # Dequalified
+    df[anno] = df[anno].progress_apply(to_base)
+
+    # remove None, Any
+    trivial_mask = df[anno].isin(["None", "Any"])
+    df = df[~trivial_mask]
 
     return df
