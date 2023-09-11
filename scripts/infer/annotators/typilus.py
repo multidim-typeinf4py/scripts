@@ -28,9 +28,11 @@ class TypilusProjectApplier(ParallelTopNAnnotator[RichPath, RichPath]):
         paths2topn: RichPath,
         topn: int,
         typing_rules: pathlib.Path,
+        artifact_dir: pathlib.Path,
     ):
         super().__init__(context, paths2topn, topn)
         self.typing_rules = typing_rules
+        self.artifact_dir = artifact_dir
 
     def extract_predictions_for_file(
         self, path2topn: RichPath, path: pathlib.Path, topn: int
@@ -43,6 +45,7 @@ class TypilusProjectApplier(ParallelTopNAnnotator[RichPath, RichPath]):
             ppath=annotations.path,
             typing_rules=self.typing_rules,
             topn=self.topn,
+            artifact_out=self.artifact_dir,
         )
 
     def normalisation(self) -> Normalisation:
@@ -56,6 +59,7 @@ class TypilusFileApplier(codemod.Codemod):
         ppath: str,
         typing_rules: pathlib.Path,
         topn: int,
+        artifact_out: pathlib.Path,
     ) -> None:
         super().__init__(context)
         self.annotator = annotater.Annotater(
@@ -65,6 +69,7 @@ class TypilusFileApplier(codemod.Codemod):
             typing_rules=typing_rules,
         )
         self.topn = topn
+        self.artifact_out = artifact_out
 
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
         # try:
@@ -77,13 +82,39 @@ class TypilusFileApplier(codemod.Codemod):
             code = pathlib.Path(new_fpath).read_text()
             try:
                 return libcst.parse_module(code)
+
             except Exception:
                 print(self.context.filename, code)
+
+            finally:
+                import json, os
+
+                artifact_out = (
+                    self.artifact_out / self.context.filename.replace(os.sep, "-")
+                ).with_suffix(".artifact")
+                assert not artifact_out.is_file()
+
+                # print(self.context.filename, self.annotator.prediction_with_quals)
+                with artifact_out.open("w") as f:
+                    # print(
+                    #    self.context.filename,
+                    #    "->",
+                    #    artifact_out,
+                    #    "->",
+                    #    self.annotator.prediction_with_quals[:3],
+                    # )
+                    relfname = pathlib.Path(self.context.filename).relative_to(
+                        self.context.metadata_manager.root_path
+                    )
+                    json.dump(
+                        {str(relfname): self.annotator.prediction_with_quals},
+                        f,
+                        indent=2,
+                    )
+
         return tree
         #    code = tree.code
 
-        #except Exception as e:
+        # except Exception as e:
         #    print(code)
         #    raise e
-
-

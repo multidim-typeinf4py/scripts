@@ -9,7 +9,7 @@ import pandas as pd
 from libcst import codemod
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, eq=True)
 class AuthorRepo:
     author: str
     repo: str

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export MDTI4PY_CPUS=${MDTI4PY_CPUS:=12}
+export MDTI4PY_CPUS=${MDTI4PY_CPUS:=64}
 
 parameter_inference() {
     echo "Tool: $1 - Inferring: Parameters"
@@ -28,7 +28,7 @@ return_inference() {
 
 all_inference() {
     echo "Tool: $1 - TT5-Experiment"
-    poetry run python main.py tt5exp --dataset "$2" \
+    python main.py tt5exp --dataset "$2" \
         --tool "$1" \
         --outpath "$(dirname "$2")/$1"
 }

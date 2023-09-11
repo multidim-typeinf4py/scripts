@@ -10,6 +10,7 @@ import pandera.typing as pt
 from libcst import codemod
 
 from scripts.common.schemas import (
+    ContextCategory,
     ContextSymbolSchema,
     TypeCollectionCategory,
     TypeCollectionSchema,
@@ -66,19 +67,29 @@ class DatasetDependentIO(ArtifactIO[A]):
     def relative_location(self) -> pathlib.Path:
         ar = self.dataset.author_repo(self.repository)
         dataset_name = (
-            self.dataset if isinstance(self.dataset, str) else type(self.dataset).__name__
+            self.dataset
+            if isinstance(self.dataset, str)
+            else type(self.dataset).__name__
         )
         return pathlib.Path(dataset_name) / f"{ar!s}"
 
 
 class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
-    def __init__(self, artifact_root: pathlib.Path, dataset: DatasetFolderStructure | str, repository: pathlib.Path):
+    def __init__(
+        self,
+        artifact_root: pathlib.Path,
+        dataset: DatasetFolderStructure | str,
+        repository: pathlib.Path,
+    ):
         super().__init__(artifact_root, dataset, repository)
 
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
         return pd.read_csv(
             input_location,
-            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            converters={
+                ContextSymbolSchema.category: lambda c: TypeCollectionCategory[c],
+                # ContextSymbolSchema.context_category: lambda c: ContextCategory(int(c)),
+            },
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[ContextSymbolSchema])
@@ -108,17 +119,24 @@ class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
             input_location,
-            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            converters={
+                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
+            },
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[InferredSchema])
 
-    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
+    def _write(
+        self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path
+    ) -> None:
         return artifact.to_csv(output_location, index=False, na_rep="")
 
     def relative_location(self) -> pathlib.Path:
         return (
-            super().relative_location() / f"{self.tool_name}" / f"{str(self.task)}" / "inferred.csv"
+            super().relative_location()
+            / f"{self.tool_name}"
+            / f"{str(self.task)}"
+            / "inferred.csv"
         )
 
 
@@ -126,7 +144,9 @@ class DatasetIO(DatasetDependentIO[pt.DataFrame[TypeCollectionSchema]]):
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[TypeCollectionSchema]:
         return pd.read_csv(
             input_location,
-            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            converters={
+                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
+            },
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[TypeCollectionSchema])
@@ -157,10 +177,14 @@ class InferredLoggingIO:
 
 
 class ExtendedDatasetIO(DatasetDependentIO[pt.DataFrame[ExtendedTypeCollectionSchema]]):
-    def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ExtendedTypeCollectionSchema]:
+    def _read(
+        self, input_location: pathlib.Path
+    ) -> pt.DataFrame[ExtendedTypeCollectionSchema]:
         return pd.read_csv(
             input_location,
-            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            converters={
+                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
+            },
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[ExtendedTypeCollectionSchema])
@@ -192,12 +216,16 @@ class ExtendedInferredIO(DatasetDependentIO[pt.DataFrame[ExtendedInferredSchema]
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
         return pd.read_csv(
             input_location,
-            converters={TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]},
+            converters={
+                TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
+            },
             keep_default_na=False,
             na_values=[""],
         ).pipe(pt.DataFrame[InferredSchema])
 
-    def _write(self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path) -> None:
+    def _write(
+        self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path
+    ) -> None:
         return artifact.to_csv(output_location, index=False, na_rep="")
 
     def relative_location(self) -> pathlib.Path:

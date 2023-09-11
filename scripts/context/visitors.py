@@ -45,6 +45,7 @@ def generate_context_vectors(
         subset,
         max_workers=worker_count(),
         desc=f"Loading Source Code of {project}",
+        total=len(subset),
     )
 
     contexts = process_map(
@@ -53,6 +54,7 @@ def generate_context_vectors(
         csts,
         max_workers=worker_count(),
         desc=f"Building Context Vectors over {project}",
+        total=len(subset),
     )
     if not contexts:
         return ContextSymbolSchema.example(size=0)

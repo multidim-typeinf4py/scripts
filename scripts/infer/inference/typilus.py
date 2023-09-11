@@ -1,6 +1,8 @@
 import functools
+import gzip
 import json
 import pathlib
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import pandera.typing as pt
@@ -61,13 +63,19 @@ class Typilus(ProjectWideInference):
             predictions_out=mutable / "typilus-predictions.json.gz",
         )
 
-        self.logger.info("Register prediction artifact")
-        with (mutable / "typilus-predictions.json.gz").open("rb") as f:
-            self.register_artifact(f.read())
-
         # Apply annotations
         self.logger.info("Applying predictions...")
-        return self.annotate_and_collect(mutable, subset, pred_path)
+        with tempfile.TemporaryDirectory(prefix="typilus-artifacts") as f:
+            artifact_dir = pathlib.Path(f)
+            annotations = self.annotate_and_collect(mutable, subset, pred_path, artifact_dir=artifact_dir)
+
+            predictions = dict()
+            for artifact in artifact_dir.rglob("*.artifact"):
+                predictions.update(json.loads(artifact.read_text()))
+
+        self.logger.info("Registering prediction artifacts")
+        self.register_artifact(predictions)
+        return annotations
 
     def repo_to_dataset(self, repo: pathlib.Path) -> RichPath:
         test_dataset = repo / "inference-dataset"
@@ -122,6 +130,7 @@ class Typilus(ProjectWideInference):
         repo: pathlib.Path,
         subset: set[pathlib.Path],
         predictions: RichPath,
+        artifact_dir: pathlib.Path,
     ) -> pt.DataFrame[InferredSchema]:
         return TypilusProjectApplier.collect_topn(
             project=repo,
@@ -130,7 +139,10 @@ class Typilus(ProjectWideInference):
             topn=self.topn,
             tool=self,
             typing_rules=self.typing_rules,
+            artifact_dir=artifact_dir
         )
+
+
 
 
 class TypilusTopN(Typilus):

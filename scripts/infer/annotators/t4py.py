@@ -47,9 +47,15 @@ class Type4PyFileApplier(codemod.Codemod):
                     module=tree,
                     unsafe_skip_copy=True,
                 ).visit(TypeApplier(f_processeed_dict=self.predictions, apply_nlp=False))
-            except Exception:
+            except Exception as e:
                 print(f"Failed to annotate {self.context.filename}! Predictions were:")
                 pprint.pprint(self.predictions)
+                print(e)
+
+                import sys, traceback
+
+                traceback.print_exc()
+                sys.exit(1)
 
         # Always remove artifacts, even if annotation process was unsuccessful
         #without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(context=self.context).transform_module(

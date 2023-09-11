@@ -4,13 +4,13 @@ import pytest
 from scripts.common.schemas import InferredSchema, TypeCollectionSchema, TypeCollectionCategory
 
 from scripts.infer.inference import PyreInfer, PyreQuery, MyPy, _utils
-from scripts.infer.inference.hitypewriter import HiTypeWriterTop3
+#from scripts.infer.inference.hitypewriter import HiTypeWriterTop3
 from scripts.infer.inference.t4py import Type4PyTop3
-from scripts.infer.inference.typewriter import TypeWriterTop3
+#from scripts.infer.inference.typewriter import TypeWriterTop3
 from scripts.infer.inference.hit4py import HiType4PyTop3
 from scripts.infer.inference.hitypilus import HiTypilusTop3
-from scripts.infer.inference.tt5 import TypeT5Top3
-from scripts.infer.inference.typilus import TypilusTop3
+#from scripts.infer.inference.tt5 import TypeT5Top3
+from scripts.infer.inference.typilus import TypilusTop1
 from scripts.infer.inference import Inference
 
 from ._utils import (
@@ -24,13 +24,13 @@ from ._utils import (
 ce, me = _utils.cpu_executor(), _utils.model_executor()
 
 tools = [
-    (PyreInfer(), 1),
-    (PyreQuery(), 1),
-    (MyPy(), 1),
+    #(PyreInfer(), 1),
+    #(PyreQuery(), 1),
+    #(MyPy(), 1),
     #(Type4PyTop3(cpu_executor=ce, model_executor=me), 3),
     #(TypeWriterTop3(cpu_executor=ce, model_executor=me), 3),
     #(TypeT5Top3(), 3),
-    #(TypilusTop3(), 3),
+    (TypilusTop1(), 1),
     #(HiTypilusTop3(), 3),
     #(HiTypeWriterTop3(cpu_executor=ce, model_executor=me), 3),
     #(HiType4PyTop3(cpu_executor=ce, model_executor=me), 3),

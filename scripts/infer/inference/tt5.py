@@ -34,6 +34,10 @@ from scripts.infer.inference._utils import wrapped_partial
 from scripts.infer.preprocessers import tt5
 
 
+class _NoopPreproc(codemod.Codemod):
+    def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
+        return tree
+
 class TypeT5Applier(codemod.ContextAwareTransformer):
     def __init__(self, context: codemod.CodemodContext, predictions: SignatureMap) -> None:
         super().__init__(context)
@@ -81,6 +85,10 @@ class TypeT5TopN(ProjectWideInference):
         return f"TypeT5TopN{self.topn}"
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
+        task = os.environ.get("TASK")
+        if task is None or task == "all":
+            return _NoopPreproc(context=codemod.CodemodContext())
+
         return tt5.TT5Preprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(
