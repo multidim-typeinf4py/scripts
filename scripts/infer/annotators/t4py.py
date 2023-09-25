@@ -55,7 +55,6 @@ class Type4PyFileApplier(codemod.Codemod):
                 import sys, traceback
 
                 traceback.print_exc()
-                sys.exit(1)
 
         # Always remove artifacts, even if annotation process was unsuccessful
         #without_libsa4py_artifacts = RemoveLibSa4PyArtifacts(context=self.context).transform_module(

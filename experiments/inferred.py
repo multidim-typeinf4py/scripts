@@ -14,7 +14,7 @@ from scripts.common.schemas import (
     RepositoryInferredSchema,
 )
 
-from scripts.dataset.normalisation import to_adjusted, to_base
+from scripts.dataset.normalisation import to_adjusted, to_base, to_limited
 
 from scripts.infer.structure import DatasetFolderStructure
 
@@ -43,9 +43,9 @@ def load_entire_inferred(
         bar.set_description(str(inferred.full_location()))
 
         if inferred.full_location().exists():
-            dfs.append(
-                inferred.read().assign(repository=dataset.author_repo(repository))
-            )
+            infs = inferred.read()
+            if infs.anno.notna().any():
+                dfs.append(infs.assign(repository=dataset.author_repo(repository)))
 
     batched = (
         pd.concat(dfs)
@@ -62,13 +62,15 @@ def load_entire_inferred(
     batched[RepositoryInferredSchema.anno] = batched[
         RepositoryInferredSchema.anno
     ].replace("...", pd.NA)
+
+    print(f"Loaded {len(dfs) - 1} inference artifacts")
     return batched
 
 
 def load_groundtruths(
     artifact_root: pathlib.Path,
     dataset: DatasetFolderStructure,
-) -> pt.DataFrame[RepositoryTypeCollectionSchema]:
+) -> pd.DataFrame: # RepositoryTypeCollectionSchema + context_category + nested
     dfs: list[pt.DataFrame[RepositoryTypeCollectionSchema]] = [
         RepositoryTypeCollectionSchema.example(size=0)
     ]
@@ -81,12 +83,12 @@ def load_groundtruths(
         )
         bar.set_description(str(ground_truth.full_location()))
         if ground_truth.full_location().exists():
-            assigned = (
-                ground_truth.read()
-                .assign(repository=str(dataset.author_repo(repository)))
-                .pipe(pt.DataFrame[RepositoryTypeCollectionSchema])
-            )
-            dfs.append(assigned)
+            df = ground_truth.read()
+            if not df.empty:
+                df = df.assign(repository=str(dataset.author_repo(repository))).pipe(
+                    pt.DataFrame[RepositoryTypeCollectionSchema]
+                )
+                dfs.append(df)
 
     # Remove duplicates
     assert dfs
@@ -112,8 +114,10 @@ def load_groundtruths(
         )
         bar.set_description(str(context.full_location()))
         if context.full_location().exists():
-            df = context.read().assign(repository=str(dataset.author_repo(repository)))
-            contexts.append(df)
+            df = context.read()
+            if not df.empty:
+                df = df.assign(repository=str(dataset.author_repo(repository)))
+                contexts.append(df)
 
     assert contexts
     contexts_batch = pd.concat(contexts).drop_duplicates(
@@ -153,19 +157,17 @@ def load_groundtruths(
         )
     ]
 
-    return pt.DataFrame[RepositoryTypeCollectionSchema](
-        gt_ctxt.drop(
-            columns=[
-                ContextSymbolSchema.context_category,
-                ContextSymbolSchema.loop,
-                ContextSymbolSchema.reassigned,
-                ContextSymbolSchema.nested,
-                ContextSymbolSchema.flow_control,
-                ContextSymbolSchema.import_source,
-                ContextSymbolSchema.builtin_source,
-                ContextSymbolSchema.local_source,
-            ]
-        )
+    return gt_ctxt.drop(
+        columns=[
+            # ContextSymbolSchema.context_category,
+            ContextSymbolSchema.loop,
+            ContextSymbolSchema.reassigned,
+            # ContextSymbolSchema.nested,
+            ContextSymbolSchema.flow_control,
+            ContextSymbolSchema.import_source,
+            ContextSymbolSchema.builtin_source,
+            ContextSymbolSchema.local_source,
+        ]
     )
 
 
@@ -185,6 +187,9 @@ def error_if_duplicate_keys(df: pt.DataFrame[SymbolSchema]) -> None:
     )
     if duplicate_keys.any():
         raise RuntimeError(f"Duplicate keys in truth set:\n{df[duplicate_keys]}")
+
+
+# def type
 
 
 def join_truth_to_preds(
@@ -241,7 +246,20 @@ def evaluatable(
 
     # do not track attributes, self, cls
     trivial_symbols = joined["qname"].str.endswith(
-        (".self", ".cls", ".args", ".kwargs")
+        (
+            ".self",
+            ".cls",
+            ".args",
+            ".kwargs",
+            ".__init__",
+            ".__len__",
+            ".__str__",
+            ".__repr__",
+            ".__bool__",
+            ".__float__",
+            ".__int__",
+            "._",
+        )
     )
 
     combined = ~missing_gt & ~trivial_symbols
@@ -250,6 +268,22 @@ def evaluatable(
     # change N/A to <MISSING> for evaluations
     cleaned[clean_annos] = cleaned[clean_annos].fillna("<MISSING>")
     return cleaned
+
+
+def typet5_limited_form(
+    df: pt.DataFrame[InferredSchema], anno: str = InferredSchema.anno
+) -> pt.DataFrame[InferredSchema]:
+    import tqdm
+
+    tqdm.tqdm.pandas()
+
+    # Replace mask artifacts
+    df = df.copy()
+    df[anno] = df[anno].replace(to_replace="...", value=pd.NA)
+
+    # depth limited
+    df[anno] = df[anno].progress_apply(to_limited)
+    return df
 
 
 def typet5_adjusted_form(

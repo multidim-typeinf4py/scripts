@@ -3,7 +3,7 @@ import click
 
 # import logregr
 # import harness
-from scripts import context, dataset, infer, srcdiff, tt5exp, utils
+from scripts import context, dataset, domain, infer, srcdiff, tt5exp, utils, mt_copy
 
 # import hintdiff
 # import symbols
@@ -31,9 +31,11 @@ if __name__ == "__main__":
             tt5exp.cli_entrypoint,
             dataset.cli_entrypoint,
             context.cli_entrypoint,
+            domain.cli_entrypoint,
             # harness.cli_entrypoint,
             # symbols.cli_entrypoint,
             srcdiff.cli_entrypoint,
+            mt_copy.cli_entrypoint,
             # logregr.cli_entrypoint,
         ]
     )

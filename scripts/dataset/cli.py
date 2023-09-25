@@ -1,4 +1,5 @@
 import pathlib
+import sys
 
 import click
 import tqdm
@@ -95,7 +96,6 @@ def cli_entrypoint(
                     files=[str(sc / f) for f in subset],
                 )
                 print(utils.format_parallel_exec_result("Normalising codebase", res))
-
                 collection = build_type_collection(
                     root=sc,
                     allow_stubs=False,
@@ -130,7 +130,7 @@ def cli_entrypoint(
         ].progress_apply(lambda a: to_adjusted(a))
 
         extended_df[ExtendedTypeCollectionSchema.base_anno] = extended_df[
-            ExtendedTypeCollectionSchema.depth_limited_anno
+            ExtendedTypeCollectionSchema.adjusted_anno
         ].progress_apply(lambda a: to_base(a))
 
         extended_dataset_io.write(extended_df.pipe(

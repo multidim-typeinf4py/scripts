@@ -1,9 +1,8 @@
 import concurrent.futures
-import dataclasses
-import json
 import pathlib
 import shutil
 
+import numpy as np
 import click
 import pandas
 import tqdm
@@ -30,6 +29,15 @@ from .remover import TT5AllAnnotRemover
 from libcst import codemod
 from libcst._exceptions import ParserSyntaxError
 
+def dataset_split(
+    dataset: dict[pathlib.Path, set[pathlib.Path]], split: int | None = None
+) -> dict[pathlib.Path, set[pathlib.Path]]:
+    if split is None:
+        return dataset
+    assert 1 <= split <= 4
+    splits = np.array_split(list(dataset.items()), 4)
+    return dict(splits[split - 1])
+
 
 @click.command(
     name="tt5exp",
@@ -49,14 +57,18 @@ from libcst._exceptions import ParserSyntaxError
 @click.option(
     "-d",
     "--dataset",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Dataset to iterate over (can also be a singular project!)",
 )
 @click.option(
     "-o",
     "--outpath",
-    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path),
+    type=click.Path(
+        exists=False, file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
     required=True,
     help="Base folder for inference results to be written into",
 )
@@ -67,11 +79,20 @@ from libcst._exceptions import ParserSyntaxError
     default=False,
     help="Overwrite an existing output folder from previous run",
 )
+@click.option(
+    "-s",
+    "--split",
+    type=int,
+    required=False,
+    default=None,
+    help="If not specified, take entire test set. If specified, take nth / 4 split of test set",
+)
 def cli_entrypoint(
     tool: type[Inference],
     dataset: pathlib.Path,
     outpath: pathlib.Path,
     overwrite: bool,
+    split: int | None,
 ) -> None:
     import os
 
@@ -86,10 +107,13 @@ def cli_entrypoint(
     print("Dataset Kind:", structure)
 
     inference_tool = tool()
-    test_set = structure.test_set()
+
+    test_set = dataset_split(structure.test_set(), split=split)
 
     for project, subset in (pbar := tqdm.tqdm(test_set.items())):
         os.environ["REPOSITORY"] = str(project)
+        # if project.name != "srittau__FakeSMTPd":
+        #    continue
         pbar.set_description(desc=f"{project}")
 
         inference_io = output.InferredIO(
@@ -121,12 +145,14 @@ def cli_entrypoint(
                     f"Preprocessing repo by removing {task} annotations and other tool-specificities on ALL files"
                 )
                 result = codemod.parallel_exec_transform_with_prettyprint(
-                    transform=TT5AllAnnotRemover(context=codemod.CodemodContext()),
+                    transform=inference_tool.preprocessor(task="all"),
                     jobs=worker_count(),
                     files=codemod.gather_files([str(sc)]),
                     repo_root=str(sc),
                 )
-                print(format_parallel_exec_result(action="Preprocessing", result=result))
+                print(
+                    format_parallel_exec_result(action="Preprocessing", result=result)
+                )
 
                 # Run inference task for hour before aborting
                 # print("Starting inference task with 1h timeout")
@@ -142,14 +168,16 @@ def cli_entrypoint(
                     break
 
                 except ParserSyntaxError:
-                    inference_tool.logger.error(f"{project} - Failed to parse", exc_info=True)
+                    inference_tool.logger.error(
+                        f"{project} - Failed to parse", exc_info=True
+                    )
 
-                    #dump_folder = pathlib.Path.cwd() / ".broken"
-                    #inference_tool.logger.error(
+                    # dump_folder = pathlib.Path.cwd() / ".broken"
+                    # inference_tool.logger.error(
                     #    f"Dumping {sc} @ {dump_folder} for further examination",
                     #    exc_info=True,
-                    #)
-                    #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
+                    # )
+                    # shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
                     break
 
@@ -158,12 +186,12 @@ def cli_entrypoint(
                         f"{project} - Unhandled error occurred", exc_info=True
                     )
 
-                    #dump_folder = pathlib.Path.cwd() / ".broken"
-                    #inference_tool.logger.error(
+                    # dump_folder = pathlib.Path.cwd() / ".broken"
+                    # inference_tool.logger.error(
                     #    f"Dumping {sc} @ {dump_folder} for further examination",
                     #    exc_info=True,
-                    #)
-                    #shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
+                    # )
+                    # shutil.copytree(sc, dump_folder, dirs_exist_ok=True)
 
                     break
 

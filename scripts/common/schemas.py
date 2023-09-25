@@ -14,12 +14,17 @@ class TypeCollectionCategory(enum.Enum):
     def __str__(self) -> str:
         return self.name
 
+
 class SymbolSchema(pa.SchemaModel):
     file: pt.Series[str] = pa.Field()
     category: pt.Series[str] = pa.Field(isin=TypeCollectionCategory)
     qname: pt.Series[str] = pa.Field()
     qname_ssa: pt.Series[str] = pa.Field()
 
+
+class RepositoryDomainSchema(pa.SchemaModel):
+    repository: pt.Series[str] = pa.Field(nullable=False)
+    trove: pt.Series[str] = pa.Field(nullable=True)
 
 class TypeCollectionSchema(SymbolSchema):
     anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
@@ -30,6 +35,7 @@ class ExtendedTypeCollectionSchema(SymbolSchema):
     depth_limited_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     adjusted_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     base_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+
 
 class RepositoryTypeCollectionSchema(ExtendedTypeCollectionSchema):
     repository: pt.Series[str] = pa.Field(nullable=True, coerce=True)
@@ -45,10 +51,14 @@ class ExtendedInferredSchema(InferredSchema):
     parametric_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     # type_neutral_anno: pt.Series[str] = pa.Field(nullable=True, coerce=True)
     # common_or_rare: pt.Series[str] = pa.Field(nullable=True, isin=["common", "rare"])
-    simple_or_complex: pt.Series[str] = pa.Field(nullable=True, isin=["simple", "complex"])
+    simple_or_complex: pt.Series[str] = pa.Field(
+        nullable=True, isin=["simple", "complex"]
+    )
+
 
 class RepositoryInferredSchema(InferredSchema):
     repository: pt.Series[str] = pa.Field(nullable=True, coerce=True)
+
 
 class ContextCategory(enum.IntEnum):
     # -> f() -> ...
@@ -106,5 +116,3 @@ class ContextSymbolSchema(SymbolSchema):
 
     # Does the annotation attached require knowing the local scope
     local_source: pt.Series[int] = pa.Field()
-
-

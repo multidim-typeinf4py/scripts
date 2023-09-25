@@ -90,9 +90,6 @@ class TypeT5Joiner(ProbabilityJoiner):
         path = ProjectPath.from_annot_path(
             rel_path=pathlib.Path(file), p=annot_path(*key.split("."))
         )
-        if path not in probs:
-            print(f"WARNING: Could not find {path}")
-
         prob = probs.get(path, pd.NA)
         # print(file, qname, "->", prob)
         return prob

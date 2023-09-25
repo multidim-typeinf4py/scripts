@@ -85,10 +85,6 @@ class TypeT5TopN(ProjectWideInference):
         return f"TypeT5TopN{self.topn}"
 
     def preprocessor(self, task: TypeCollectionCategory) -> codemod.Codemod:
-        task = os.environ.get("TASK")
-        if task is None or task == "all":
-            return _NoopPreproc(context=codemod.CodemodContext())
-
         return tt5.TT5Preprocessor(context=codemod.CodemodContext(), task=task)
 
     def _infer_project(

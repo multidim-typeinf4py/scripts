@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import collections
+import collections, keyword
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
@@ -31,7 +31,8 @@ from libcst.metadata import (
     PositionProvider,
     ScopeProvider,
     FullyQualifiedNameProvider,
-    ClassScope, QualifiedNameProvider,
+    ClassScope,
+    QualifiedNameProvider,
 )
 
 from scripts.common import transformers as t
@@ -354,7 +355,9 @@ class MultiVarTypeCollector(
             return libcst.Attribute(libcst.Name("builtins"), libcst.Name("bool"))
 
         qualified_node = libcst.parse_expression(qualified_name)
-        assert isinstance(qualified_node, libcst.Name | libcst.Attribute), f"Cannot parse {qualified_name} into Name or Attribute, got {type(qualified_node)} instead"
+        assert isinstance(
+            qualified_node, libcst.Name | libcst.Attribute
+        ), f"Cannot parse {qualified_name} into Name or Attribute, got {type(qualified_node)} instead"
         return qualified_node  # pyre-ignore[7]
         # else:
         #    dequalified_node = node.attr if isinstance(node, libcst.Attribute) else node
@@ -381,10 +384,16 @@ class MultiVarTypeCollector(
         value = node.value
         if isinstance(value, NAME_OR_ATTRIBUTE):
             new_node = node.with_changes(value=self._handle_NameOrAttribute(value))
-        elif isinstance(value, libcst.Call) and isinstance(value.func, NAME_OR_ATTRIBUTE):
+        elif isinstance(value, libcst.Call) and isinstance(
+            value.func, NAME_OR_ATTRIBUTE
+        ):
             new_node = node.with_changes(value=self._handle_NameOrAttribute(value.func))
         else:
-            raise ValueError(f"Subscript value was not a Name or Attribute; was: {libcst.Module([value]).code} {type(value)}")
+            # Cannot grok subscript, replace with typing.Any
+            return libcst.Attribute(libcst.Name("typing"), libcst.Name("Any"))
+            raise ValueError(
+                f"Subscript value was not a Name or Attribute; was: {libcst.Module([value]).code} {type(value)}"
+            )
         if self._get_unique_qualified_name(node) in ("Type", "typing.Type"):
             # Note: we are intentionally not handling qualification of
             # anything inside `Type` because it's common to have nested
@@ -446,6 +455,9 @@ class MultiVarTypeCollector(
         elif m.matches(node, m.Call(m.Name() | m.Attribute())):
             return libcst.Annotation(annotation=self._handle_NameOrAttribute(node.func))
 
+        elif m.matches(node, m.Integer()):
+            return libcst.Annotation(annotation=libcst.Name("int"))
+
         else:
             code = libcst.Module([]).code_for_node(node)
             msg = f"{self.context.filename}: Unhandled annotation {code}"
@@ -473,6 +485,10 @@ class MultiVarTypeCollector(
         return parameters.with_changes(params=update_annotations(parameters.params))
 
     def _get_unique_qualified_name(self, node: libcst.CSTNode) -> str:
+        qname_whitelist = lambda qname: all(
+            n.isidentifier() or n == ""
+            for n in qname.replace(".<locals>.", ".").split(".")
+        )
         name = None
         names = [q.name for q in self.get_metadata(FullyQualifiedNameProvider, node)]
         if len(names) == 0:
@@ -482,14 +498,18 @@ class MultiVarTypeCollector(
             name = h.get_full_name_for_node_or_raise(node).replace(".<locals>.", ".")
         elif len(names) >= 1:
             without_relative_or_illegal = filter(
-                lambda qname: not qname.startswith(".") and "-" not in qname, names)
+                qname_whitelist,
+                names,
+            )
             name = next(without_relative_or_illegal, None)
 
         # Fallback to QualifiedNameProvider
         if name is None:
             names = [q.name for q in self.get_metadata(QualifiedNameProvider, node)]
             without_relative_or_illegal = filter(
-                lambda qname: not qname.startswith(".") and "-" not in qname, names)
+                qname_whitelist,
+                names,
+            )
             name = next(without_relative_or_illegal, None)
 
         if name is None:
@@ -498,10 +518,11 @@ class MultiVarTypeCollector(
                 "Could not resolve a unique qualified name for type "
                 + f"{get_full_name_for_node(node)} at {start.line}:{start.column}. "
                 + f"Candidate names were: {names!r}"
+                + f"\nFilename is: {self.context.filename}"
             )
 
         name = name.replace(".<locals>.", ".")
-        return name
+        return ".".join(s for s in name.lstrip(".").split(".") if not keyword.iskeyword(s))
 
 
 from libcst.codemod.visitors._apply_type_annotations import Annotations

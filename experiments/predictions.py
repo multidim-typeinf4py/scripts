@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from typet5.model import ModelWrapper
 
-UBIQUITOUS_TYPES = ["str", "int", "List", "bool", "float"]
+UBIQUITOUS_TYPES = ["str", "int", "List", "bool", "Dict"]
 # print(f"{UBIQUITOUS_TYPES=}", f"{COMMON_TYPES=}", sep="\n")
 
 
@@ -34,7 +34,7 @@ def common_types(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def rare_mask(df: pd.DataFrame) -> pd.DataFrame:
-    return ~ubiq_mask(df) & ~common_mask(df)
+    return ~ubiq_mask(df) & ~common_mask(df) & df["trait_gt_form"].notna()
 
 
 def rare_types(df: pd.DataFrame) -> pd.DataFrame:
@@ -65,44 +65,68 @@ def co_occurrences(
     # plt.tight_layout()
 
 
-def performance(evaluatable: pd.DataFrame, total: bool = False) -> pd.DataFrame:
+def performance(
+    evaluatable: pd.DataFrame,
+    *,
+    total: bool = False,
+    unsupported=list[TypeCollectionCategory]()
+) -> pd.DataFrame:
+    predictable = evaluatable[~evaluatable.category.isin(unsupported)]
+
     # Ensure masks do not overlap
     ut, ct, rt = (
-        ubiq_mask(evaluatable),
-        common_mask(evaluatable),
-        rare_mask(evaluatable),
+        ubiq_mask(predictable),
+        common_mask(predictable),
+        rare_mask(predictable),
     )
     ts = ut + ct + rt
-    print(ts[ts != 1])
     assert (ts == 1).all()
 
     # Separate DataFrame into subclasses of regarded type classes
 
-    evaluatable["class"] = np.select(
+    predictable["class"] = np.select(
         [
             ut,
             ct,
             rt,
-            evaluatable["trait_gt_form"].isna(),
+            predictable["trait_gt_form"].isna(),
         ],
-        choicelist=["ubiq", "common", "rare", "missing"],
+        choicelist=["ubiquitous", "common", "rare", "missing"],
         default="unknown",
     )
-    assert "unknown" not in evaluatable["class"]
+    assert "unknown" not in predictable["class"]
 
-    evaluatable["match"] = evaluatable.gt_anno == evaluatable.anno
+    predictable["match"] = predictable.gt_anno == predictable.anno
 
     groups = []
-    for clazz, group in evaluatable.groupby(by="class"):
-        ...
-        # df = pd.DataFrame.from_dict(
-        #     {
-        #         "observations": group.match.count,
-        #         "predictions": group.anno.count,
-        #         "unassigned": group.anno.isna().sum(),
-        #         "matches": group.match.sum(),
-        #     }
-        # )
+    for clazz, group in predictable.groupby(by="class"):
+        observations = group.match.count()
+        predictions = group.anno.count()
+
+        unassigned = group.anno.isna().sum()
+        matches = group.match.sum()
+
+        accuracy = (group.gt_anno == group.anno).sum() / len(group)
+
+        with_pred_mask = group.anno.notna()
+        nohole_accuracy = skm.accuracy_score(
+            y_true=group.gt_anno[with_pred_mask],
+            y_pred=group.anno[with_pred_mask],
+        )
+
+        groups.append(
+            pd.DataFrame(
+                {
+                    "observations": [observations],
+                    "predictions": [predictions],
+                    "unassigned": [unassigned],
+                    "matches": [matches],
+                    "stracc": [accuracy],
+                    "relacc": [nohole_accuracy],
+                },
+                index=[clazz],
+            )
+        )
 
         # sklearn perf metrics
         # df = df.assign(
@@ -140,7 +164,7 @@ def performance(evaluatable: pd.DataFrame, total: bool = False) -> pd.DataFrame:
 
         # groups.append(df)
 
-    perf = evaluatable.groupby(by="class").aggregate(
+    """     perf = evaluatable.groupby(by="class").aggregate(
         observations=pd.NamedAgg(column="match", aggfunc="count"),
         predictions=pd.NamedAgg(column="anno", aggfunc="count"),
         unassigned=pd.NamedAgg(column="anno", aggfunc=lambda x: x.isna().sum()),
@@ -150,7 +174,8 @@ def performance(evaluatable: pd.DataFrame, total: bool = False) -> pd.DataFrame:
             column="match",
             aggfunc=lambda x: skm.accuracy_score(y_true=np.ones(x.size), y_pred=x),
         ),
-    )
+    ) """
+    perf = pd.concat(groups).reindex(["ubiquitous", "common", "rare"])
 
     if total:
         weighted_total = pd.DataFrame(
@@ -159,10 +184,17 @@ def performance(evaluatable: pd.DataFrame, total: bool = False) -> pd.DataFrame:
                 "predictions": [perf.predictions.sum()],
                 "unassigned": [perf.unassigned.sum()],
                 "matches": [perf.matches.sum()],
-                "accuracy": [
+                "stracc": [
                     perf.apply(
-                        lambda row: row.accuracy
+                        lambda row: row.stracc
                         * (row.observations / perf.observations.sum()),
+                        axis=1,
+                    ).sum()
+                ],
+                "relacc": [
+                    perf.apply(
+                        lambda row: row.relacc
+                        * (row.predictions / perf.predictions.sum()),
                         axis=1,
                     ).sum()
                 ],
@@ -177,6 +209,30 @@ def performance(evaluatable: pd.DataFrame, total: bool = False) -> pd.DataFrame:
             "observations": int,
             "unassigned": int,
             "matches": int,
-            "accuracy": float,
+            "stracc": float,
+            "relacc": float,
         }
     )
+
+
+CATEGORY_KEYS = {
+    TypeCollectionCategory.CALLABLE_PARAMETER: "PARAMETER",
+    TypeCollectionCategory.CALLABLE_RETURN: "RETURN",
+    TypeCollectionCategory.VARIABLE: "VARIABLE",
+}
+
+def by_category_performance(
+    evaluatable: pd.DataFrame,
+    *,
+    total: bool = False,
+    unsupported=list[TypeCollectionCategory]()
+):
+    category_perf = []
+    for category, group in evaluatable.groupby(by="category", sort=False):
+        if category not in unsupported:
+            perf = performance(group, total=total, unsupported=unsupported)
+            category_perf.append(pd.concat([perf], keys=[CATEGORY_KEYS[category]], axis=0))
+
+    all_perf = performance(evaluatable, total=total, unsupported=unsupported)
+    category_perf.append(pd.concat([all_perf], keys=["ALL"], axis=0))
+    return pd.concat(category_perf)

@@ -8,12 +8,9 @@ from scripts.common.schemas import TypeCollectionCategory
 from typet5.experiments import type4py
 from typet5.experiments import utils
 
-from .tt5 import TT5AnnotationRemover
-
-
 class StaticPreprocessor(TaskPreprocessor):
     def transform_module_impl(self, tree: libcst.Module) -> libcst.Module:
-        rewritten = TT5AnnotationRemover(context=self.context, task=self.task).transform_module(tree)
+        rewritten = _StaticAnnotationRemover(context=self.context, task=self.task).transform_module(tree)
         return rewritten
 
 

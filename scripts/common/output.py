@@ -84,7 +84,7 @@ class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
         super().__init__(artifact_root, dataset, repository)
 
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[ContextSymbolSchema]:
-        return pd.read_csv(
+        df = pd.read_csv(
             input_location,
             converters={
                 ContextSymbolSchema.category: lambda c: TypeCollectionCategory[c],
@@ -92,7 +92,10 @@ class ContextIO(DatasetDependentIO[pt.DataFrame[ContextSymbolSchema]]):
             },
             keep_default_na=False,
             na_values=[""],
-        ).pipe(pt.DataFrame[ContextSymbolSchema])
+        )
+        if not df.empty:
+            df = df.pipe(pt.DataFrame[ContextSymbolSchema])
+        return df
 
     def _write(
         self, artifact: pt.DataFrame[ContextSymbolSchema], output_location: pathlib.Path
@@ -117,14 +120,18 @@ class InferredIO(DatasetDependentIO[pt.DataFrame[InferredSchema]]):
         self.task = str(task)
 
     def _read(self, input_location: pathlib.Path) -> pt.DataFrame[InferredSchema]:
-        return pd.read_csv(
+        df = pd.read_csv(
             input_location,
             converters={
                 TypeCollectionSchema.category: lambda c: TypeCollectionCategory[c]
             },
             keep_default_na=False,
             na_values=[""],
-        ).pipe(pt.DataFrame[InferredSchema])
+        )
+        
+        if not df.empty:
+            return df.pipe(pt.DataFrame[InferredSchema])
+        return InferredSchema.example(size=0)
 
     def _write(
         self, artifact: pt.DataFrame[InferredSchema], output_location: pathlib.Path

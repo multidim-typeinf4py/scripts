@@ -64,16 +64,24 @@ class CrossDomainTypes4Py(DatasetFolderStructure):
                 yield from repos
 
     def author_repo(self, repo: pathlib.Path) -> AuthorRepo:
-        return AuthorRepo(repo.parent.name, repo.name)
+        return AuthorRepo(repo.parent.name, f"{repo.parent.parent.name}-{repo.name}")
 
     def test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
-        ts = dict[pathlib.Path, set[pathlib.Path]]()
+        return self._load_csv("deduplicated.csv")
 
-        # TODO: Parse deduplication file, select all files regardless of split
-        # TODO: as we plan to use the entirety of CDT4Py for testing purposes
-        for project in self.project_iter():
-            subpyfiles = codemod.gather_files([str(project)])
-            ts[project] = set(map(lambda p: pathlib.Path(p).relative_to(project), subpyfiles))
+    def el_validation_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
+        return self._load_csv("validation.csv")
+
+    def el_test_set(self) -> dict[pathlib.Path, set[pathlib.Path]]:
+        return self._load_csv("test.csv")
+
+    def _load_csv(self, filename: str) -> dict[pathlib.Path, set[pathlib.Path]]:
+        deduplicated_file = self.dataset_root / filename
+        ts = dict[pathlib.Path, set[pathlib.Path]]()
+        for project, group in pd.read_csv(deduplicated_file).groupby("project"):
+            ts[self.dataset_root / project] = set(
+                map(pathlib.Path, group.file.tolist())
+            )
 
         return ts
 

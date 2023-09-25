@@ -5,6 +5,26 @@ from typet5 import PythonType
 from typet5.type_env import AccuracyMetric
 
 
+def to_full(anno: str | None) -> str | None:
+    if pd.isna(anno):
+        return None
+
+    try:
+        pt = PythonType.from_str(anno)
+    except SyntaxError:
+        return None
+
+    converter = AccuracyMetric(
+        set(),
+        relaxed_equality=False,
+        filter_none_any=False,
+        ignore_namespace=False,
+        name="full_acc",
+    )
+
+    return str(converter.process_type(pt))
+
+
 def to_limited(anno: str | None) -> str | None:
     if pd.isna(anno):
         return None

@@ -197,7 +197,9 @@ class HiTyper(ProjectWideInference, ABC):
         self.logger.info(f"Registering HiTyper's predictions...")
         with pathlib.Path(inferred_types_path).open() as ps:
             repo_predictions = json.load(ps)
-        assert repo_predictions, "HiTyper did not return any predictions!"
+        if not repo_predictions:
+            self.logger.error("HiTyper did not return any predictions!")
+            return InferredSchema.example(size=0)
         self.register_artifact(repo_predictions)
 
         self.logger.info(f"Registering transformed predictions...")
