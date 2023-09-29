@@ -10,6 +10,7 @@ import math
 import operator
 import os
 import pathlib
+import sys
 from typing import Iterator
 
 import astunparse
@@ -265,7 +266,7 @@ class Typilus2HiTyper(ModelAdaptor):
         from scripts.common.output import InferenceArtifactIO
 
         io = InferenceArtifactIO(
-            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent / f"typilustopn{self.topn()}",
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]),
             dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"typilusN{self.topn()}",
@@ -273,6 +274,8 @@ class Typilus2HiTyper(ModelAdaptor):
         )
 
         (cached_predictions,) = io.read()
+        print(type(cached_predictions))
+        sys.exit(1)
 
         # Load predictions from disk and perform same sifting
         # that annotator from typilus does, i.e. select using fpath
@@ -281,7 +284,7 @@ class Typilus2HiTyper(ModelAdaptor):
                 lambda p: any(f"/{s}" == p["provenance"] for s in subset),
                 (
                     prediction
-                    for batch in _load_json_gz(cached_predictions)
+                    for batch in cached_predictions
                     for prediction in batch
                 ),
             )

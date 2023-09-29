@@ -9,7 +9,9 @@ import matplotlib.pyplot as plt
 
 from typet5.model import ModelWrapper
 
-UBIQUITOUS_TYPES = ["str", "int", "List", "bool", "Dict"]
+# UBIQUITOUS_TYPES = ["str", "int", "List", "bool", "Dict"]
+UBIQUITOUS_TYPES = ["str", "int", "bool", "float", "Dict"]
+
 # print(f"{UBIQUITOUS_TYPES=}", f"{COMMON_TYPES=}", sep="\n")
 
 
@@ -22,11 +24,12 @@ def ubiquitous_types(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def common_mask(df: pd.DataFrame) -> pd.DataFrame:
-    most_common_types = df["trait_gt_form"].value_counts(ascending=False)
-    top100 = df["trait_gt_form"].isin(most_common_types.head(100).index)
+    type_frequency = df["trait_gt_form"].value_counts(ascending=False)
+    occurring_over_100 = type_frequency[type_frequency >= 100]
+    common = df["trait_gt_form"].isin(occurring_over_100.index)
     # Exclude ubiq types from common types
 
-    return top100 & ~ubiq_mask(df)
+    return common & ~ubiq_mask(df)
 
 
 def common_types(df: pd.DataFrame) -> pd.DataFrame:
@@ -51,9 +54,16 @@ def co_occurrences(
     unsupported=list[TypeCollectionCategory](),
 ):
     df = df[~df.category.isin(unsupported)]
+
+    predictions = df[pred].rename("predictions")
+    groundtruth = df[truth].rename("ground truth")
+
+    pred_other_mask = ~predictions.isin(groundtruth)
+    predictions[pred_other_mask] = "§OTHER"
+
     ct = pd.crosstab(
-        index=df[pred].rename("predictions"),
-        columns=df[truth].rename("ground truth"),
+        index=predictions,
+        columns=groundtruth,
         normalize="columns",
     ).sort_index(axis=0, ascending=True)
     below_threshold = ct[(ct >= threshold).any(axis=1)]
@@ -61,45 +71,54 @@ def co_occurrences(
     plt.figure(figsize=figsize)
     sns.heatmap(below_threshold.T, annot=True, ax=ax)
 
-    plt.setp(ax.yaxis.get_majorticklabels(), rotation=90)
+    # plt.setp(ax.xaxis.get_majorticklabels(), rotation=90)
+    # plt.setp(ax.yaxis.get_majorticklabels(), rotation=90)
     # plt.tight_layout()
 
 
 def performance(
     evaluatable: pd.DataFrame,
     *,
+    ubiq_types: pd.Series,
+    comm_types: pd.Series,
+    rare_types: pd.Series,
     total: bool = False,
-    unsupported=list[TypeCollectionCategory]()
 ) -> pd.DataFrame:
-    predictable = evaluatable[~evaluatable.category.isin(unsupported)]
+    assert ubiq_types.notna().all()
+    assert comm_types.notna().all()
+    assert rare_types.notna().all()
+
+    assert not (i := set(ubiq_types) & set(comm_types)), f"{i}"
+    assert not (i := set(comm_types) & set(rare_types)), f"{i}"
+    assert not (i := set(ubiq_types) & set(rare_types)), f"{i}"
 
     # Ensure masks do not overlap
-    ut, ct, rt = (
-        ubiq_mask(predictable),
-        common_mask(predictable),
-        rare_mask(predictable),
+    umask, cmask, rmask = (
+        evaluatable["trait_gt_form"].isin(ubiq_types),
+        evaluatable["trait_gt_form"].isin(comm_types),
+        evaluatable["trait_gt_form"].isin(rare_types),
     )
-    ts = ut + ct + rt
-    assert (ts == 1).all()
 
     # Separate DataFrame into subclasses of regarded type classes
-
-    predictable["class"] = np.select(
+    complete_mask = umask + cmask + rmask
+    assert (complete_mask == 1).all(), evaluatable[complete_mask != 1]
+    evaluatable["class"] = np.select(
         [
-            ut,
-            ct,
-            rt,
-            predictable["trait_gt_form"].isna(),
+            umask,
+            cmask,
+            rmask,
         ],
-        choicelist=["ubiquitous", "common", "rare", "missing"],
+        choicelist=["ubiquitous", "common", "rare"],
         default="unknown",
     )
-    assert "unknown" not in predictable["class"]
+    assert (
+        "unknown" not in evaluatable["class"]
+    ), f"{evaluatable[evaluatable['class'] == 'unknown']}"
 
-    predictable["match"] = predictable.gt_anno == predictable.anno
+    evaluatable["match"] = evaluatable.gt_anno == evaluatable.anno
 
     groups = []
-    for clazz, group in predictable.groupby(by="class"):
+    for clazz, group in evaluatable.groupby(by="class"):
         observations = group.match.count()
         predictions = group.anno.count()
 
@@ -221,18 +240,32 @@ CATEGORY_KEYS = {
     TypeCollectionCategory.VARIABLE: "VARIABLE",
 }
 
+
 def by_category_performance(
     evaluatable: pd.DataFrame,
     *,
+    ubiq_types: pd.Series,
+    comm_types: pd.Series,
+    rare_types: pd.Series,
     total: bool = False,
-    unsupported=list[TypeCollectionCategory]()
 ):
     category_perf = []
     for category, group in evaluatable.groupby(by="category", sort=False):
-        if category not in unsupported:
-            perf = performance(group, total=total, unsupported=unsupported)
-            category_perf.append(pd.concat([perf], keys=[CATEGORY_KEYS[category]], axis=0))
+        perf = performance(
+            group,
+            ubiq_types=ubiq_types,
+            comm_types=comm_types,
+            rare_types=rare_types,
+            total=total,
+        )
+        category_perf.append(pd.concat([perf], keys=[CATEGORY_KEYS[category]], axis=0))
 
-    all_perf = performance(evaluatable, total=total, unsupported=unsupported)
+    all_perf = performance(
+        evaluatable,
+        ubiq_types=ubiq_types,
+        comm_types=comm_types,
+        rare_types=rare_types,
+        total=total,
+    )
     category_perf.append(pd.concat([all_perf], keys=["ALL"], axis=0))
     return pd.concat(category_perf)

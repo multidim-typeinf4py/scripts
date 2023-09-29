@@ -207,7 +207,7 @@ def join_truth_to_preds(
         }.difference([comparable_anno])
     )
     select_anno = (
-        truth.assign(trait_gt_form=truth[ExtendedTypeCollectionSchema.base_anno])
+        truth.assign(trait_gt_form=truth[ExtendedTypeCollectionSchema.adjusted_anno])
         .drop(columns=ignored)
         .rename(columns={comparable_anno: "gt_anno"})
     )
@@ -242,7 +242,7 @@ def evaluatable(
     joined: pd.DataFrame, clean_annos: str | list[str] = "anno"
 ) -> pd.DataFrame:
     # remove entries without truth
-    missing_gt = joined["gt_anno"].isna()
+    missing_gt = joined["gt_anno"].isna() | joined["gt_anno"].isin(["None", "Any"])
 
     # do not track attributes, self, cls
     trivial_symbols = joined["qname"].str.endswith(
@@ -264,6 +264,7 @@ def evaluatable(
 
     combined = ~missing_gt & ~trivial_symbols
     cleaned = joined.loc[combined]
+
 
     # change N/A to <MISSING> for evaluations
     cleaned[clean_annos] = cleaned[clean_annos].fillna("<MISSING>")

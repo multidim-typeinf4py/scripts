@@ -183,6 +183,17 @@ class HiTyperPipeline(ModelPredictionPipeline):
     
     def supports_nested(self) -> bool:
         return False
+    
+
+class MonkeytypePipeline(ModelPredictionPipeline):
+    def context_kind(self) -> list[ContextCategory]:
+        return [
+            ContextCategory.CALLABLE_RETURN,
+            ContextCategory.CALLABLE_PARAMETER,
+        ]
+    
+    def supports_nested(self) -> bool:
+        return False
 
 
 def factory(
@@ -200,6 +211,10 @@ def factory(
             return TypeT5Pipeline(groundtruth).adjusted(inferred)
         case "HiTyper", "adjusted":
             return HiTyperPipeline(groundtruth).adjusted(inferred)
+        case "MonkeyType", "adjusted":
+            return MonkeytypePipeline(groundtruth).adjusted(inferred)
+
+        # 
         case "type4pyN1", "base":
             return Type4PyPipeline(groundtruth).base(inferred)
         case "typilusN1", "base":
@@ -208,3 +223,7 @@ def factory(
             return TypeT5Pipeline(groundtruth).base(inferred)
         case "HiTyper", "base":
             return HiTyperPipeline(groundtruth).base(inferred)
+        case "MonkeyType", "base":
+            return MonkeytypePipeline(groundtruth).base(inferred)
+        case _:
+            raise RuntimeError(f"Unknown selection: {tool=}, {form=}")

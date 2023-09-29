@@ -36,8 +36,7 @@ class TT5Adaptor(ModelAdaptor):
         from scripts.common.output import InferenceArtifactIO
 
         io = InferenceArtifactIO(
-            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]).parent
-            / f"typet5topn{self.topn()}",
+            artifact_root=pathlib.Path(os.environ["ARTIFACT_ROOT"]),
             dataset=DatasetFolderStructure(pathlib.Path(os.environ["DATASET_ROOT"])),
             repository=pathlib.Path(os.environ["REPOSITORY"]),
             tool_name=f"TypeT5TopN{self.topn()}",
@@ -47,7 +46,7 @@ class TT5Adaptor(ModelAdaptor):
         # No need to trim predictions; HiTyper does this for us via
         # tdg.recommendType(self, ..., topn)
         pred_assignments: SignatureMap
-        (pred_assignments,) = io.read()
+        (pred_assignments, logits) = io.read()
 
         # Make relative to temporary project root
         root = dict[str, ModelAdaptor.FilePredictions]()
